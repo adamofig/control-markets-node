@@ -1,0 +1,29 @@
+meta {
+  name: Chat Return Json
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:3330/api/ai-services/gemini/chat
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "tell me 5 contries in latin america"
+      }
+    ],
+    "model": {},
+    "returnJson": true
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

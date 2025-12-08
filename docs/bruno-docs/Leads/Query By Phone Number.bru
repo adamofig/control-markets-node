@@ -1,0 +1,26 @@
+meta {
+  name: Query By Phone Number
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://192.168.2.3:8121/api/lead
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name":"Nuevo Lead",
+    "description":"",
+     "assets": {"image":{ "url": "imge"}},
+    "type":"",
+    "phoneNumber": "55"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

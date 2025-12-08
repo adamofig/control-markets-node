@@ -1,0 +1,26 @@
+meta {
+  name: Create New lead
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://192.168.2.3:8121/api/lead
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    
+    "name":"Nuevo Lead",
+    "description":"",
+    "image":{},
+    "type":"",
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

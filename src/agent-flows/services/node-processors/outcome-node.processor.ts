@@ -1,0 +1,61 @@
+import { Injectable } from '@nestjs/common';
+import { LLMAdapterService, GeminiModels, AiServicesClient, ChatLLMRequestAdapter } from '@dataclouder/nest-vertex';
+import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
+import { IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
+import { ICanvasFlowDiagram, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/agent-flows/models/agent-flows.models';
+import { PromptBuilderService } from '../prompt-builder.service';
+import { INodeProcessor } from './inode.processor';
+import { FlowNodeSearchesService } from '../flow-searches.service';
+import { AgentTasksService } from 'src/agent-tasks/services/agent-tasks.service';
+import { ResponseFormat } from 'src/agent-flows/models/agent-flows.models';
+import { Logger } from '@nestjs/common';
+
+@Injectable()
+export class OutcomeNodeProcessor implements INodeProcessor {
+  private logger = new Logger(OutcomeNodeProcessor.name);
+  constructor(
+    private agentTaskService: AgentTasksService,
+    private chatLLMAdapterService: LLMAdapterService,
+    private aiServicesClient: AiServicesClient,
+    private agentJobService: AgentOutcomeJobService,
+    private promptBuilderService: PromptBuilderService,
+    private flowSearches: FlowNodeSearchesService
+  ) {}
+
+  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICanvasFlowDiagram): Promise<Partial<IExecutionResult>> {
+    this.logger.verbose(`Processing job type 🫆AgentNodeProcessor🫆 ${job.nodeType} for task ${task.entityId}`);
+
+    const agentTask: ILlmTask = await this.agentTaskService.findOne(task.entityId);
+    const outcomeNode = this.flowSearches.getNodeById(job.inputNodeId, flow);
+
+    const chatMessagesRequest = await this.promptBuilderService.build(agentTask, outcomeNode.data.nodeData, [], job.nodeType);
+
+    const response = await this.aiServicesClient.llm.chat({
+      messages: chatMessagesRequest as any,
+      model: { id: 'Gemini-2.5-flash', modelName: GeminiModels.Gemini2_5Flash, provider: 'google' },
+      returnJson: true,
+    });
+
+    // const response = await this.chatLLMAdapterService.chatAndExtractJson({
+    //   messages: chatMessagesRequest,
+    //   model: { id: 'Gemini-2.5-flash', modelName: GeminiModels.Gemini2_5Flash, provider: 'google' },
+    // });
+
+    const outcomeJob: IAgentOutcomeJob = {
+      task: agentTask,
+      agentCard: null,
+      messages: chatMessagesRequest as any,
+      result: response.json,
+      responseFormat: ResponseFormat.ARRAY,
+      inputNodeId: outcomeNode.id,
+    };
+
+    const jobCreated = await this.agentJobService.create(outcomeJob);
+
+    return {
+      status: StatusJob.COMPLETED,
+      outputEntityId: jobCreated.id,
+      resultType: 'outcome',
+    };
+  }
+}

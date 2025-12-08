@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notion Data Neat</title>
+    <link rel="icon" type="image/x-icon" href="/public/favicon.ico" />
+    <link rel="stylesheet" href="./css/shared.css" />
+    <style>
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: white;
+        padding: 40px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        margin-bottom: 20px;
+      }
+      .input-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px 0;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      input[type='text'] {
+        padding: 8px;
+        margin: 5px 0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        max-width: 300px;
+      }
+      #result {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <br />
+    <br />
+
+    <div class="container">
+      <h1>Notion DB Entries</h1>
+
+      <div class="input-section">
+        <h3>Get Database Entries</h3>
+        <input type="text" id="dbId" placeholder="Enter Database ID" />
+        <button id="getEntriesBtn" onclick="getDbEntries()">Get Entries</button>
+      </div>
+
+      <div id="result"></div>
+    </div>
+
+    <script src="./js/shared.js"></script>
+    <script>
+      async function getDbEntries() {
+        const dbId = document.getElementById('dbId').value.trim();
+        if (!dbId) {
+          document.getElementById('result').textContent = 'Please enter a database ID';
+          return;
+        }
+
+        const button = document.getElementById('getEntriesBtn');
+        button.disabled = true;
+        button.textContent = 'Loading...';
+
+        try {
+          const response = await fetch(`/notion/db-entries/${dbId}`);
+          const data = await response.json();
+          displayEntries(data);
+        } catch (error) {
+          document.getElementById('result').textContent = 'Error: ' + error.message;
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Get Entries';
+        }
+      }
+
+      function displayEntries(data) {
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = ''; // Clear previous content
+
+        if (!Array.isArray(data)) {
+          resultDiv.textContent = 'No entries found';
+          return;
+        }
+
+        const container = document.createElement('div');
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(300px, 1fr))';
+        container.style.gap = '20px';
+
+        data.forEach(entry => {
+          const card = document.createElement('div');
+          card.style.border = '1px solid #ddd';
+          card.style.borderRadius = '8px';
+          card.style.padding = '15px';
+          card.style.backgroundColor = 'white';
+          card.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+
+          // ID
+          const id = document.createElement('div');
+          id.style.fontSize = '0.7em';
+          id.style.color = '#999';
+          id.style.marginBottom = '8px';
+          id.style.wordBreak = 'break-all';
+          id.textContent = `ID: ${entry.id}`;
+
+          // Title
+          const title = document.createElement('h3');
+          title.style.margin = '0 0 10px 0';
+          title.style.color = '#333';
+          const titleText = entry.properties.Name.title[0]?.plain_text || 'Untitled';
+
+          const titleLink = document.createElement('a');
+          titleLink.href = entry.url;
+          titleLink.target = '_blank';
+          titleLink.style.color = '#4caf50';
+          titleLink.style.textDecoration = 'none';
+          titleLink.textContent = titleText;
+          title.appendChild(titleLink);
+
+          // Date
+          const date = document.createElement('div');
+          date.style.fontSize = '0.9em';
+          date.style.color = '#666';
+          date.style.marginBottom = '8px';
+          const dateValue = entry.properties.Fecha.date?.start || 'No date';
+          date.textContent = `Date: ${dateValue}`;
+
+          // Tags
+          const tags = document.createElement('div');
+          tags.style.display = 'flex';
+          tags.style.flexWrap = 'wrap';
+          tags.style.gap = '4px';
+          tags.style.marginBottom = '8px';
+
+          entry.properties.Tags.multi_select.forEach(tag => {
+            const tagSpan = document.createElement('span');
+            tagSpan.style.backgroundColor = '#f0f0f0';
+            tagSpan.style.padding = '2px 8px';
+            tagSpan.style.borderRadius = '12px';
+            tagSpan.style.fontSize = '0.8em';
+            tagSpan.style.color = '#666';
+            tagSpan.textContent = tag.name;
+            tags.appendChild(tagSpan);
+          });
+
+          // Last edited
+          const lastEdited = document.createElement('div');
+          lastEdited.style.fontSize = '0.8em';
+          lastEdited.style.color = '#999';
+          lastEdited.textContent = `Last edited: ${new Date(entry.last_edited_time).toLocaleDateString()}`;
+
+          // Append all elements
+          card.appendChild(id);
+          card.appendChild(title);
+          card.appendChild(date);
+          card.appendChild(tags);
+          card.appendChild(lastEdited);
+          container.appendChild(card);
+        });
+
+        resultDiv.appendChild(container);
+      }
+    </script>
+  </body>
+</html>

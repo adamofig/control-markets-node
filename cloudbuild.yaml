@@ -1,0 +1,59 @@
+# Deploy to Cloud Run
+steps:
+  - id: print-variables
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "=== Default Cloud Build Substitutions ==="
+        echo "Project ID: ${PROJECT_ID}"
+        echo "Build ID: ${BUILD_ID}"
+        echo "Project Number: ${PROJECT_NUMBER}"
+        echo "Location: ${LOCATION}"
+        echo ""
+        echo "=== Trigger-specific Substitutions ==="
+        echo "Trigger Name: ${TRIGGER_NAME}"
+        echo "Commit SHA: ${COMMIT_SHA}"
+        echo "Revision ID: ${REVISION_ID}"
+        echo "Short SHA: ${SHORT_SHA}"
+        echo "Repository Name: ${REPO_NAME}"
+        echo "Repository Full Name: ${REPO_FULL_NAME}"
+        echo "Branch Name: ${BRANCH_NAME}"
+        echo "Tag Name: ${TAG_NAME}"
+        echo "Ref Name: ${REF_NAME}"
+        echo "Trigger Build Config Path: ${TRIGGER_BUILD_CONFIG_PATH}"
+        echo "Service Account Email: ${SERVICE_ACCOUNT_EMAIL}"
+        echo "Service Account: ${SERVICE_ACCOUNT}"
+        echo ""
+        echo "=== Image that will be built ==="
+        echo "Image: ${_ARTIFACT_REPOSITORY}/${REPO_NAME}:${BRANCH_NAME}${TAG_NAME}"
+
+  - id: building-docker-image
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_ARTIFACT_REPOSITORY}/${REPO_NAME}:${BRANCH_NAME}${TAG_NAME}", "."]
+  
+  - id: pushing-image-to-repo
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_ARTIFACT_REPOSITORY}/${REPO_NAME}:${BRANCH_NAME}${TAG_NAME}"]
+  
+  - id: deploying-container-to-cloud-run
+    name: gcr.io/cloud-builders/gcloud-slim
+    args:
+      [
+        "run",
+        "deploy",
+        "node-server",
+        "--region=us-central1",
+        "--image=${_ARTIFACT_REPOSITORY}/${REPO_NAME}:${BRANCH_NAME}${TAG_NAME}",
+        "--platform=managed",
+        "--allow-unauthenticated",
+      ]
+
+# Add substitutions section
+substitutions:
+  _ARTIFACT_REPOSITORY: us-central1-docker.pkg.dev/${PROJECT_ID}/images
+  
+
+options:
+  logging: CLOUD_LOGGING_ONLY

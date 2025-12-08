@@ -1,0 +1,19 @@
+{
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "@dataclouder/notion": "<rootDir>/../libs/notion/src",
+    "@dataclouder/notion/(.*)": "<rootDir>/../libs/notion/src/$1",
+    "@dataclouder/nest-mongo": "<rootDir>/../libs/nest-mongo/src",
+    "@dataclouder/nest-mongo/(.*)": "<rootDir>/../libs/nest-mongo/src/$1"
+  }
+}

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notion Page Search</title>
+    <link rel="icon" type="image/x-icon" href="/public/favicon.ico" />
+    <link rel="stylesheet" href="./css/shared.css" />
+    <style>
+      .container {
+        margin-top: 50px;
+        max-width: 800px;
+        background-color: white;
+        padding: 40px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        margin-bottom: 20px;
+      }
+      .endpoint-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px 0;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      input[type='text'] {
+        padding: 8px;
+        margin: 5px 0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        max-width: 300px;
+      }
+      #result {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        white-space: pre-wrap;
+      }
+      #result h1 {
+        font-size: 1.8em;
+        color: #333;
+        margin-top: 1em;
+      }
+      #result h2 {
+        font-size: 1.5em;
+        color: #444;
+        margin-top: 0.8em;
+      }
+      #result h3 {
+        font-size: 1.2em;
+        color: #555;
+        margin-top: 0.6em;
+      }
+      #result p {
+        margin: 0.5em 0;
+      }
+      #result ul {
+        margin: 0.2em 0;
+        padding-left: 20px;
+      }
+      #result li {
+        margin: 0.2em 0;
+      }
+      .image-placeholder {
+        background: #f0f0f0;
+        padding: 1em;
+        text-align: center;
+        margin: 1em 0;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Notion Page Search</h1>
+
+      <div class="endpoint-section">
+        <h3>Get Notion Page</h3>
+        <input type="text" id="pageId" placeholder="Enter Page ID" />
+        <button onclick="getPageInfo()">Get Page Info</button>
+      </div>
+
+      <div class="endpoint-section">
+        <h3>Get Page Content</h3>
+        <input type="text" id="pageContentId" placeholder="Enter Page ID" />
+        <button onclick="getPageContent()">Get Page Content</button>
+      </div>
+
+      <div id="result"></div>
+    </div>
+
+    <script src="./js/shared.js"></script>
+    <script>
+      async function callEndpoint(endpoint) {
+        try {
+          const response = await fetch(endpoint);
+          const data = await response.json();
+
+          // If it's page content, render it specially
+          if (endpoint.includes('page-content')) {
+            renderPageContent(data);
+          } else {
+            document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+          }
+        } catch (error) {
+          document.getElementById('result').textContent = 'Error: ' + error.message;
+        }
+      }
+
+      async function renderPageContent(data) {
+        debugger;
+        if (!data.success || !data.page) {
+          document.getElementById('result').textContent = 'Invalid page data';
+          return;
+        }
+
+        const page = data.page;
+        let htmlContent = `<h1>${page.title} - ${page.id}</h1>`;
+
+        page.blocks.forEach(block => {
+          switch (block.type) {
+            case 'heading_1':
+              htmlContent += `<h1>${block.content}</h1>`;
+              break;
+            case 'heading_2':
+              htmlContent += `<h2>${block.content}</h2>`;
+              break;
+            case 'heading_3':
+              htmlContent += `<h3>${block.content}</h3>`;
+              break;
+            case 'paragraph':
+              if (block.content) {
+                htmlContent += `<p>${block.content}</p>`;
+              } else {
+                htmlContent += `<br>`;
+              }
+              break;
+            case 'bulleted_list_item':
+              htmlContent += `<ul><li>${block.content}</li></ul>`;
+              break;
+            case 'image':
+              htmlContent += `<div class="image-placeholder">[Image]</div>`;
+              break;
+            default:
+              htmlContent += `<p>${block.content}</p>`;
+          }
+        });
+
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = htmlContent;
+      }
+
+      async function getPageInfo() {
+        const pageId = document.getElementById('pageId').value;
+        if (!pageId) {
+          alert('Please enter a page ID');
+          return;
+        }
+        await callEndpoint(`/notion/page/${pageId}`);
+      }
+
+      async function getPageContent() {
+        const pageId = document.getElementById('pageContentId').value;
+        if (!pageId) {
+          alert('Please enter a page ID');
+          return;
+        }
+        await callEndpoint(`/notion/page-content/${pageId}`);
+      }
+    </script>
+  </body>
+</html>

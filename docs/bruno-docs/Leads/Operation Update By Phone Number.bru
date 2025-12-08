@@ -1,0 +1,30 @@
+meta {
+  name: Operation Update By Phone Number
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://192.168.2.3:8121/api/lead/operation
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "action": "updateOne",
+    "query": {
+      "phoneNumber": "+123456"
+    },
+    "payload": {
+      "$set": {
+        "messages": "Your message content here"
+      }
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

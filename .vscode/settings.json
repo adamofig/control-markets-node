@@ -1,0 +1,46 @@
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "[html]": {
+    "editor.formatOnSave":true,
+    "editor.formatOnPaste": true
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true
+  },
+  "[markdown]": {
+    "editor.formatOnSave": false,
+    "editor.wordWrap": "on",
+    "editor.renderWhitespace": "all",
+    "editor.acceptSuggestionOnEnter": "off"
+  },
+  "workbench.colorCustomizations": {
+    "activityBar.activeBorder": "#ffaa00",
+    "activityBar.border": "#ffaa00",
+    "activityBarTop.activeBorder": "#ffaa00",
+    "activityBarTop.foreground": "#ffaa00",
+    "activityBar.activeFocusBorder": "#ffaa00",
+    "activityBarTop.inactiveForeground": "#ffaa00",
+    "activityBarTop.dropBorder": "#ffaa00",
+    "tab.activeBorderTop": "#ffaa00",
+    "scrollbar.shadow": "#ffe6006e",
+    "scrollbarSlider.background": "#ffe60040",
+    "tab.border": "#ffaa00"
+  },
+  "editor.scrollbar.verticalScrollbarSize": 7,
+  "editor.scrollbar.horizontalScrollbarSize": 7,
+  "angular-schematics.schematicsDefaultOptions": {
+    "angular-*": {
+      "externalTemplate": true
+    },
+    "angular-component": {
+      "ngOnInit": true
+    }
+  }
+}
+

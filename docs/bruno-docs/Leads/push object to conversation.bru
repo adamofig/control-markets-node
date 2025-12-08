@@ -1,0 +1,34 @@
+meta {
+  name: push object to conversation
+  type: http
+  seq: 5
+}
+
+post {
+  url: http://192.168.2.3:8121/api/lead/operation
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "action": "updateOne",
+    "query": {
+      "phoneNumber": "+5215524250154"
+    },
+    "payload": {
+      "$push": {
+        "messages": {
+          "createdAt": 1733472000,
+          "role": "assistant",
+          "content": "Your message content here"
+        }
+      }
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
