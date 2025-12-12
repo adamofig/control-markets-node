@@ -27,7 +27,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 
 # NOTE ESTA linea es insegura, por ahora en lo que encuentro una mejor forma de montar como volumen desde coolify. 
-COPY --chown=node:node ./.cred /app/.cred
+# COPY --chown=node:node ./.cred /app/.cred
 
 # Expose the application port
 EXPOSE 3000
