@@ -29,7 +29,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
     "@dataclouder/nest-agent-cards": "^0.1.39",
-    "@dataclouder/nest-auth": "^0.0.18",
+    "@dataclouder/nest-auth": "^0.0.20",
     "@dataclouder/nest-core": "^0.0.19",
     "@dataclouder/nest-google-cloud": "^0.1.15",
     "@dataclouder/nest-knowledge": "^0.0.1",

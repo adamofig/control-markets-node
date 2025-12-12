@@ -17,6 +17,7 @@ export interface IUserOrganization {
 export interface IUser {
   _id?: any;
   id?: string;
+  fbId?: string;
   urlPicture: string;
   email: string;
   personalData: Partial<PersonalData>;

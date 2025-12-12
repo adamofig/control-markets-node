@@ -1,4 +1,4 @@
-import { AllExceptionsHandler } from '@dataclouder/nest-core';
+import { AllExceptionsHandler, AppException } from '@dataclouder/nest-core';
 import { Controller, Get, Param, Res, UseFilters } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { DecodedIdToken } from 'firebase-admin/auth';
@@ -6,7 +6,7 @@ import { AppHttpCode } from 'src/common/app-enums';
 import { DecodedToken } from 'src/common/token.decorator';
 import { AppUserService } from 'src/user/user.service';
 import { NestUsersService, UpdateUserClaims } from '@dataclouder/nest-users';
-import { AppAuthClaims, PermissionClaim, PlanType, RolClaim, RolType } from '@dataclouder/nest-auth';
+import { AppAuthClaims, AppToken, PermissionClaim, PlanType, RolClaim, RolType } from '@dataclouder/nest-auth';
 
 @ApiTags('init')
 @Controller('api/init/user')
@@ -18,14 +18,11 @@ export class InitController {
   ) {}
 
   @Get('/')
-  async getLoggedUserDataOrRegister(@DecodedToken() token: DecodedIdToken, @Res({ passthrough: true }) res): Promise<any> {
+  async getLoggedUserDataOrRegister(@DecodedToken() token: AppToken, @Res({ passthrough: true }) res): Promise<any> {
     console.log('Getting Data', token);
-    let user: any;
+    const user = await this.userService.findUserByEmail(token.email);
+
     if (user) {
-      if (!user.recommendations) {
-        user.recommendations = {} as any;
-        // TODO: Pending algorithm for recomendations.
-      }
       return user;
     } else {
       console.log('First time registered', token.uid);
@@ -37,10 +34,13 @@ export class InitController {
 
   @Get('/create-first-admin/:email')
   async createFirstAdmin(@Param('email') email: string) {
+    throw new AppException({ error_message: 'You need to refactor method. ', explanation: 'first admin need user id passed not only email, or lookup user by email and get id' });
+
     const authClaims: AppAuthClaims = {
       plan: { type: PlanType.Premium, exp: null },
       permissions: {} as PermissionClaim,
       roles: { [RolType.Admin]: null } as RolClaim,
+      userId: null,
     };
     const user = await this.usersAdminService.updateClaimsByEmail(email, authClaims);
     return user;

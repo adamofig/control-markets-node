@@ -31,7 +31,9 @@ export class AdminController {
       claims.plan.exp = new Date(claims.plan.exp);
     }
     // TODO: probably i need to change permissions to save in Date instead of string
-    const appClaims: AppAuthClaims = { plan: claims.plan, permissions: claims.permissions, roles: claims.roles };
+    const appClaims: AppAuthClaims = { plan: claims.plan, permissions: claims.permissions, roles: claims.roles, userId: null };
+
+    console.log('Double check this methods is not overwriting user claims userId. that is handled in updateClaimsByEmail ');
 
     const update = await this.adminService.updateClaimsByEmail(claims.email, appClaims);
     console.log('update', update);

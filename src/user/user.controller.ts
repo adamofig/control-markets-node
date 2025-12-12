@@ -9,7 +9,7 @@ import { AppUserService } from './user.service';
 import { AppHttpCode } from 'src/common/app-enums';
 import { IUser } from './user.class';
 import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
-import { AuthGuard } from '@dataclouder/nest-auth';
+import { AppToken, AuthGuard } from '@dataclouder/nest-auth';
 import { AppGuard } from '@dataclouder/nest-core';
 import { EntityController } from '@dataclouder/nest-mongo';
 import { OrganizationService } from 'src/organization/services/organization.service';
@@ -30,17 +30,18 @@ export class UserController extends EntityController<UserEntity> {
 
   // This is replace by the one in init.controller
   @Get('/logged')
-  async getLoggedUserDataOrRegister(@DecodedToken() token: DecodedIdToken, @Res({ passthrough: true }) res): Promise<any> {
+  async getLoggedUserDataOrRegister(@DecodedToken() token: AppToken, @Res({ passthrough: true }) res): Promise<any> {
     console.log('Getting user Data', token.uid);
-    const user = await this.userService.findUserById(token.uid);
+    const user = await this.userService.findUserByEmail(token.email);
 
     if (user) {
       return user;
     } else {
       res.status(AppHttpCode.GoodRefreshToken);
+      // This 2 should be toguether user and organization, if i need to refactor create ainit
       const user = await this.userService.registerWithToken(token);
-      const organization = await this.organizationService.save({ name: user.email, description: user.email, type: 'personal' }, user._id);
-      user.organization = organization;
+      const organization = await this.organizationService.save({ name: user.email, description: user.email, type: 'personal' }, user.id);
+      user.defaultOrgId = organization.id;
       await user.save();
       return user;
     }

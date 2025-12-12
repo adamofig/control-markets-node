@@ -1,0 +1,30 @@
+meta {
+  name: organizations
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://192.168.2.3:8121/api/agent-flows/operation
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "action": "find",
+    "query": {
+  
+        "id": "6937adf9dba754c29df1b225"
+      
+    },
+    "projection": {},
+    "options": {},
+    "payload": {}
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

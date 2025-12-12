@@ -36,8 +36,8 @@ export class FirebaseService {
   }
 
   public async updateClaimsByEmail(email: string, appClaims: AppAuthClaims): Promise<any> {
-    const user = await getAuth().getUserByEmail(email);
-    return await this.setClaims(user.uid, appClaims);
+    // const user = await getAuth().getUserByEmail(email);
+    return await this.updateClaimsByEmail(email, appClaims);
   }
 
   public async getClaimsByEmail(email: string): Promise<AppAuthClaims> {

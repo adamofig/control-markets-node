@@ -21,7 +21,7 @@ export class PromptBuilderService {
       return [messagesReq];
     }
 
-    const taskPrompt = task.description;
+    const taskPrompt = task?.prompt || task.description;
     if (sourceNodes.length > 0) {
       let agentSourceContent = '';
       for (const sourceNode of sourceNodes) {
@@ -31,7 +31,7 @@ export class PromptBuilderService {
 
       chatMessages.push({
         role: ChatRole.System,
-        content: `You are provided with information and sources try to use it, or at least take inspiration from it when perfroming the task: \n<context> ${agentSourceContent} \n</context>\n`,
+        content: `GOLDEN RULE: use the sources provided by user, take inspiration from it when perfroming the task: IMPORTANT, sources are provided is becouse user want to use it in your response performing the task \n<context> ${agentSourceContent} \n</context>\n`,
       });
     }
     if (task.taskType === AgentTaskType.CREATE_CONTENT) {

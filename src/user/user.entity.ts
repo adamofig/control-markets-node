@@ -2,11 +2,15 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { IUser, IUserOrganization, PersonalData, UserSettings } from './user.class';
 import { AppAuthClaims, AudioSpeed } from '@dataclouder/nest-auth';
+import { addIdAfterSave } from '@dataclouder/nest-mongo';
 
 @Schema({ collection: 'users' })
 export class UserEntity extends Document implements IUser {
   @Prop()
   id: string = '';
+
+  @Prop()
+  fbId: string = '';
 
   @Prop({ type: mongoose.Schema.Types.String, required: false })
   email: string;
@@ -53,3 +57,5 @@ export class UserEntity extends Document implements IUser {
 }
 
 export const UserSchema = SchemaFactory.createForClass(UserEntity);
+addIdAfterSave(UserSchema);
+UserSchema.index({ id: 1 });

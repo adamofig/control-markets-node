@@ -29,6 +29,7 @@ export type IAgentCardMinimal = Pick<IAgentCard, 'id' | 'assets' | 'title'> & { 
 export interface ILlmTask {
   _id?: string;
   id: string;
+
   agentCard: IAgentCardMinimal;
   agentCards: IAgentCardMinimal[];
   name: string;
