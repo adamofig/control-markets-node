@@ -87,10 +87,10 @@ export class AppUserService extends EntityCommunicationService<UserEntity> {
    * @param userId - The ID of the user to delete
    * @returns Promise resolving to the deletion result
    */
-  public async deleteUser(userId: string): Promise<any> {
-    const users = await this.userModel.deleteOne({ id: userId }).exec();
+  public async deleteUserByEmail(email: string): Promise<any> {
+    const users = await this.userModel.deleteOne({ email: email }).exec();
 
-    await this.firebaseService.deleteUser(userId);
+    await this.firebaseService.deleteUserByEmail(email);
     return users;
   }
 

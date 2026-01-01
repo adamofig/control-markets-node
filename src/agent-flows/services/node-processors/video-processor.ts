@@ -20,7 +20,7 @@ export class VideoGenNodeProcessor implements INodeProcessor {
   ) {}
 
   async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICanvasFlowDiagram): Promise<Partial<IExecutionResult>> {
-    this.logger.verbose(`Processing job type 🍊 ComfyVideoNodeProcessor🫆 ${job.nodeType} for task ${task.entityId}`);
+    this.logger.verbose(`Processing job type 🍊 VideoGenNodeProcessor ${job.nodeType} for task ${task.entityId}`);
 
     const inputNodeAsset = flow.nodes.find(node => node.id === job.inputNodeId);
     const processNodeGen = flow.nodes.find(node => node.id === job.processNodeId);
@@ -43,7 +43,7 @@ export class VideoGenNodeProcessor implements INodeProcessor {
     const newGeneratedAsset = await this.generatedAssetService.save(newAsset);
 
     try {
-      this.logger.log(`Generating video for asset ${newGeneratedAsset.id} using provider ${processNodeData.provider}`);
+      this.logger.log(`Calling AI Service: Generating video for asset ${newGeneratedAsset.id} using provider ${processNodeData.provider}...`);
       await this.clientAIService.video.generateFromAssetId(newGeneratedAsset.id);
 
       this.logger.log(`DONE Video generated for asset ${newGeneratedAsset.id}`);

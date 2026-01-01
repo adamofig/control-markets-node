@@ -17,7 +17,7 @@ export class AdminService {
       try {
         const userFB = await this.firebaseService.getUserByEmail(email);
         if (userFB) {
-          const result = await this.userService.deleteUser(userFB.uid);
+          const result = await this.userService.deleteUserByEmail(userFB.email);
           return result;
         }
       } catch (error) {
@@ -26,7 +26,7 @@ export class AdminService {
         throw new AppException({ error_message: 'No se encontro el usuario', explanation: error?.toString() });
       }
     }
-    const result = await this.userService.deleteUser(user.id);
+    const result = await this.userService.deleteUserByEmail(email);
     return result;
   }
 

@@ -203,7 +203,6 @@ export class AgentTasksService {
 
       const request: ChatLLMRequestAdapter = {
         messages: chatMessages as MessageLLM[],
-        provider: task.model?.provider || null,
         model: task.model || null,
         returnJson: true,
       };
