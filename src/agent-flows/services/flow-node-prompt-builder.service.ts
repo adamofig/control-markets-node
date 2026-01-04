@@ -43,7 +43,7 @@ export class NodePromptBuilderService {
   constructor() {}
 
   public getContextPrompts(nodes: IFlowNode[]): ChatMessage[] {
-    const groupedInputNodes = groupBy(nodes, item => item.component);
+    const groupedInputNodes = groupBy(nodes, item => item.config.component);
     const sourceNodes = groupedInputNodes[NodeType.SourcesNodeComponent] || [];
     let markdownContent = '';
 

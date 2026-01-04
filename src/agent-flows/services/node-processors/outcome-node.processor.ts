@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { LLMAdapterService, GeminiModels, AiServicesClient, ChatLLMRequestAdapter } from '@dataclouder/nest-vertex';
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
 import { IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
-import { ICanvasFlowDiagram, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/agent-flows/models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/agent-flows/models/agent-flows.models';
 import { PromptBuilderService } from '../prompt-builder.service';
 import { INodeProcessor } from './inode.processor';
 import { FlowNodeSearchesService } from '../flow-searches.service';
@@ -22,7 +22,7 @@ export class OutcomeNodeProcessor implements INodeProcessor {
     private flowSearches: FlowNodeSearchesService
   ) {}
 
-  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICanvasFlowDiagram): Promise<Partial<IExecutionResult>> {
+  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     this.logger.verbose(`Processing job type 🫆AgentNodeProcessor🫆 ${job.nodeType} for task ${task.entityId}`);
 
     const agentTask: ILlmTask = await this.agentTaskService.findOne(task.entityId);

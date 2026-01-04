@@ -2,11 +2,11 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
-import { ICanvasFlowDiagram, IFlowEdge, IFlowNode } from '../models/agent-flows.models';
+import { ICreativeFlowBoard, IFlowEdge, IFlowNode } from '../models/agent-flows.models';
 export type AgentFlowsDocument = AgentFlowsEntity & Document;
 
 @Schema({ collection: 'agent_flows', timestamps: true })
-export class AgentFlowsEntity implements ICanvasFlowDiagram {
+export class AgentFlowsEntity implements ICreativeFlowBoard {
   _id?: string;
 
   @Prop()

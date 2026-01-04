@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 
-import { ICanvasFlowDiagram, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/agent-flows/models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/agent-flows/models/agent-flows.models';
 import { INodeProcessor } from './inode.processor';
 
 import { Logger } from '@nestjs/common';
@@ -19,7 +19,7 @@ export class VideoGenNodeProcessor implements INodeProcessor {
     private flowsDbStateService: FlowsDbStateService
   ) {}
 
-  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICanvasFlowDiagram): Promise<Partial<IExecutionResult>> {
+  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     this.logger.verbose(`Processing job type 🍊 VideoGenNodeProcessor ${job.nodeType} for task ${task.entityId}`);
 
     const inputNodeAsset = flow.nodes.find(node => node.id === job.inputNodeId);

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ObjectId } from 'mongodb';
 import { FlowNodeSearchesService } from './flow-searches.service';
 import {
-  ICanvasFlowDiagram,
+  ICreativeFlowBoard,
   IFlowExecutionState,
   IJobExecutionState,
   IFlowNode,
@@ -15,7 +15,7 @@ import {
 export class FlowStateService {
   constructor(private agentFlowUtilsService: FlowNodeSearchesService) {}
 
-  public createInitialState(flow: ICanvasFlowDiagram, nodeId?: string): IFlowExecutionState {
+  public createInitialState(flow: ICreativeFlowBoard, nodeId?: string): IFlowExecutionState {
     const id = new ObjectId().toHexString();
     console.log('id', id);
 
@@ -27,7 +27,7 @@ export class FlowStateService {
       tasks: [],
     };
 
-    let processNodes = flow.nodes.filter(node => node.category === 'process');
+    let processNodes = flow.nodes.filter(node => node.config.category === 'process');
     if (nodeId) {
       processNodes = processNodes.filter(node => node.id === nodeId);
     }
@@ -37,12 +37,12 @@ export class FlowStateService {
     return newFlowState;
   }
 
-  private _assignJobsToTasks(flow: ICanvasFlowDiagram, processNodes: IFlowNode[], executionFlowState: IFlowExecutionState): void {
+  private _assignJobsToTasks(flow: ICreativeFlowBoard, processNodes: IFlowNode[], executionFlowState: IFlowExecutionState): void {
     for (const processNode of processNodes) {
       const inputNodes = this.agentFlowUtilsService.getInputNodes(processNode.id, flow);
       // AgentNodeComponent and OutcomeNodeComponent are nodes valid to create a job.
-      const inputTaskableNodes = inputNodes.filter(node => node.category === 'input'); // Me parece que esta de más todos deberian ser inputs, pero lo voy a dejar por si acaso.
-      const inputValidJobsNodes = inputTaskableNodes.filter(node => node.component != NodeType.SourcesNodeComponent);
+      const inputTaskableNodes = inputNodes.filter(node => node.config.category === 'input'); // Me parece que esta de más todos deberian ser inputs, pero lo voy a dejar por si acaso.
+      const inputValidJobsNodes = inputTaskableNodes.filter(node => node.config.component != NodeType.SourcesNodeComponent);
       // SourcesNodeComponent add information to the flow but don't create a job.
       const executionTask = executionFlowState.tasks.find(t => t.processNodeId === processNode.id);
       if (executionTask) {
@@ -58,7 +58,7 @@ export class FlowStateService {
   }
 
   private _createJobStates(
-    flow: ICanvasFlowDiagram,
+    flow: ICreativeFlowBoard,
     inputNodes: IFlowNode[],
     taskExecutionId: string,
     flowExecutionId: string,

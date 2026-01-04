@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AgentFlowsEntity, AgentFlowsDocument } from '../schemas/agent-flows.schema';
-import { ICanvasFlowDiagram, IExecutionResult, IFlowExecutionState, NodeType } from '../models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IFlowExecutionState, NodeType } from '../models/agent-flows.models';
 import { AddNodesDto, WebhookNodeDto } from '../models/agent-flows.dto';
 import { MongoService } from '@dataclouder/nest-mongo';
 import { CloudStorageService } from '@dataclouder/nest-storage';
@@ -56,7 +56,7 @@ export class AgentFlowsService extends EntityCommunicationService<AgentFlowsDocu
 
   public async runNodev2(flowId: string, nodeId: string): Promise<IFlowExecutionState> {
     this.logger.verbose(`Running node ${nodeId} for flow ${flowId}`);
-    const flow: ICanvasFlowDiagram = await this.findOne(flowId);
+    const flow: ICreativeFlowBoard = await this.findOne(flowId);
     const flowExecutionState: IFlowExecutionState = this.flowStateService.createInitialState(flow, nodeId);
     await this.flowsDbStateService.createFirebaseLog(flowExecutionState);
     const result = await this.flowExecutionStateService.save(flowExecutionState, flowExecutionState.flowExecutionId);
@@ -67,7 +67,7 @@ export class AgentFlowsService extends EntityCommunicationService<AgentFlowsDocu
 
   public async runAndWait(flowId: string, nodeId: string): Promise<any> {
     this.logger.verbose(`Running node ${nodeId} for flow ${flowId}`);
-    const flow: ICanvasFlowDiagram = await this.findOne(flowId);
+    const flow: ICreativeFlowBoard = await this.findOne(flowId);
     const flowExecutionState: IFlowExecutionState = this.flowStateService.createInitialState(flow, nodeId);
     await this.flowsDbStateService.createFirebaseLog(flowExecutionState);
     const result = await this.flowExecutionStateService.save(flowExecutionState, flowExecutionState.flowExecutionId);
@@ -86,7 +86,7 @@ export class AgentFlowsService extends EntityCommunicationService<AgentFlowsDocu
   public async runTaskNode(body: WebhookNodeDto) {
     this.logger.verbose(`Running task node ${body.nodeId} for flow ${body.flowId}`);
     // Step One get the Flow
-    const flow: ICanvasFlowDiagram = await this.findOne(body.flowId);
+    const flow: ICreativeFlowBoard = await this.findOne(body.flowId);
     // Step 2 get the Task Node.
     const taskNode = flow.nodes.find(node => node.id === body.nodeId);
 
@@ -137,7 +137,7 @@ export class AgentFlowsService extends EntityCommunicationService<AgentFlowsDocu
     const { flowId, nodes, edges } = body;
 
     for (const node of nodes) {
-      if (!node.component || !Object.values(NodeType).includes(node.component)) {
+      if (!node.config.component || !Object.values(NodeType).includes(node.config.component)) {
         throw new AppException({ error_message: 'You must add a valid node component', explanation: Object.values(NodeType).join(', ') });
       }
       if (!node.point) {

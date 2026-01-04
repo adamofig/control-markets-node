@@ -26,13 +26,22 @@ export enum NodeCategory {
   OUTPUT = 'output',
 }
 
+export interface INodeConfig {
+  component: NodeType;
+  category: NodeCategory;
+  color?: string;
+  icon?: string;
+  label?: string;
+}
+
 export interface IFlowNode {
   id: string;
   point: { x: number; y: number };
   type: NodeType; // Is the class of the component but selialized to string.
   data: NodeData;
-  category: NodeCategory; // input, output, process, other.
-  component: NodeType; // The name of the component.
+  // category: NodeCategory; // input, output, process, other.
+  // component: NodeType; // The name of the component.
+  config: INodeConfig;
 }
 
 export enum StatusJob {
@@ -57,7 +66,7 @@ export class MessageLog {
   createdAt: Date;
 }
 
-export interface ICanvasFlowDiagram {
+export interface ICreativeFlowBoard {
   _id?: string;
   id: string;
   orgId: string;

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ICanvasFlowDiagram, IFlowEdge, IFlowNode, NodeType } from '../models/agent-flows.models';
+import { ICreativeFlowBoard, IFlowEdge, IFlowNode, NodeType } from '../models/agent-flows.models';
 
 @Injectable()
 export class FlowNodeSearchesService {
@@ -12,32 +12,32 @@ export class FlowNodeSearchesService {
     return sourceIds;
   }
 
-  public getInputNodes(nodeId: string, agentFlows: ICanvasFlowDiagram): IFlowNode[] {
+  public getInputNodes(nodeId: string, agentFlows: ICreativeFlowBoard): IFlowNode[] {
     const inputsIds = this.getInputs(nodeId, agentFlows.edges);
     const allNodes = agentFlows.nodes;
     return allNodes.filter(node => inputsIds.includes(node.id));
   }
 
-  public getFirstInputNodeOfType(nodeId: string, agentFlows: ICanvasFlowDiagram, type: NodeType): IFlowNode | undefined {
+  public getFirstInputNodeOfType(nodeId: string, agentFlows: ICreativeFlowBoard, type: NodeType): IFlowNode | undefined {
     const inputNodes = this.getInputNodes(nodeId, agentFlows);
     if (inputNodes.length === 0) {
       return undefined;
     }
-    return inputNodes.find(node => node.component === type);
+    return inputNodes.find(node => node.config.component === type);
   }
 
-  public getOutputNodes(nodeId: string, agentFlows: ICanvasFlowDiagram): IFlowNode[] {
+  public getOutputNodes(nodeId: string, agentFlows: ICreativeFlowBoard): IFlowNode[] {
     const edgesWhereSourceIsNode = agentFlows.edges.filter(edge => edge.source === nodeId);
     const targetIds = edgesWhereSourceIsNode.map(edge => edge.target);
     const allNodes = agentFlows.nodes;
     return allNodes.filter(node => targetIds.includes(node.id));
   }
 
-  public getNodeById(nodeId: string, agentFlows: ICanvasFlowDiagram): IFlowNode {
+  public getNodeById(nodeId: string, agentFlows: ICreativeFlowBoard): IFlowNode {
     return agentFlows.nodes.find(node => node.id === nodeId);
   }
 
-  findProcessSources(flow: ICanvasFlowDiagram, processNodeId: string): IFlowNode[] {
+  findProcessSources(flow: ICreativeFlowBoard, processNodeId: string): IFlowNode[] {
     const processNode = flow.nodes.find(node => node.id === processNodeId);
     console.log(processNode);
     const edgesWhereTargetIsProcess = flow.edges.filter(edge => edge.target === processNodeId);

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ICanvasFlowDiagram, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType } from '../models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType } from '../models/agent-flows.models';
 import { AgentNodeProcessor } from './node-processors/agent-node.processor';
 import { OutcomeNodeProcessor } from './node-processors/outcome-node.processor';
 import { INodeProcessor } from './node-processors/inode.processor';
@@ -21,7 +21,7 @@ export class NodeProcessorService {
     this.processors.set(NodeType.AssetsNodeComponent, this.assetsNodeProcessor);
   }
 
-  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICanvasFlowDiagram): Promise<Partial<IExecutionResult>> {
+  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     if (job.nodeType === NodeType.AgentNodeComponent) {
       return this.agentNodeProcessor.processJob(job, task, flow);
     }

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ICanvasFlowDiagram, IExecutionResult, IFlowExecutionState, IJobExecutionState, StatusJob } from '../models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IFlowExecutionState, IJobExecutionState, StatusJob } from '../models/agent-flows.models';
 import { FlowExecutionStateService } from './flow-execution-state.service';
 import { FlowsDbStateService } from './flows-db-state.service';
 import { NodeProcessorService } from './node-processor.service';
@@ -22,7 +22,7 @@ export class FlowRunnerService {
     this.flowEventsService.emit(flowExecutionState.id, flowExecutionState);
   }
 
-  public async initExecution(flowDiagram: ICanvasFlowDiagram, flowExecutionState: IFlowExecutionState): Promise<Partial<IExecutionResult>[]> {
+  public async initExecution(flowDiagram: ICreativeFlowBoard, flowExecutionState: IFlowExecutionState): Promise<Partial<IExecutionResult>[]> {
     // TODO: antes no regresaba nada.
     this.logger.verbose(`initExecution() Running flow ${flowDiagram.id}`);
     flowExecutionState.status = StatusJob.IN_PROGRESS;

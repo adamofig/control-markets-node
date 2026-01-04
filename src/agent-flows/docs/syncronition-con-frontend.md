@@ -2,7 +2,7 @@
 
 This document outlines the technical process for establishing real-time data synchronization between the Angular frontend and the NestJS backend.
 
-The primary object requiring synchronization is the `ICanvasFlowDiagram`, which represents the user's workflow canvas. The core operations involve updating nodes (`IFlowNode`) and edges (`IFlowEdge`).
+The primary object requiring synchronization is the `ICreativeFlowBoard`, which represents the user's workflow canvas. The core operations involve updating nodes (`IFlowNode`) and edges (`IFlowEdge`).
 
 ### Core Concepts and Problem Statement
 

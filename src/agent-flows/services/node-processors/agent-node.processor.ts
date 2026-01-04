@@ -3,7 +3,7 @@ import { IAgentCard, AgentCardService } from '@dataclouder/nest-agent-cards';
 import { AiServicesClient, LLMAdapterService, MessageLLM } from '@dataclouder/nest-vertex';
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
 import { AgentTaskType, IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
-import { ICanvasFlowDiagram, IExecutionResult, IJobExecutionState, ITaskExecutionState, ResponseFormat, StatusJob } from 'src/agent-flows/models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, ResponseFormat, StatusJob } from 'src/agent-flows/models/agent-flows.models';
 import { PromptBuilderService } from '../prompt-builder.service';
 import { INodeProcessor } from './inode.processor';
 import { AgentTasksService } from 'src/agent-tasks/services/agent-tasks.service';
@@ -23,7 +23,7 @@ export class AgentNodeProcessor implements INodeProcessor {
     private flowSearches: FlowNodeSearchesService
   ) {}
 
-  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICanvasFlowDiagram): Promise<Partial<IExecutionResult>> {
+  async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     this.logger.verbose(`Processing job type 🫆AgentNodeProcessor🫆 ${job.nodeType} for task ${task.entityId}`);
 
     const agentTask: ILlmTask = await this.agentTaskService.findOne(task.entityId);
