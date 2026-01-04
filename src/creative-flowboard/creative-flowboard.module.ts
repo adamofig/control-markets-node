@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AgentFlowsController } from './controllers/agent-flows.controller';
-import { AgentFlowsService } from './services/agent-flows.service';
-import { AgentFlowsEntity, AgentFlowsSchema } from './schemas/agent-flows.schema';
+import { CreativeFlowboardController } from './controllers/creative-flowboard.controller';
+import { CreativeFlowboardService } from './services/creative-flowboard.service';
+import { FlowBoardEntity, CreativeFlowboardSchema } from './schemas/creative-flowboard.schema';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { NestStorageModule } from '@dataclouder/nest-storage';
 import { FlowsDbStateService } from './services/flows-db-state.service';
@@ -27,7 +27,7 @@ import { ChatwootService } from './integrations/chatwoot.service';
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: AgentFlowsEntity.name, schema: AgentFlowsSchema },
+      { name: FlowBoardEntity.name, schema: CreativeFlowboardSchema },
       { name: FlowExecutionStateEntity.name, schema: FlowExecutionStateSchema },
     ]),
     DCMongoDBModule,
@@ -37,9 +37,9 @@ import { ChatwootService } from './integrations/chatwoot.service';
     AgentsModule,
     NestVertexModule,
   ],
-  controllers: [AgentFlowsController],
+  controllers: [CreativeFlowboardController],
   providers: [
-    AgentFlowsService,
+    CreativeFlowboardService,
     FlowsDbStateService,
     FlowNodeSearchesService,
     FlowRunnerService,
@@ -55,6 +55,6 @@ import { ChatwootService } from './integrations/chatwoot.service';
     NodePromptBuilderService,
     ChatwootService,
   ],
-  exports: [AgentFlowsService, FlowsDbStateService, FlowExecutionStateService],
+  exports: [CreativeFlowboardService, FlowsDbStateService, FlowExecutionStateService],
 })
-export class AgentFlowsModule {}
+export class CreativeFlowboardModule {}

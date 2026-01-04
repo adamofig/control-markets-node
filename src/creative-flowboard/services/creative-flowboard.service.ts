@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { AgentFlowsEntity, AgentFlowsDocument } from '../schemas/agent-flows.schema';
-import { ICreativeFlowBoard, IExecutionResult, IFlowExecutionState, NodeType } from '../models/agent-flows.models';
-import { AddNodesDto, WebhookNodeDto } from '../models/agent-flows.dto';
+import { FlowBoardEntity, CreativeFlowboardDocument } from '../schemas/creative-flowboard.schema';
+import { ICreativeFlowBoard, IExecutionResult, IFlowExecutionState, NodeType } from '../models/creative-flowboard.models';
+import { AddNodesDto, WebhookNodeDto } from '../models/creative-flowboard.dto';
 import { MongoService } from '@dataclouder/nest-mongo';
 import { CloudStorageService } from '@dataclouder/nest-storage';
 import { FlowsDbStateService } from './flows-db-state.service';
@@ -21,11 +21,11 @@ import { AppException } from '@dataclouder/nest-core';
 import { AgentCardService, ChatMessage } from '@dataclouder/nest-agent-cards';
 
 @Injectable()
-export class AgentFlowsService extends EntityCommunicationService<AgentFlowsDocument> {
-  private logger = new Logger(AgentFlowsService.name);
+export class CreativeFlowboardService extends EntityCommunicationService<CreativeFlowboardDocument> {
+  private logger = new Logger(CreativeFlowboardService.name);
   constructor(
-    @InjectModel(AgentFlowsEntity.name)
-    protected agentFlowsModel: Model<AgentFlowsDocument>,
+    @InjectModel(FlowBoardEntity.name)
+    protected creativeFlowboardModel: Model<CreativeFlowboardDocument>,
     protected mongoService: MongoService,
     protected cloudStorageService: CloudStorageService,
     private flowsDbStateService: FlowsDbStateService,
@@ -40,11 +40,11 @@ export class AgentFlowsService extends EntityCommunicationService<AgentFlowsDocu
     private aiServicesClient: AiServicesClient,
     private agentCardService: AgentCardService
   ) {
-    super(agentFlowsModel, mongoService);
+    super(creativeFlowboardModel, mongoService);
   }
 
   public async runFlow(id: string): Promise<IFlowExecutionState> {
-    const flow: AgentFlowsEntity = await this.findOne(id);
+    const flow: FlowBoardEntity = await this.findOne(id);
     const flowExecutionState: IFlowExecutionState = this.flowStateService.createInitialState(flow);
     await this.flowsDbStateService.createFirebaseLog(flowExecutionState);
     const result = await this.flowExecutionStateService.save(flowExecutionState, flowExecutionState.flowExecutionId);
@@ -152,6 +152,6 @@ export class AgentFlowsService extends EntityCommunicationService<AgentFlowsDocu
       },
     };
 
-    return await this.agentFlowsModel.findByIdAndUpdate(flowId, update, { new: true });
+    return await this.creativeFlowboardModel.findByIdAndUpdate(flowId, update, { new: true });
   }
 }

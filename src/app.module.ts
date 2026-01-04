@@ -23,7 +23,7 @@ import { NotionAgentsModule } from './notion-agents-module/notion-agents.module'
 import { InitModule } from './init/init.module';
 import { DeckCommanderModule } from './deck-commander/deck-commander.module';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
-import { AgentFlowsModule } from './agent-flows/agent-flows.module';
+import { CreativeFlowboardModule } from './creative-flowboard/creative-flowboard.module';
 import { TiktokBotModule } from './tiktok-bot/tiktok-bot.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { OrganizationModule } from './organization/organization.module';
@@ -34,7 +34,7 @@ import { LeadModule } from './lead/lead.module';
     EventEmitterModule.forRoot(),
     ConfigModule.forRoot({ load: [envVariables], isGlobal: true }),
     DCMongoDBModule.forRoot(),
-    AgentFlowsModule,
+    CreativeFlowboardModule,
     ServeStaticModule.forRoot({ rootPath: join(__dirname, '..', 'public'), serveRoot: '/public/', serveStaticOptions: { index: false } }),
     UserModule,
     NestCoreModule,

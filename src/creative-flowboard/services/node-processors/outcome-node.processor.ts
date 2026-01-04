@@ -2,12 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { LLMAdapterService, GeminiModels, AiServicesClient, ChatLLMRequestAdapter } from '@dataclouder/nest-vertex';
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
 import { IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
-import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/agent-flows/models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { PromptBuilderService } from '../prompt-builder.service';
 import { INodeProcessor } from './inode.processor';
 import { FlowNodeSearchesService } from '../flow-searches.service';
 import { AgentTasksService } from 'src/agent-tasks/services/agent-tasks.service';
-import { ResponseFormat } from 'src/agent-flows/models/agent-flows.models';
+import { ResponseFormat } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { Logger } from '@nestjs/common';
 
 @Injectable()

@@ -116,14 +116,14 @@ export interface IFlowExecutionState {
   tasks: Array<ITaskExecutionState>;
 }
 
-export class CreateAgentFlowsDto {
-  @ApiProperty({ description: 'The name of the agentFlows item' })
+export class CreateCreativeFlowboardDto {
+  @ApiProperty({ description: 'The name of the CreativeFlowboard item' })
   name: string;
 
-  @ApiProperty({ description: 'The nodes of the agentFlows item' })
+  @ApiProperty({ description: 'The nodes of the CreativeFlowboard item' })
   nodes: any[];
 
-  @ApiProperty({ description: 'The edges of the agentFlows item' })
+  @ApiProperty({ description: 'The edges of the CreativeFlowboard item' })
   edges: any[];
 }
 
@@ -134,4 +134,4 @@ export enum ResponseFormat {
   DEFAULT_CONTENT = 'default_content', // My default json format {content: string, description: string, tags: string[]}
 }
 
-export class UpdateAgentFlowsDto extends PartialType(CreateAgentFlowsDto) {}
+export class UpdateCreativeFlowboardDto extends PartialType(CreateCreativeFlowboardDto) {}

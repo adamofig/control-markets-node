@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 
-import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/agent-flows/models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { INodeProcessor } from './inode.processor';
 
 import { Logger } from '@nestjs/common';
-import { IAssetNodeData } from 'src/agent-flows/models/nodes.models';
+import { IAssetNodeData } from 'src/creative-flowboard/models/nodes.models';
 import { GeneratedAssetService, ComfyVideoService, AiServicesClient, GeneratedAsset, IAssetsGeneration } from '@dataclouder/nest-vertex';
 import { FlowsDbStateService } from '../flows-db-state.service';
 

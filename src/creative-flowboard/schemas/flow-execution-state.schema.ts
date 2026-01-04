@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
-import { IFlowExecutionState, StatusJob } from '../models/agent-flows.models';
+import { IFlowExecutionState, StatusJob } from '../models/creative-flowboard.models';
 
 export type FlowExecutionStateDocument = FlowExecutionStateEntity & Document;
 

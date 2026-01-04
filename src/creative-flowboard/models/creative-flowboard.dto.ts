@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IFlowEdge, IFlowNode } from '../models/agent-flows.models';
+import { IFlowEdge, IFlowNode } from '../models/creative-flowboard.models';
 
 export class WebhookNodeDto {
   @ApiProperty({

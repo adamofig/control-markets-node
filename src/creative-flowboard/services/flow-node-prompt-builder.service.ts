@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IFlowNode, NodeType } from '../models/agent-flows.models';
+import { IFlowNode, NodeType } from '../models/creative-flowboard.models';
 import { ChatMessage, IAgentCard } from '@dataclouder/nest-agent-cards';
 import { groupBy } from 'es-toolkit/array';
 import { ChatRole } from '@dataclouder/nest-vertex';

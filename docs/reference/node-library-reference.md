@@ -4,7 +4,7 @@ The Control Markets backend is designed as a modular library of node processors.
 
 ## `INodeProcessor` Interface
 
-All processors must implement the `INodeProcessor` interface located in `src/agent-flows/services/node-processors/inode.processor.ts`.
+All processors must implement the `INodeProcessor` interface located in `src/creative-flowboard/services/node-processors/inode.processor.ts`.
 
 ### `processJob` Method
 
@@ -55,7 +55,7 @@ Processors are encouraged to use these shared services:
 
 ```mermaid
 graph TD
-    A[AgentFlowsModule] --> B[NodeProcessorService]
+    A[CreativeFlowboardModule] --> B[NodeProcessorService]
     B --> C[INodeProcessor Implementation]
     C --> D[Result Persistence]
     C --> E[Sync via FlowEventsService]

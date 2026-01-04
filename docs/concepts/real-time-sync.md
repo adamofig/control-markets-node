@@ -13,7 +13,7 @@ We use **Server-Sent Events (SSE)** to push updates from the backend to the fron
 
 ### How it Works
 
-1.  **Subscription**: The frontend establishes an SSE connection to `/api/agent-flows/subscribe/:flowId`.
+1.  **Subscription**: The frontend establishes an SSE connection to `/api/creative-flowboard/subscribe/:flowId`.
 2.  **REST Update**: When a user or external system (like n8n) modifies a node or edge, they send a standard REST request to the backend.
 3.  **Persistence**: The backend validates and saves the change to MongoDB.
 4.  **Broadcast**: Upon a successful save, the `FlowEventsService` emits a synchronization event.
@@ -26,7 +26,7 @@ sequenceDiagram
     participant DB as MongoDB
     participant App as Frontend (Subscribed)
 
-    Client->>+Backend: POST /api/agent-flows/{id}/nodes
+    Client->>+Backend: POST /api/creative-flowboard/{id}/nodes
     Backend->>+DB: Save Node
     DB-->>-Backend: Confirmed
     Backend->>Backend: Emit Sync Event

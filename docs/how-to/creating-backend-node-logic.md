@@ -5,7 +5,7 @@ Adding logic for a new node type in the backend is designed to be straightforwar
 ## Step-by-Step Guide
 
 ### 1. Create a New Processor
-Create a new TypeScript class in `src/agent-flows/services/node-processors/`.
+Create a new TypeScript class in `src/creative-flowboard/services/node-processors/`.
 Example: `custom-task.processor.ts`
 
 ### 2. Implement the `INodeProcessor` Interface
@@ -14,7 +14,7 @@ Your class must implement the `INodeProcessor` interface and provide the `proces
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { INodeProcessor } from './inode.processor';
-import { IJobExecutionState, ITaskExecutionState, ICreativeFlowBoard, IExecutionResult, StatusJob } from '../../models/agent-flows.models';
+import { IJobExecutionState, ITaskExecutionState, ICreativeFlowBoard, IExecutionResult, StatusJob } from '../../models/creative-flowboard.models';
 
 @Injectable()
 export class CustomTaskProcessor implements INodeProcessor {
@@ -34,8 +34,8 @@ export class CustomTaskProcessor implements INodeProcessor {
 }
 ```
 
-### 3. Register in `AgentFlowsModule`
-Add your new processor to the `providers` array in `src/agent-flows/agent-flows.module.ts`.
+### 3. Register in `CreativeFlowboardModule`
+Add your new processor to the `providers` array in `src/creative-flowboard/creative-flowboard.module.ts`.
 
 ```typescript
 @Module({
@@ -44,14 +44,14 @@ Add your new processor to the `providers` array in `src/agent-flows/agent-flows.
     CustomTaskProcessor,
   ],
 })
-export class AgentFlowsModule {}
+export class CreativeFlowboardModule {}
 ```
 
 ### 4. Register in `NodeProcessorService`
 Inject your processor into the `NodeProcessorService` and register it in the `processors` map.
 
 ```typescript
-// src/agent-flows/services/node-processor.service.ts
+// src/creative-flowboard/services/node-processor.service.ts
 
 constructor(
   // ... other processors

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ICreativeFlowBoard, IExecutionResult, IFlowExecutionState, IJobExecutionState, StatusJob } from '../models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IFlowExecutionState, IJobExecutionState, StatusJob } from '../models/creative-flowboard.models';
 import { FlowExecutionStateService } from './flow-execution-state.service';
 import { FlowsDbStateService } from './flows-db-state.service';
 import { NodeProcessorService } from './node-processor.service';

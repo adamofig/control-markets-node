@@ -2,11 +2,11 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
-import { ICreativeFlowBoard, IFlowEdge, IFlowNode } from '../models/agent-flows.models';
-export type AgentFlowsDocument = AgentFlowsEntity & Document;
+import { ICreativeFlowBoard, IFlowEdge, IFlowNode } from '../models/creative-flowboard/models';
+export type CreativeFlowboardDocument = FlowBoardEntity & Document;
 
 @Schema({ collection: 'agent_flows', timestamps: true })
-export class AgentFlowsEntity implements ICreativeFlowBoard {
+export class FlowBoardEntity implements ICreativeFlowBoard {
   _id?: string;
 
   @Prop()
@@ -28,8 +28,8 @@ export class AgentFlowsEntity implements ICreativeFlowBoard {
   metadata: any;
 }
 
-export const AgentFlowsSchema = SchemaFactory.createForClass(AgentFlowsEntity);
+export const CreativeFlowboardSchema = SchemaFactory.createForClass(FlowBoardEntity);
 
-addIdAfterSave(AgentFlowsSchema);
+addIdAfterSave(CreativeFlowboardSchema);
 
-AgentFlowsSchema.index({ id: 1 });
+CreativeFlowboardSchema.index({ id: 1 });

@@ -9,7 +9,7 @@ import {
   ITaskExecutionState,
   NodeType,
   StatusJob,
-} from '../models/agent-flows.models';
+} from '../models/creative-flowboard.models';
 
 @Injectable()
 export class FlowStateService {

@@ -20,10 +20,10 @@ The backend is a **NestJS** application running on **Fastify** for high-performa
 
 ## System Layers
 
-### 1. API Layer (`AgentFlowsController`)
+### 1. API Layer (`CreativeFlowboardController`)
 Handles HTTP requests for managing flows (CRUD) and initiating executions. It also provides an SSE endpoint for real-time canvas synchronization.
 
-### 2. Orchestration Layer (`AgentFlowsService`)
+### 2. Orchestration Layer (`CreativeFlowboardService`)
 Coordinates the high-level workflow. It doesn't know *how* nodes execute, but it knows *when* to start them. It interacts with the `FlowStateService` to initialize a run's state.
 
 ### 3. Execution Layer (`FlowRunnerService`)

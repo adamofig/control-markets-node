@@ -3,7 +3,7 @@ import { IAgentCard, AgentCardService } from '@dataclouder/nest-agent-cards';
 import { AiServicesClient, LLMAdapterService, MessageLLM } from '@dataclouder/nest-vertex';
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
 import { AgentTaskType, IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
-import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, ResponseFormat, StatusJob } from 'src/agent-flows/models/agent-flows.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, ResponseFormat, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { PromptBuilderService } from '../prompt-builder.service';
 import { INodeProcessor } from './inode.processor';
 import { AgentTasksService } from 'src/agent-tasks/services/agent-tasks.service';

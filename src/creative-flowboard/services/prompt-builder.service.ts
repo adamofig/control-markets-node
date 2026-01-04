@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { IAgentCard, buildInitialConversation, parseConversation, ChatRole, ChatMessage } from '@dataclouder/nest-agent-cards';
 import { IAgentOutcomeJob, IAgentSource, ILlmTask, AgentTaskType } from 'src/agent-tasks/models/classes';
-import { IFlowNode, NodeType } from '../models/agent-flows.models';
+import { IFlowNode, NodeType } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { outcomePromptTemplate } from './flow-prompt-templates';
 
 @Injectable()

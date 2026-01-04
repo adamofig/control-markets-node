@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { IFlowExecutionState } from '../models/agent-flows.models';
+import { IFlowExecutionState } from '../models/creative-flowboard.models';
 // import * as admin from 'firebase-admin';
 import { FirebaseService } from '@dataclouder/nest-auth';
 import * as admin from 'firebase-admin';

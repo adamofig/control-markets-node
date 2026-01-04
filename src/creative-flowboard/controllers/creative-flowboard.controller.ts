@@ -1,10 +1,10 @@
 import { Body, Controller, Param, Sse, MessageEvent, Post, Get, Query, UseFilters } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
-import { AddNodesDto, WebhookNodeDto } from '../models/agent-flows.dto';
-import { AgentFlowsService } from '../services/agent-flows.service';
+import { AddNodesDto, WebhookNodeDto } from '../models/creative-flowboard.dto';
+import { CreativeFlowboardService } from '../services/creative-flowboard.service';
 import { FlowEventsService } from '../services/flow-events.service';
 import { Observable } from 'rxjs';
-import { AgentFlowsDocument } from '../schemas/agent-flows.schema';
+import { CreativeFlowboardDocument } from '../schemas/creative-flowboard.schema';
 import { EntityController } from '@dataclouder/nest-mongo';
 import { AllExceptionsHandler } from '@dataclouder/nest-core';
 
@@ -12,15 +12,15 @@ import { AllExceptionsHandler } from '@dataclouder/nest-core';
  * Controller for handling HTTP requests related to agentFlows entities
  * Provides REST API endpoints for CRUD operations on agentFlows entities
  */
-@ApiTags('agentFlows')
-@Controller('api/agent-flows')
+@ApiTags('CreativeFlowboard')
+@Controller('api/creative-flowboard')
 @UseFilters(AllExceptionsHandler)
-export class AgentFlowsController extends EntityController<AgentFlowsDocument> {
+export class CreativeFlowboardController extends EntityController<CreativeFlowboardDocument> {
   constructor(
-    private readonly agentFlowsService: AgentFlowsService,
+    private readonly creativeFlowboardService: CreativeFlowboardService,
     private readonly flowEventsService: FlowEventsService
   ) {
-    super(agentFlowsService);
+    super(creativeFlowboardService);
   }
 
   @Sse('subscribe/:id')
@@ -39,8 +39,8 @@ export class AgentFlowsController extends EntityController<AgentFlowsDocument> {
   // @Post('query')
   // @ApiOperation({ summary: 'Run a newComponent item' })
   // @ApiResponse({ status: 200, description: 'Return the newComponent item.' })
-  // async query(filterConfig: FiltersConfig, _token: any): Promise<IQueryResponse<AgentFlowsDocument>> {
-  //   const flows = await this.agentFlowsService.queryUsingFiltersConfig(filterConfig);
+  // async query(filterConfig: FiltersConfig, _token: any): Promise<IQueryResponse<CreativeFlowboardDocument>> {
+  //   const flows = await this.creativeFlowboardService.queryUsingFiltersConfig(filterConfig);
   //   return {
   //     count: 0,
   //     page: 0,
@@ -54,14 +54,14 @@ export class AgentFlowsController extends EntityController<AgentFlowsDocument> {
   @ApiOperation({ summary: 'Run a flow' })
   @ApiResponse({ status: 200, description: 'Return the flow result.' })
   async run(@Param('id') id: string): Promise<any> {
-    return await this.agentFlowsService.runFlow(id);
+    return await this.creativeFlowboardService.runFlow(id);
   }
 
   @Post('run-node')
   @ApiOperation({ summary: 'Run a single node of the flow' })
   @ApiResponse({ status: 200, description: 'Return the node result.' })
   async runNodePost(@Body() body: { flowId: string; nodeId: string }): Promise<any> {
-    return await this.agentFlowsService.runNodev2(body.flowId, body.nodeId);
+    return await this.creativeFlowboardService.runNodev2(body.flowId, body.nodeId);
   }
 
   // Diference with Post, this is intended to query for other services and it waits for the response.
@@ -70,7 +70,7 @@ export class AgentFlowsController extends EntityController<AgentFlowsDocument> {
   @ApiOperation({ summary: 'Run a node of the flow' })
   @ApiResponse({ status: 200, description: 'Return the node result.' })
   async runNode(@Query('flowId') flowId: string, @Query('nodeId') nodeId: string): Promise<any> {
-    return await this.agentFlowsService.runAndWait(flowId, nodeId);
+    return await this.creativeFlowboardService.runAndWait(flowId, nodeId);
   }
 
   @Post('webhook/node')
@@ -79,7 +79,7 @@ export class AgentFlowsController extends EntityController<AgentFlowsDocument> {
   @ApiBody({ type: WebhookNodeDto })
   async startWebhookNode(@Body() body: WebhookNodeDto): Promise<any> {
     console.log('startWebhookNode() -> ', body);
-    const results = await this.agentFlowsService.runTaskNode(body);
+    const results = await this.creativeFlowboardService.runTaskNode(body);
     return results;
   }
   @Post('add-nodes')
@@ -87,6 +87,6 @@ export class AgentFlowsController extends EntityController<AgentFlowsDocument> {
   @ApiResponse({ status: 200, description: 'Return the updated flow.' })
   @ApiBody({ type: AddNodesDto })
   async addNodes(@Body() body: AddNodesDto): Promise<any> {
-    return await this.agentFlowsService.addNodes(body);
+    return await this.creativeFlowboardService.addNodes(body);
   }
 }

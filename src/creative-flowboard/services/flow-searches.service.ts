@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ICreativeFlowBoard, IFlowEdge, IFlowNode, NodeType } from '../models/agent-flows.models';
+import { ICreativeFlowBoard, IFlowEdge, IFlowNode, NodeType } from '../models/creative-flowboard.models';
 
 @Injectable()
 export class FlowNodeSearchesService {
