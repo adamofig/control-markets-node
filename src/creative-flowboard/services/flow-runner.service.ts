@@ -19,7 +19,7 @@ export class FlowRunnerService {
   private async updateExecutionState(flowExecutionState: IFlowExecutionState): Promise<void> {
     await this.flowsDbStateService.updateFirestore(flowExecutionState.flowExecutionId, flowExecutionState);
     await this.flowExecutionStateService.save(flowExecutionState);
-    this.flowEventsService.emit(flowExecutionState.id, flowExecutionState);
+    this.flowEventsService.emit(flowExecutionState.flowId, flowExecutionState);
   }
 
   public async initExecution(flowDiagram: ICreativeFlowBoard, flowExecutionState: IFlowExecutionState): Promise<Partial<IExecutionResult>[]> {

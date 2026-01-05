@@ -1,5 +1,7 @@
 # Real-Time Synchronization
 
+Note: this is planning i got partial implementation.  but may be wrong. 
+
 Maintaining a consistent state across the Angular frontend and NestJS backend is critical for a smooth user experience. We use an event-driven synchronization strategy.
 
 ## State Types

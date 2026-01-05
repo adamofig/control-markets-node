@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
-import { ICreativeFlowBoard, IFlowEdge, IFlowNode } from '../models/creative-flowboard/models';
+import { ICreativeFlowBoard, IFlowEdge, IFlowNode } from '../models/creative-flowboard.models';
 export type CreativeFlowboardDocument = FlowBoardEntity & Document;
 
 @Schema({ collection: 'agent_flows', timestamps: true })

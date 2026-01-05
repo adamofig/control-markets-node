@@ -35,20 +35,6 @@ export class CreativeFlowboardController extends EntityController<CreativeFlowbo
     });
   }
 
-  // Tryied to override the query...
-  // @Post('query')
-  // @ApiOperation({ summary: 'Run a newComponent item' })
-  // @ApiResponse({ status: 200, description: 'Return the newComponent item.' })
-  // async query(filterConfig: FiltersConfig, _token: any): Promise<IQueryResponse<CreativeFlowboardDocument>> {
-  //   const flows = await this.creativeFlowboardService.queryUsingFiltersConfig(filterConfig);
-  //   return {
-  //     count: 0,
-  //     page: 0,
-  //     rows: [],
-  //     rowsPerPage: 0,
-  //     skip: 0,
-  //   };
-  // }
 
   @Post('run/:id')
   @ApiOperation({ summary: 'Run a flow' })

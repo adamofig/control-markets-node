@@ -6,7 +6,7 @@ The Node Execution Engine is the heart of the Control Markets backend. It follow
 
 The execution of a flow is handled by the `FlowRunnerService`. When a flow is started:
 
-1.  **State Initialization**: `FlowStateService` transforms the canvas diagram (nodes and edges) into an `IFlowExecutionState`.
+1.  **State Initialization**: `FlowStateService` transforms the creative-flowboard diagram (nodes and edges) into an `IFlowExecutionState`.
 2.  **Task Discovery**: The state identifies "Tasks" (points of interest that require execution, usually Process nodes).
 3.  **Job Creation**: For each Task, one or more "Jobs" are created. For example, an `AgentNode` might have a job to generate research content.
 4.  **Sequential Execution**: The `FlowRunnerService` iterates through these tasks and jobs sequentially.

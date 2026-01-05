@@ -7,6 +7,7 @@ import { AddNodesDto, WebhookNodeDto } from '../models/creative-flowboard.dto';
 import { MongoService } from '@dataclouder/nest-mongo';
 import { CloudStorageService } from '@dataclouder/nest-storage';
 import { FlowsDbStateService } from './flows-db-state.service';
+import { FlowEventsService } from './flow-events.service';
 
 import { FlowRunnerService } from './flow-runner.service';
 import { FlowStateService } from './flow-state.service';
@@ -38,7 +39,8 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     private nodePromptBuilderService: NodePromptBuilderService,
     private chatwootService: ChatwootService,
     private aiServicesClient: AiServicesClient,
-    private agentCardService: AgentCardService
+    private agentCardService: AgentCardService,
+    private readonly flowEventsService: FlowEventsService
   ) {
     super(creativeFlowboardModel, mongoService);
   }
@@ -152,6 +154,8 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
       },
     };
 
-    return await this.creativeFlowboardModel.findByIdAndUpdate(flowId, update, { new: true });
+    const result = await this.creativeFlowboardModel.findByIdAndUpdate(flowId, update, { new: true });
+    this.flowEventsService.emit(flowId, { event: 'SYNC_CANVAS', payload: result });
+    return result;
   }
 }
