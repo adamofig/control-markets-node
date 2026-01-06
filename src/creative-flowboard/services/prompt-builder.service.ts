@@ -31,7 +31,18 @@ export class PromptBuilderService {
 
       chatMessages.push({
         role: ChatRole.System,
-        content: `GOLDEN RULE: use the sources provided by user, take inspiration from it when perfroming the task: IMPORTANT, sources are provided is becouse user want to use it in your response performing the task \n<context> ${agentSourceContent} \n</context>\n`,
+        content: `### PRIMARY DIRECTIVE: MANDATORY SOURCE RELEVANCE
+The user has provided specific source materials below. Your ABSOLUTE PRIORITY is to ground your response in this context.
+
+1. **Mandatory Integration**: Whatever task the user asks, you MUST find a way to weave the information from the provided sources into your output. 
+2. **Contextual Fidelity**: Do not provide generic answers. Your response must be uniquely informed by and derived from the provided sources.
+3. **Synthesis**: Expertly blend the user's request with the themes, facts, and logic found in the context. 
+
+If the user's task seems unrelated, it is your job to find the most creative and logical connection to the sources provided. Ignoring these sources is considered a failure to comply with the instructions.
+
+<context>
+${agentSourceContent}
+</context>`,
       });
     }
     if (task.taskType === AgentTaskType.CREATE_CONTENT) {
