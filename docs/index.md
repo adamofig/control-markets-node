@@ -1,29 +1,17 @@
 # Control Markets Backend Documentation
 
-Welcome to the backend documentation for **Control Markets**, a node-based platform for automation higly specialize on desition taking with creative and tactical touches, helpfull for marketing and content creation. This documentation covers the architecture, execution engine, and real-time synchronization of the NestJS backend (CreativeFlowboard).
+Welcome to the backend documentation for **Control Markets**, a node-based platform for automation highly specialized in decision-making with creative and tactical touches, helpful for marketing and content creation. This documentation covers the architecture, execution engine, and real-time synchronization of the NestJS backend (CreativeFlowboard).
 
 ---
 
-## 💡 Concepts
-*Understand the high-level architecture and design principles.*
+## 📚 Technical Reference
+*Architecture, core technologies, and fundamental concepts.*
 
-- **[Project Architecture](concepts/architecture.md)**: High-level overview of the backend tech stack (NestJS, Fastify, MongoDB).
-- **[Node Execution Engine](concepts/node-execution-engine.md)**: How the `FlowRunner` orchestrates node execution using the Strategy pattern.
-- **[Real-Time Synchronization](concepts/real-time-sync.md)**: Details on the SSE-based synchronization between frontend and backend.
-
----
-
-## 🛠️ How-to Guides
-*Practical, step-by-step instructions for common tasks.*
-
-- **[Creating a New Node Processor](how-to/creating-backend-node-logic.md)**: The process for adding new execution logic for a custom node.
-
----
-
-## 📚 Reference
-*Technical facts, specifications, and API-level details.*
-
-- **[Node Library Standard](reference/node-library-reference.md)**: The interface and requirements for node processors.
+- **[Project Architecture](technical-reference/architecture.md)**: High-level overview of the backend tech stack (NestJS, Fastify, MongoDB).
+- **[Node Execution Engine](technical-reference/node-execution-engine.md)**: Deep dive into how the `FlowRunner` orchestrates node execution using the Strategy pattern.
+- **[Node Library Standard](technical-reference/node-library-reference.md)**: Technical specifications for node processors and their interfaces.
+- **[Real-Time Synchronization](technical-reference/real-time-sync.md)**: Technical details on the SSE-based synchronization between frontend and backend.
+- **[Execution State](technical-reference/execution-state.md)**: Details on the lifecycle, persistence, and synchronization of flow executions.
 
 ### Backend Node Reference Table
 > [!NOTE]
@@ -37,16 +25,35 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 
 ---
 
-## 🗺️ Plans & Roadmap
-*Future implementation strategies.*
+## 🛠️ Technical Guides
+*Practical instructions and tutorials for developers and AI agents.*
 
-- **[Flow Scaling Plan](plans/flow-scaling-plan.md)**: (Placeholder for future plans)
+- **[Creating a New Node Processor](technical-guides/creating-backend-node-logic.md)**: Step-by-step guide for developers to add new execution logic.
+- **[Angular SSE Connection](technical-guides/angular-sse-connection.md)**: How to implement and debug the real-time connection on the frontend.
+
+---
+
+## 🚀 API Documentation
+*Collection of API requests and examples.*
+
+The project uses [Bruno](https://usebruno.com) for API testing and documentation. You can find the collections in the `docs/bruno-docs/` directory.
+
+- **[Bruno Collections](bruno-docs/)**: Explore available API endpoints.
+
+---
+
+## 🗺️ Plans & Roadmap
+*Future implementation strategies and architectural evolutions.*
+
+- **[Astro Blog Publishing Plan](plans/astro_blog_publishing_plan.md)**: Strategy for automated content publishing.
+- **[New Real-Time Architecture](plans/new_realtime_architecture.md)**: Proposed improvements to the synchronization layer.
 
 ---
 
 ## 📝 Contribution Guide
-*How to add more documentation:*
-1.  **Identify the type**: Concept, How-to, Reference, or Plan.
-2.  **Add the file**: Place it in `docs/concepts/`, `docs/how-to/`, etc.
-3.  **Update Index**: Link the file in `docs/index.md`.
-4.  **Use Relative Links**: Always link using relative paths.
+*How to maintain and expand this documentation:*
+
+1.  **Identify the type**: Technical Reference, Technical Guide, or Plan.
+2.  **Add the file**: Place it in the corresponding directory (`docs/technical-reference/`, `docs/technical-guides/`, etc.).
+3.  **Update Index**: Link the new file in `docs/index.md`.
+4.  **Use Relative Links**: Always use relative paths for internal documentation links.

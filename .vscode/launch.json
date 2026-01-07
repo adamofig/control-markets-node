@@ -5,19 +5,13 @@
         "type": "node",
         "request": "launch",
         "name": "Debug Nest Framework",
-        "runtimeExecutable": "npm",
-        "runtimeArgs": [
-          "run",
-          "start:debug",
-          "--",
-          "--inspect-brk"
-        ],
+        "program": "${workspaceFolder}/node_modules/@nestjs/cli/bin/nest.js",
+        "args": ["start", "--debug", "--watch"],
         "autoAttachChildProcesses": true,
         "restart": true,
         "sourceMaps": true,
-        "stopOnEntry": false,
         "console": "integratedTerminal",
-        "envFile": "${workspaceFolder}/.env",
+        "envFile": "${workspaceFolder}/.env"
       }
     ]
 }

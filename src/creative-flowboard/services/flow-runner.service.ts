@@ -17,7 +17,7 @@ export class FlowRunnerService {
   ) {}
 
   private async updateExecutionState(flowExecutionState: IFlowExecutionState): Promise<void> {
-    await this.flowsDbStateService.updateFirestore(flowExecutionState.flowExecutionId, flowExecutionState);
+    // await this.flowsDbStateService.updateFirestore(flowExecutionState.flowExecutionId, flowExecutionState);
     await this.flowExecutionStateService.save(flowExecutionState);
     this.flowEventsService.emit(flowExecutionState.flowId, flowExecutionState);
   }
@@ -38,13 +38,33 @@ export class FlowRunnerService {
         await this.updateExecutionState(flowExecutionState);
         console.log(`Processing job type ${job.nodeType} for task ${task.entityId}`);
 
-        const result = await this.nodeProcessorService.processJob(job as IJobExecutionState, task, flowDiagram);
-        results.push(result);
+        try {
+          const result = await this.nodeProcessorService.processJob(job as IJobExecutionState, task, flowDiagram);
+          results.push(result);
 
-        job.status = result.status;
-        job.outputEntityId = result.outputEntityId;
-        job.resultType = result.resultType;
-        // TODO: i need to check this part to see.
+          job.status = result.status;
+          job.statusDescription = result.statusDescription;
+          job.outputEntityId = result.outputEntityId;
+          job.resultType = result.resultType;
+
+          if (job.status === StatusJob.FAILED) {
+            this.logger.error(`Job failed: ${job.statusDescription}`);
+            task.status = StatusJob.FAILED;
+            flowExecutionState.status = StatusJob.FAILED;
+            await this.updateExecutionState(flowExecutionState);
+            return results;
+          }
+        } catch (error) {
+          const errorMsg = `Error processing job: ${error.message}`;
+          this.logger.error(errorMsg);
+          job.status = StatusJob.FAILED;
+          job.statusDescription = errorMsg;
+          task.status = StatusJob.FAILED;
+          flowExecutionState.status = StatusJob.FAILED;
+          await this.updateExecutionState(flowExecutionState);
+          return results;
+        }
+
         await this.updateExecutionState(flowExecutionState);
       }
       task.status = StatusJob.COMPLETED;

@@ -54,13 +54,13 @@ export class VideoGenNodeProcessor implements INodeProcessor {
 
       return { status: StatusJob.COMPLETED, outputEntityId: newGeneratedAsset.id, resultType: 'generatedAsset' };
     } catch (error) {
-      this.logger.error(`Error generating video for asset ${newGeneratedAsset.id}. Error: ${error?.message}`);
+      const errorDescription = error?.message + ' ' + error?.response?.data?.error_message + ' ' + error?.response?.data?.explanation  ; 
+      this.logger.error(`Error generating video for asset ${newGeneratedAsset.id}. Error: ${errorDescription}`);
 
-      const errorMsn = error?.message || 'Unknown error';
 
-      await this._findJobStateAndComplete({ flowExecutionId: job.flowExecutionId, fatherTaskId: task.id, inputNodeId: job.inputNodeId, status: StatusJob.FAILED, statusDescription: errorMsn });
+      await this._findJobStateAndComplete({ flowExecutionId: job.flowExecutionId, fatherTaskId: task.id, inputNodeId: job.inputNodeId, status: StatusJob.FAILED, statusDescription: errorDescription });
 
-      return { status: StatusJob.FAILED, outputEntityId: newGeneratedAsset.id, resultType: 'generatedAsset', statusDescription: errorMsn };
+      return { status: StatusJob.FAILED, outputEntityId: newGeneratedAsset.id, resultType: 'generatedAsset', statusDescription: errorDescription };
     }
   }
 

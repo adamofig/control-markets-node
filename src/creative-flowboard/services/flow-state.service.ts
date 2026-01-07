@@ -71,7 +71,7 @@ export class FlowStateService {
       const entityId = inputNode.data?.nodeData?.id || inputNode.data?.nodeData?._id || null;
       return {
         inputEntityId: entityId,
-        nodeType: inputNode.type,
+        nodeType: inputNode?.config?.component || inputNode.type,
         inputNodeId: inputNode.id,
         processNodeId: processNodeId,
         outputNodeId: outputNode?.id || null,

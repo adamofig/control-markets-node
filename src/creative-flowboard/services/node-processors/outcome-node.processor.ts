@@ -30,16 +30,21 @@ export class OutcomeNodeProcessor implements INodeProcessor {
 
     const chatMessagesRequest = await this.promptBuilderService.build(agentTask, outcomeNode.data.nodeData, [], job.nodeType);
 
-    const response = await this.aiServicesClient.llm.chat({
-      messages: chatMessagesRequest as any,
-      model: { id: 'Gemini-2.5-flash', modelName: GeminiModels.Gemini2_5Flash, provider: 'google' },
-      returnJson: true,
-    });
-
-    // const response = await this.chatLLMAdapterService.chatAndExtractJson({
-    //   messages: chatMessagesRequest,
-    //   model: { id: 'Gemini-2.5-flash', modelName: GeminiModels.Gemini2_5Flash, provider: 'google' },
-    // });
+    let response: any;
+    try {
+      response = await this.aiServicesClient.llm.chat({
+        messages: chatMessagesRequest as any,
+        model: { id: 'Gemini-2.5-flash', modelName: GeminiModels.Gemini2_5Flash, provider: 'google' },
+        returnJson: true,
+      });
+    } catch (error) {
+      this.logger.error(`Error in OutcomeNodeProcessor: ${error.message}`);
+      return {
+        status: StatusJob.FAILED,
+        statusDescription: `Error calling LLM: ${error.message}`,
+        resultType: 'outcome',
+      };
+    }
 
     const outcomeJob: IAgentOutcomeJob = {
       task: agentTask,
