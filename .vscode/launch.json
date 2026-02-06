@@ -11,6 +11,7 @@
         "restart": true,
         "sourceMaps": true,
         "console": "integratedTerminal",
+        "runtimeExecutable": "/Users/adamo/.nvm/versions/node/v22.18.0/bin/node", // this can be removed only happends with nvm and mac. 
         "envFile": "${workspaceFolder}/.env"
       }
     ]

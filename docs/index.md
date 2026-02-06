@@ -11,9 +11,12 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 - **[Node Execution Engine](technical-reference/node-execution-engine.md)**: Deep dive into how the `FlowRunner` orchestrates node execution using the Strategy pattern.
 - **[Node Library Standard](technical-reference/node-library-reference.md)**: Technical specifications for node processors and their interfaces.
 - **[Real-Time Synchronization](technical-reference/real-time-sync.md)**: Technical details on the SSE-based synchronization between frontend and backend.
-- **[Execution State](technical-reference/execution-state.md)**: Details on the lifecycle, persistence, and synchronization of flow executions.
+- **[Execution State](technical-reference/execution-state.md)**: Details on the lifecycle, persistence, and the **Flow -> Task -> Job** hierarchy.
 
 ### Backend Node Reference Table
+> [!IMPORTANT]
+> **Node Type Resolution**: The system uses `node.config.component` as the "Official Node Type" and source of truth for all business logic and processor selection. The root-level `node.type` property is often a generic wrapper (e.g., used by the UI framework) and should **not** be used for backend routing or execution state.
+
 > [!NOTE]
 > All nodes are processed using specialized `INodeProcessor` implementations. The `NodeProcessorService` acts as the dispatcher.
 
@@ -29,6 +32,7 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 *Practical instructions and tutorials for developers and AI agents.*
 
 - **[Creating a New Node Processor](technical-guides/creating-backend-node-logic.md)**: Step-by-step guide for developers to add new execution logic.
+- **[Video Generation Guide](guides/video-generation.md)**: Detailed workflow for ComfyUI and Veo generation.
 - **[Angular SSE Connection](technical-guides/angular-sse-connection.md)**: How to implement and debug the real-time connection on the frontend.
 
 ---

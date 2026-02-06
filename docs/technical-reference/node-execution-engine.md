@@ -4,12 +4,16 @@ The Node Execution Engine is the heart of the Control Markets backend. It follow
 
 ## Core Execution Loop
 
-The execution of a flow is handled by the `FlowRunnerService`. When a flow is started:
+The execution of a flow is handled by the `FlowRunnerService`. The orchestration follows a hierarchical approach:
 
-1.  **State Initialization**: `FlowStateService` transforms the creative-flowboard diagram (nodes and edges) into an `IFlowExecutionState`.
-2.  **Task Discovery**: The state identifies "Tasks" (points of interest that require execution, usually Process nodes).
-3.  **Job Creation**: For each Task, one or more "Jobs" are created. For example, an `AgentNode` might have a job to generate research content.
-4.  **Sequential Execution**: The `FlowRunnerService` iterates through these tasks and jobs sequentially.
+1.  **State Initialization**: `FlowStateService` transforms the visual diagram into an `IFlowExecutionState`. This process identifies **Tasks** (from Process nodes) and **Jobs** (from Input nodes connected to those Process nodes).
+2.  **Task Iteration**: The `FlowRunnerService` iterates through the `tasks` in the execution state.
+3.  **Job Processing**: For each Task, the runner iterates through its `jobs`. 
+4.  **Sequential Execution**:
+    *   Jobs within a Task are processed sequentially.
+    *   Each job is dispatched to its corresponding **Node Processor**.
+    *   The Task status is only updated to `COMPLETED` once all its constituent Jobs are finished.
+5.  **State Updates**: After each job completes (or fails), the `FlowExecutionState` is updated and broadcasted to the UI via SSE.
 
 ## The Strategy Pattern (Node Processors)
 

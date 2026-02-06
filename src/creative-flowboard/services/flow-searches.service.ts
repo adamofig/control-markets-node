@@ -45,7 +45,7 @@ export class FlowNodeSearchesService {
     // get nodes in ids
     const nodesConnectedToTask = flow.nodes.filter(node => sourceIds.includes(node.id));
 
-    const sources = nodesConnectedToTask.filter(node => node.type === NodeType.SourcesNodeComponent);
+    const sources = nodesConnectedToTask.filter(node => node.config.component === NodeType.SourcesNodeComponent);
     return sources;
   }
 }

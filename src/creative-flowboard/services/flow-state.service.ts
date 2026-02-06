@@ -51,7 +51,8 @@ export class FlowStateService {
           inputValidJobsNodes,
           executionTask.id,
           executionFlowState.flowExecutionId,
-          processNode.id
+          processNode.id,
+          processNode.config.component
         );
       }
     }
@@ -62,7 +63,8 @@ export class FlowStateService {
     inputNodes: IFlowNode[],
     taskExecutionId: string,
     flowExecutionId: string,
-    processNodeId: string
+    processNodeId: string,
+    processNodeType: NodeType
   ): IJobExecutionState[] {
     return inputNodes.map(inputNode => {
       // Buscar si existe un outputNode: el el flow un node que tenga como input el inputNode.
@@ -71,7 +73,8 @@ export class FlowStateService {
       const entityId = inputNode.data?.nodeData?.id || inputNode.data?.nodeData?._id || null;
       return {
         inputEntityId: entityId,
-        nodeType: inputNode?.config?.component || inputNode.type,
+        nodeType: inputNode.config.component,
+        processNodeType: processNodeType,
         inputNodeId: inputNode.id,
         processNodeId: processNodeId,
         outputNodeId: outputNode?.id || null,
@@ -95,7 +98,7 @@ export class FlowStateService {
         flowExecutionId: flowExecutionId,
         processNodeId: processNode.id,
         entityId: entityId || null,
-        nodeType: processNode.type,
+        nodeType: processNode.config.component,
         status: StatusJob.PENDING,
         jobs: [],
       };

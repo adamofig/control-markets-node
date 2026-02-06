@@ -10,6 +10,8 @@ export enum NodeType {
   AssetsNodeComponent = 'AssetsNodeComponent',
   VideoGenNodeComponent = 'VideoGenNodeComponent',
   AudioTTsNodeComponent = 'AudioTTsNodeComponent',
+  LeadNodeComponent = 'LeadNodeComponent',
+  NanoBananaNodeComponent = 'NanoBananaNodeComponent',
   default = 'default',
 }
 
@@ -80,7 +82,8 @@ export interface IJobExecutionState {
   inputNodeId: string; // en el FlowDiagram es el Node Id a que nodo se tomó para ser input.
   processNodeId: string; // en el FlowDiagram es el Node Id a que nodo se tomó para ser el proceso tarea.
   outputNodeId: string; // en el FlowDiagram es el Node Id a que nodo debe actualizar con el output.
-  nodeType: NodeType; // El tipo de Nodo en Angular, la clase del componente.
+  nodeType: NodeType; // El tipo de Nodo INPUT en Angular, la clase del componente.
+  processNodeType: NodeType; // El tipo de Nodo PROCESS en Angular, la clase del componente.
   inputEntityId: string; // el id del objeto entity, es decir existe en mongo. y lo puedo consultar, se infiere por el tipo de nodo. que collection o table existe el dato.
   status: StatusJob; // El estado del job.
   statusDescription: string; // El estado del job.

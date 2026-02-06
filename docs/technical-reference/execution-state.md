@@ -6,14 +6,37 @@ The **Execution State** is a central concept in the Control Markets platform. it
 
 Whenever a user triggers an execution (either by running a whole flow or a single node), a new `FlowExecutionState` object is created. This object serves as the **source of truth** for that specific execution instance.
 
-### Data Structure
+## Hierarchy: Flow -> Task -> Job
 
-The execution state is defined by the `IFlowExecutionState` interface:
+The execution state follows a three-level hierarchy to manage complexity:
 
-*   **`flowExecutionId`**: A unique identifier for this specific execution run.
-*   **`status`**: The overall progress (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED`).
-*   **`tasks`**: An array of `ITaskExecutionState` objects, each representing a "cluster" of work (usually centered around a Process node).
-    *   **`jobs`**: An array of `IJobExecutionState` objects within a task, representing the granular steps performed by [Node Processors](file:///Users/adamo/Documents/GitHub/control-markets-node/docs/technical-reference/node-execution-engine.md#the-strategy-pattern-node-processors).
+1.  **Flow Execution (`IFlowExecutionState`)**: Represents the entire run of a blackboard or a specific node.
+2.  **Task (`ITaskExecutionState`)**: Represents a "Process" node in the flow (e.g., an `AgentNodeComponent`). A single flow execution can contain multiple tasks if multiple process nodes are being run.
+3.  **Job (`IJobExecutionState`)**: Represents the granular unit of work. Every "Input" node connected to a "Process" node results in a **Job**. A Task is only considered finished when **all its jobs** have completed.
+
+### Data Model Relations
+
+*   A `FlowExecutionState` has an array of `tasks`.
+*   Each `Task` has an array of `jobs`.
+*   When all `jobs` in a `Task` are `COMPLETED`, the `Task` status is updated.
+*   When all `tasks` in a `Flow` are `COMPLETED`, the overall `Flow` status is updated.
+
+### State Initialization (`createInitialState`)
+
+The `FlowStateService.createInitialState` method is responsible for transforming the visual graph into this structured execution state:
+
+1.  **Identity**: Generates a unique `flowExecutionId`.
+2.  **Task Discovery**: Filters the flow's nodes for those with `category: 'process'`. These are converted into `ITaskExecutionState`.
+3.  **Job Assignment**: For each process node, it looks for connected **Input Nodes** (excluding `SourcesNodeComponent` which only provide static data).
+4.  **Job Creation**: For each valid input node, an `IJobExecutionState` is created. It maps:
+    *   `inputNodeId`: The source of data.
+    *   `processNodeId`: The node performing the action.
+    *   `nodeType`: The "Official Type" of the **Input Node** (resolved from `inputNode.config.component`).
+    *   `processNodeType`: The "Official Type" of the **Process Node** (resolved from `processNode.config.component`).
+    *   `outputNodeId`: The node where the result will be displayed (discovered by looking for nodes that have the input node as their data source).
+
+> [!CAUTION]
+> **Never use `node.type` for logic**: Always prefer `node.config.component`. The `node.type` field may contain structural wrapper types that do not correspond to the actual business logic of the node.
 
 ## Persistence
 

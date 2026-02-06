@@ -23,6 +23,7 @@ import { FlowExecutionStateService } from './services/flow-execution-state.servi
 import { FlowEventsService } from './services/flow-events.service';
 import { NodePromptBuilderService } from './services/flow-node-prompt-builder.service';
 import { ChatwootService } from './integrations/chatwoot.service';
+import { NanoBananaNodeProcessor } from './services/node-processors/nanobanana-node.processor';
 
 @Module({
   imports: [
@@ -49,9 +50,9 @@ import { ChatwootService } from './integrations/chatwoot.service';
     OutcomeNodeProcessor,
     FlowStateService,
     VideoGenNodeProcessor,
+    NanoBananaNodeProcessor,
     FlowExecutionStateService,
     FlowEventsService,
-    VideoGenNodeProcessor,
     NodePromptBuilderService,
     ChatwootService,
   ],
