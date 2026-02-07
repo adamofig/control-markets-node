@@ -27,14 +27,19 @@ export class NanoBananaNodeProcessor implements INodeProcessor {
     // The SDK provided in the documentation uses an options object, though usually it takes the key.
     // However, the doc example shows new GoogleGenAI({}); which might rely on process.env.GOOGLE_API_KEY
     // I will try to pass it if possible or set it in env.
-    process.env['GOOGLE_API_KEY'] = apiKey;
-    this.genAI = new GoogleGenAI({});
+    // process.env['GOOGLE_API_KEY'] = apiKey;
+    this.genAI = new GoogleGenAI({ apiKey: apiKey });
   }
 
   async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     this.logger.log(`Processing job: NanoBanana image generation for node ${job.inputNodeId}`);
 
     const inputNode = flow.nodes.find(n => n.id === job.inputNodeId);
+
+    const imageUrl = inputNode.data.nodeData.storage.url;
+
+    
+
     const processNode = flow.nodes.find(n => n.id === job.processNodeId);
 
     if (!processNode) {
@@ -43,17 +48,36 @@ export class NanoBananaNodeProcessor implements INodeProcessor {
 
     const processData = processNode.data?.nodeData || {};
     const prompt = processData.prompt || 'A creative banana-themed image';
-    const modelName = processData.model || 'gemini-2.5-flash-image';
+    const modelName = processData.model || 'gemini-3-pro-image-preview';
     const aspectRatio = processData.aspectRatio || '1:1';
     
     this.logger.verbose(`Prompt: ${prompt}, Model: ${modelName}, Aspect Ratio: ${aspectRatio}`);
 
     try {
+
+
       // Based on documentation: ai.models.generateContent
-      const response = await (this.genAI as any).models.generateContent({
-        model: modelName,
-        contents: prompt,
-      });
+
+      const apiKey = this.configService.get<string>('GEMINI_API_KEY') || '';
+
+      const genAI = new GoogleGenAI({ apiKey: apiKey });
+
+      const imageConfig = {
+            aspectRatio: aspectRatio,
+            imageSize: '1k',
+          };
+
+      console.log('Image config:', imageConfig);
+      
+const response = await genAI.models.generateContent({
+    model: modelName,
+    contents: [{ text: prompt }],
+    config: {
+      responseModalities: ['TEXT', 'IMAGE'],
+      imageConfig: imageConfig,
+    },
+  });
+
 
       const candidate = response.candidates[0];
       let imageBuffer: Buffer | null = null;
@@ -78,6 +102,8 @@ export class NanoBananaNodeProcessor implements INodeProcessor {
           { orgId: flow.orgId } as any,
           'image/png'
       );
+
+      console.log('Uploaded file:', uploadedFile);
 
       // Save the generated asset
       const newAsset: Partial<GeneratedAsset> = {

@@ -159,4 +159,13 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     this.flowEventsService.emit(flowId, { event: 'SYNC_CANVAS', payload: result });
     return result;
   }
+
+  public async cleanupFlowStorage(flow: CreativeFlowboardDocument): Promise<void> {
+    this.logger.verbose(`Cleaning up storage for flow ${flow.id}`);
+    try {
+      await this.cloudStorageService.removeAllStorageFilesPresentInObject(flow);
+    } catch (error) {
+      this.logger.error(`Error cleaning up storage for flow ${flow.id}: ${error.message}`);
+    }
+  }
 }
