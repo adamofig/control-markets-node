@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType } from '../models/creative-flowboard.models';
-import { AgentNodeProcessor } from './node-processors/agent-node.processor';
+import { CompletionNodeProcessor } from './node-processors/completion-node.processor';
 import { OutcomeNodeProcessor } from './node-processors/outcome-node.processor';
 import { INodeProcessor } from './node-processors/inode.processor';
 import { VideoGenNodeProcessor } from './node-processors/video-processor';
@@ -13,12 +13,12 @@ export class NodeProcessorService {
   private logger = new Logger(NodeProcessorService.name);
 
   constructor(
-    private agentNodeProcessor: AgentNodeProcessor,
+    private completionNodeProcessor: CompletionNodeProcessor,
     private outcomeNodeProcessor: OutcomeNodeProcessor,
     private assetsNodeProcessor: VideoGenNodeProcessor,
     private nanoBananaNodeProcessor: NanoBananaNodeProcessor
   ) {
-    this.processors.set(NodeType.AgentNodeComponent, this.agentNodeProcessor);
+    this.processors.set(NodeType.AgentNodeComponent, this.completionNodeProcessor);
     this.processors.set(NodeType.OutcomeNodeComponent, this.outcomeNodeProcessor);
     this.processors.set(NodeType.AssetsNodeComponent, this.assetsNodeProcessor);
     this.processors.set(NodeType.NanoBananaNodeComponent, this.nanoBananaNodeProcessor);
@@ -31,6 +31,16 @@ export class NodeProcessorService {
     if (job.processNodeType === NodeType.NanoBananaNodeComponent && job.nodeType === NodeType.AssetsNodeComponent) {
       this.logger.log('Special handling for NanoBananaNodeComponent with AssetsNodeComponent');
       return this.nanoBananaNodeProcessor.processJob(job, task, flow);
+    }
+
+    if (job.processNodeType === NodeType.TaskNodeComponent && job.nodeType === NodeType.AgentNodeComponent) {
+      this.logger.log('Special handling for TaskNodeComponent with CompletionNodeComponent');
+      return this.completionNodeProcessor.processJob(job, task, flow);
+    }
+
+    if (job.processNodeType === NodeType.TaskNodeComponent && job.nodeType !== NodeType.AgentNodeComponent) {
+      this.logger.log('Direct LLM call for TaskNodeComponent');
+      return this.processJobCompletion(job, task, flow);
     }
 
     // 2. Primary Routing: By Process Node Type
@@ -52,5 +62,10 @@ export class NodeProcessorService {
 
     this.logger.error(`No processor found for Process: ${job.processNodeType} or Input: ${job.nodeType}`);
     throw new Error(`No processor found for node type: ${job.processNodeType}`);
+  }
+
+  async processJobCompletion(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
+    this.logger.verbose(`Processing job completion for task ${task.entityId}`);
+    return this.completionNodeProcessor.processJob(job, task, flow);
   }
 }

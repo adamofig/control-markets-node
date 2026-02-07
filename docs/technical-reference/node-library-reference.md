@@ -33,8 +33,8 @@ The following enums and interfaces are central to the backend's operation:
 
 ### `NodeType`
 Defines the class of node being processed. Key types include:
-- `AgentNodeComponent`
-- `OutcomeNodeComponent`
+- CompletionNodeComponent
+- OutcomeNodeComponent
 - `AssetsNodeComponent`
 
 ### `StatusJob`

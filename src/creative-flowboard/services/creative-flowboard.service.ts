@@ -60,6 +60,7 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     this.logger.verbose(`Running node ${nodeId} for flow ${flowId}`);
     const flow: ICreativeFlowBoard = await this.findOne(flowId);
     const flowExecutionState: IFlowExecutionState = this.flowStateService.createInitialState(flow, nodeId);
+    // TODO: check if i can remove this. 
     await this.flowsDbStateService.createFirebaseLog(flowExecutionState);
     const result = await this.flowExecutionStateService.save(flowExecutionState, flowExecutionState.flowExecutionId);
     delete flowExecutionState['_id'];
@@ -96,10 +97,10 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
 
     const messages: ChatMessage[] = this.nodePromptBuilderService.getContextPrompts(inputNodes);
 
-    const agentNode = this.nodeSearchService.getFirstInputNodeOfType(body.nodeId, flow, NodeType.AgentNodeComponent);
+    const completionNode = this.nodeSearchService.getFirstInputNodeOfType(body.nodeId, flow, NodeType.AgentNodeComponent);
 
-    if (agentNode) {
-      const id = agentNode.data?.nodeData?._id || agentNode.data?.nodeData?.id;
+    if (completionNode) {
+      const id = completionNode.data?.nodeData?._id || completionNode.data?.nodeData?.id;
       const agentCardEntity = await this.agentCardService.findOne(id);
       const agentCardMessage = this.nodePromptBuilderService.getAgentCardPersonaMessage(agentCardEntity, PersonaExtractionLevel.BASIC);
 

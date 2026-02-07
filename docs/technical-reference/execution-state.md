@@ -11,8 +11,8 @@ Whenever a user triggers an execution (either by running a whole flow or a singl
 The execution state follows a three-level hierarchy to manage complexity:
 
 1.  **Flow Execution (`IFlowExecutionState`)**: Represents the entire run of a blackboard or a specific node.
-2.  **Task (`ITaskExecutionState`)**: Represents a "Process" node in the flow (e.g., an `AgentNodeComponent`). A single flow execution can contain multiple tasks if multiple process nodes are being run.
-3.  **Job (`IJobExecutionState`)**: Represents the granular unit of work. Every "Input" node connected to a "Process" node results in a **Job**. A Task is only considered finished when **all its jobs** have completed.
+2.  **Task (`ITaskExecutionState`)**: Represents a "Process" node in the flow (e.g., an `CompletionNodeComponent`). A single flow execution can contain multiple tasks if multiple process nodes are being run.
+3.  **Job (`IJobExecutionState`)**: Represents the granular unit of work. Usually, every "Input" node connected to a "Process" node results in a **Job**. **New**: If a `TaskNodeComponent` has no input nodes connected, it now automatically creates a single Job for itself to allow standalone LLM execution. A Task is only considered finished when **all its jobs** have completed.
 
 ### Data Model Relations
 
@@ -28,6 +28,7 @@ The `FlowStateService.createInitialState` method is responsible for transforming
 1.  **Identity**: Generates a unique `flowExecutionId`.
 2.  **Task Discovery**: Filters the flow's nodes for those with `category: 'process'`. These are converted into `ITaskExecutionState`.
 3.  **Job Assignment**: For each process node, it looks for connected **Input Nodes** (excluding `SourcesNodeComponent` which only provide static data).
+    *   **Standalone Tasks**: If a `TaskNodeComponent` has no valid input nodes connected, the engine creates a "self-referencing" job for that Task, allowing it to execute using only the task's prompt.
 4.  **Job Creation**: For each valid input node, an `IJobExecutionState` is created. It maps:
     *   `inputNodeId`: The source of data.
     *   `processNodeId`: The node performing the action.

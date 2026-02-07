@@ -40,15 +40,22 @@ export class FlowStateService {
   private _assignJobsToTasks(flow: ICreativeFlowBoard, processNodes: IFlowNode[], executionFlowState: IFlowExecutionState): void {
     for (const processNode of processNodes) {
       const inputNodes = this.agentFlowUtilsService.getInputNodes(processNode.id, flow);
-      // AgentNodeComponent and OutcomeNodeComponent are nodes valid to create a job.
+      // CompletionNodeComponent and OutcomeNodeComponent are nodes valid to create a job.
       const inputTaskableNodes = inputNodes.filter(node => node.config.category === 'input'); // Me parece que esta de más todos deberian ser inputs, pero lo voy a dejar por si acaso.
       const inputValidJobsNodes = inputTaskableNodes.filter(node => node.config.component != NodeType.SourcesNodeComponent);
       // SourcesNodeComponent add information to the flow but don't create a job.
       const executionTask = executionFlowState.tasks.find(t => t.processNodeId === processNode.id);
       if (executionTask) {
+        let jobNodes = inputValidJobsNodes;
+
+        // If it's a TaskNodeComponent and has no input nodes, we create a job for the Task itself.
+        if (processNode.config.component === NodeType.TaskNodeComponent && inputValidJobsNodes.length === 0) {
+          jobNodes = [processNode];
+        }
+
         executionTask.jobs = this._createJobStates(
           flow,
-          inputValidJobsNodes,
+          jobNodes,
           executionTask.id,
           executionFlowState.flowExecutionId,
           processNode.id,

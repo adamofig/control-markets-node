@@ -6,7 +6,7 @@ The Node Execution Engine is the heart of the Control Markets backend. It follow
 
 The execution of a flow is handled by the `FlowRunnerService`. The orchestration follows a hierarchical approach:
 
-1.  **State Initialization**: `FlowStateService` transforms the visual diagram into an `IFlowExecutionState`. This process identifies **Tasks** (from Process nodes) and **Jobs** (from Input nodes connected to those Process nodes).
+1.  **State Initialization**: `FlowStateService` transforms the visual diagram into an `IFlowExecutionState`. This process identifies **Tasks** (from Process nodes) and **Jobs** (usually from Input nodes connected to those Process nodes, or from the Task itself if no input is present).
 2.  **Task Iteration**: The `FlowRunnerService` iterates through the `tasks` in the execution state.
 3.  **Job Processing**: For each Task, the runner iterates through its `jobs`. 
 4.  **Sequential Execution**:
@@ -23,7 +23,7 @@ The engine itself doesn't know how to generate video or call an LLM. Instead, it
 graph LR
     A[FlowRunnerService] --> B[NodeProcessorService]
     B --> C{Strategy Dispatcher}
-    C --> D[AgentNodeProcessor]
+    C --> D[CompletionNodeProcessor]
     C --> E[OutcomeNodeProcessor]
     C --> F[VideoGenNodeProcessor]
     C --> G[...]

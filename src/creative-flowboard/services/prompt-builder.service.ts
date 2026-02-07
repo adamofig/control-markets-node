@@ -8,13 +8,13 @@ import { outcomePromptTemplate } from './flow-prompt-templates';
 export class PromptBuilderService {
   public async build(task: ILlmTask, inputNodeData: IAgentCard | IAgentOutcomeJob, sourceNodes: IFlowNode[] = [], nodeType: NodeType): Promise<ChatMessage[]> {
     let chatMessages: ChatMessage[] = [];
-    if (nodeType === NodeType.AgentNodeComponent) {
+    if (nodeType === NodeType.AgentNodeComponent && inputNodeData) {
       chatMessages = buildInitialConversation(inputNodeData as IAgentCard);
       parseConversation(chatMessages, { char: (inputNodeData as IAgentCard)?.characterCard?.data?.name || 'Persona Agent', user: 'User' });
       const personaPrompt = 'Stay in character and speak as the character would, Take on the persona, Use his mannerisms, speech patterns, and personality';
 
       chatMessages.push({ role: ChatRole.System, content: personaPrompt });
-    } else if (nodeType === NodeType.OutcomeNodeComponent) {
+    } else if (nodeType === NodeType.OutcomeNodeComponent && inputNodeData) {
       const agentOutcomeJob = inputNodeData as IAgentOutcomeJob;
       const requestPrompt = outcomePromptTemplate(agentOutcomeJob, task);
       const messagesReq = { role: ChatRole.User, content: requestPrompt };

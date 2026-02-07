@@ -14,7 +14,7 @@ import { FlowNodeSearchesService } from './services/flow-searches.service';
 import { FlowRunnerService } from './services/flow-runner.service';
 import { NodeProcessorService } from './services/node-processor.service';
 import { PromptBuilderService } from './services/prompt-builder.service';
-import { AgentNodeProcessor } from './services/node-processors/agent-node.processor';
+import { CompletionNodeProcessor } from './services/node-processors/completion-node.processor';
 import { OutcomeNodeProcessor } from './services/node-processors/outcome-node.processor';
 import { FlowStateService } from './services/flow-state.service';
 import { VideoGenNodeProcessor } from './services/node-processors/video-processor';
@@ -46,7 +46,7 @@ import { NanoBananaNodeProcessor } from './services/node-processors/nanobanana-n
     FlowRunnerService,
     NodeProcessorService,
     PromptBuilderService,
-    AgentNodeProcessor,
+    CompletionNodeProcessor,
     OutcomeNodeProcessor,
     FlowStateService,
     VideoGenNodeProcessor,

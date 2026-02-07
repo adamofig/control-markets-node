@@ -22,7 +22,7 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 
 | Node Type | Processor Class | Description |
 | :--- | :--- | :--- |
-| `AgentNodeComponent` | `AgentNodeProcessor` | Persona-based AI agent that executes LLM tasks. |
+| `AgentNodeComponent` | `CompletionNodeProcessor` | Persona-based AI agent that executes LLM tasks. |
 | `OutcomeNodeComponent` | `OutcomeNodeProcessor` | Final result processing and status update. |
 | `AssetsNodeComponent` | `VideoGenNodeProcessor` | Automation of video generation from input assets. |
 

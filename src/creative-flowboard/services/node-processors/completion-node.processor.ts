@@ -3,7 +3,7 @@ import { IAgentCard, AgentCardService } from '@dataclouder/nest-agent-cards';
 import { AiServicesClient, LLMAdapterService, MessageLLM } from '@dataclouder/nest-vertex';
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
 import { AgentTaskType, IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
-import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, ResponseFormat, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType, ResponseFormat, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { PromptBuilderService } from '../prompt-builder.service';
 import { INodeProcessor } from './inode.processor';
 import { AgentTasksService } from 'src/agent-tasks/services/agent-tasks.service';
@@ -11,8 +11,8 @@ import { Logger } from '@nestjs/common';
 import { FlowNodeSearchesService } from '../flow-searches.service';
 
 @Injectable()
-export class AgentNodeProcessor implements INodeProcessor {
-  private logger = new Logger(AgentNodeProcessor.name);
+export class CompletionNodeProcessor implements INodeProcessor {
+  private logger = new Logger(CompletionNodeProcessor.name);
   constructor(
     private agentCardService: AgentCardService,
     private agentTaskService: AgentTasksService,
@@ -27,7 +27,11 @@ export class AgentNodeProcessor implements INodeProcessor {
     this.logger.verbose(`Processing job type 🫆AgentNodeProcessor🫆 ${job.nodeType} for task ${task.entityId}`);
 
     const agentTask: ILlmTask = await this.agentTaskService.findOne(task.entityId);
-    const agentCard: IAgentCard = await this.agentCardService.findById(job.inputEntityId);
+    let agentCard: IAgentCard = null;
+
+    if (job.nodeType === NodeType.AgentNodeComponent && job.inputEntityId) {
+      agentCard = await this.agentCardService.findById(job.inputEntityId);
+    }
 
     const sourcesNodes = this.flowSearches.findProcessSources(flow, job.processNodeId) || [];
 
@@ -65,7 +69,7 @@ export class AgentNodeProcessor implements INodeProcessor {
       try {
         response = await this.aiServicesClient.llm.chat({ messages: chatMessagesRequest as MessageLLM[], model: agentTask.model });
       } catch (error) {
-        console.log(error);
+        console.log(error.message);
 
         return {
           statusDescription: `Probablemente no pudo generar el contenido JSON, intenta con otro modelo: ${error.message}`,
