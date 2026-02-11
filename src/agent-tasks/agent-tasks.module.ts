@@ -15,9 +15,9 @@ import { AgentSourcesService } from './services/agent-sources.service';
 import { AgentSourcesController } from './controllers/agent-sources.controller';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { NestStorageModule } from '@dataclouder/nest-storage';
-import { NestVertexModule } from '@dataclouder/nest-vertex';
 import { AgentDistributionChannelsController } from './controllers/agent-distribution-channels.controller';
 import { AgentDistributionChannelService } from './services/agent-distribution-channel.service';
+import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
 
 @Module({
   imports: [
@@ -29,7 +29,7 @@ import { AgentDistributionChannelService } from './services/agent-distribution-c
     AgentCardsModule,
     // NotionModule,
     NestStorageModule,
-    NestVertexModule,
+    NestAiServicesSdkModule,
   ],
   controllers: [AgentTasksController, AgentJobsController, AgentSourcesController, AgentDistributionChannelsController],
   providers: [AgentTasksService, AgentOutcomeJobService, AgentSourcesService, AgentDistributionChannelService],

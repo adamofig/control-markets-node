@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { LLMAdapterService, GeminiModels, AiServicesClient, ChatLLMRequestAdapter } from '@dataclouder/nest-vertex';
+import {  GeminiModels, AiServicesSdkClient } from '@dataclouder/nest-ai-services-sdk';
+
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
 import { IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
 import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
@@ -15,8 +16,7 @@ export class OutcomeNodeProcessor implements INodeProcessor {
   private logger = new Logger(OutcomeNodeProcessor.name);
   constructor(
     private agentTaskService: AgentTasksService,
-    private chatLLMAdapterService: LLMAdapterService,
-    private aiServicesClient: AiServicesClient,
+    private aiServicesClient: AiServicesSdkClient,
     private agentJobService: AgentOutcomeJobService,
     private promptBuilderService: PromptBuilderService,
     private flowSearches: FlowNodeSearchesService

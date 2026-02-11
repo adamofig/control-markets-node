@@ -15,7 +15,6 @@ import { TestModule } from './test/test.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { NestWhisperModule } from '@dataclouder/nest-whisper';
-import { NestVertexModule } from '@dataclouder/nest-vertex';
 import { NestUsersModule } from '@dataclouder/nest-users';
 import { AgentsModule } from './agent-tasks/agent-tasks.module';
 import { VideoGeneratorModule } from './video-projects/video-project-generator.module';
@@ -28,6 +27,9 @@ import { TiktokBotModule } from './tiktok-bot/tiktok-bot.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { OrganizationModule } from './organization/organization.module';
 import { LeadModule } from './lead/lead.module';
+import { NestAiServicesMongodbModule } from '@dataclouder/nest-ai-services-mongodb';
+import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
+
 
 @Module({
   imports: [
@@ -41,9 +43,9 @@ import { LeadModule } from './lead/lead.module';
     TestModule,
     AgentCardsModule,
     LessonsModule,
-    NestVertexModule.forRoot({
-      apiKey: null,
-      apiBaseUrl: process.env.AI_SERVICES_HOST || '',
+    NestAiServicesSdkModule.forRoot({
+      apiBaseUrl: process.env.AI_SERVICES_HOST || 'https://api.dataclouder.com',
+      apiKey: process.env.AI_SERVICES_API_KEY || '',
     }),
     NestAuthModule,
     NestWhisperModule,
@@ -57,6 +59,8 @@ import { LeadModule } from './lead/lead.module';
     ConversationRuleModule,
     OrganizationModule,
     LeadModule,
+    NestAiServicesMongodbModule,
+    NestAiServicesSdkModule
   ],
   controllers: [AppController],
 })

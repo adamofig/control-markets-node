@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { ILlmTask, AgentTaskType, ISourceTask, IAgentCardMinimal, CloudStorageData } from '../models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
-import { IAIModel } from '@dataclouder/nest-vertex';
+import { IAIModel } from '@dataclouder/nest-ai-services-sdk';
 
 export type AgentTaskDocument = AgentTaskEntity & Document;
 

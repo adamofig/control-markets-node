@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { IFlowNode, NodeType } from '../models/creative-flowboard.models';
 import { ChatMessage, IAgentCard } from '@dataclouder/nest-agent-cards';
 import { groupBy } from 'es-toolkit/array';
-import { ChatRole } from '@dataclouder/nest-vertex';
+
+import { ChatRole } from '@dataclouder/nest-ai-services-sdk';
+
 
 export enum SectionType {
   Intro = 'intro',

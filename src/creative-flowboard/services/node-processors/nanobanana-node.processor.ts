@@ -3,7 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
 import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType, StatusJob } from '../../models/creative-flowboard.models';
 import { INodeProcessor } from './inode.processor';
-import { GeneratedAssetService, GeneratedAsset, IAssetsGeneration } from '@dataclouder/nest-vertex';
+
+import { GeneratedAssetService , GeneratedAsset} from '@dataclouder/nest-ai-services-mongodb';
+
 import { IAssetNodeData } from '../../models/nodes.models';
 import { FlowsDbStateService } from '../flows-db-state.service';
 

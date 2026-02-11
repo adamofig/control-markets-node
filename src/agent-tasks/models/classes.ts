@@ -1,5 +1,5 @@
 import { IAgentCard } from '@dataclouder/nest-agent-cards';
-import { IAIModel } from '@dataclouder/nest-vertex';
+import { IAIModel } from '@dataclouder/nest-ai-services-sdk';
 import { ObjectId } from 'mongoose';
 
 export interface CloudStorageData {

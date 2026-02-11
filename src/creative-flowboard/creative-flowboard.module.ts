@@ -9,7 +9,6 @@ import { FlowsDbStateService } from './services/flows-db-state.service';
 import { NestAuthModule } from '@dataclouder/nest-auth';
 import { AgentCardsModule } from '@dataclouder/nest-agent-cards';
 import { AgentsModule } from 'src/agent-tasks/agent-tasks.module';
-import { NestVertexModule } from '@dataclouder/nest-vertex';
 import { FlowNodeSearchesService } from './services/flow-searches.service';
 import { FlowRunnerService } from './services/flow-runner.service';
 import { NodeProcessorService } from './services/node-processor.service';
@@ -36,7 +35,6 @@ import { NanoBananaNodeProcessor } from './services/node-processors/nanobanana-n
     NestAuthModule,
     AgentCardsModule,
     AgentsModule,
-    NestVertexModule,
   ],
   controllers: [CreativeFlowboardController],
   providers: [

@@ -1,6 +1,7 @@
 import { ChatMessage } from '@dataclouder/nest-agent-cards';
 import { AppException } from '@dataclouder/nest-core';
-import { ChatRole } from '@dataclouder/nest-vertex';
+import { ChatRole } from '@dataclouder/nest-ai-services-sdk';
+
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import * as https from 'https';

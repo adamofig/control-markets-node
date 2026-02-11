@@ -14,7 +14,7 @@ import { AgentTaskEntity, AgentTaskDocument } from '../schemas/agent-task.schema
 import { AgentTaskType, IAgentOutcomeJob, ILlmTask, ISourceTask, MessageAI, OutputTaks } from '../models/classes';
 import { AgentOutcomeJobService } from './agent-job.service';
 import { AgentSourcesService } from './agent-sources.service';
-import { ChatLLMRequestAdapter, AiServicesClient, MessageLLM } from '@dataclouder/nest-vertex';
+import { ChatLLMRequestAdapter, AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
 import { taskPrompt } from '../prompts/task-prompts';
 import { AppException } from '@dataclouder/nest-core';
 @Injectable()
@@ -29,7 +29,7 @@ export class AgentTasksService {
     private agentJobService: AgentOutcomeJobService,
     private mongoService: MongoService,
     private agentSourcesService: AgentSourcesService,
-    private aiServicesClient: AiServicesClient
+    private aiServicesClient: AiServicesSdkClient
   ) {}
 
   async findAll() {

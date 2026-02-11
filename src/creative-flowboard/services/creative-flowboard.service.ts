@@ -15,7 +15,7 @@ import { FlowExecutionStateService } from './flow-execution-state.service';
 import { EntityCommunicationService } from '@dataclouder/nest-mongo';
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
 import { FlowNodeSearchesService } from './flow-searches.service';
-import { ChatLLMRequestAdapter, EModelQuality, LLMAdapterService, MessageLLM, AiServicesClient } from '@dataclouder/nest-vertex';
+import { ChatLLMRequestAdapter, EModelQuality, MessageLLM, AiServicesSdkClient } from '@dataclouder/nest-ai-services-sdk';
 import { NodePromptBuilderService, PersonaExtractionLevel } from './flow-node-prompt-builder.service';
 import { ChatwootService } from '../integrations/chatwoot.service';
 import { AppException } from '@dataclouder/nest-core';
@@ -35,10 +35,9 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     private flowExecutionStateService: FlowExecutionStateService,
     private agentJobService: AgentOutcomeJobService,
     private nodeSearchService: FlowNodeSearchesService,
-    private chatLLMAdapterService: LLMAdapterService,
     private nodePromptBuilderService: NodePromptBuilderService,
     private chatwootService: ChatwootService,
-    private aiServicesClient: AiServicesClient,
+    private aiServicesClient: AiServicesSdkClient,
     private agentCardService: AgentCardService,
     private readonly flowEventsService: FlowEventsService
   ) {

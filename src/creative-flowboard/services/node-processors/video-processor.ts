@@ -6,16 +6,20 @@ import { INodeProcessor } from './inode.processor';
 
 import { Logger } from '@nestjs/common';
 import { IAssetNodeData } from 'src/creative-flowboard/models/nodes.models';
-import { GeneratedAssetService, ComfyVideoService, AiServicesClient, GeneratedAsset, IAssetsGeneration } from '@dataclouder/nest-vertex';
-import { FlowsDbStateService } from '../flows-db-state.service';
+
+import {   AiServicesSdkClient } from '@dataclouder/nest-ai-services-sdk';
+
+
+import { GeneratedAssetService , IAssetsForGeneration, GeneratedAsset} from '@dataclouder/nest-ai-services-mongodb';
+
+import { FlowsDbStateService,  } from '../flows-db-state.service';
 
 @Injectable()
 export class VideoGenNodeProcessor implements INodeProcessor {
   private logger = new Logger(VideoGenNodeProcessor.name);
   constructor(
     private generatedAssetService: GeneratedAssetService,
-    private comfyVideoService: ComfyVideoService,
-    private clientAIService: AiServicesClient,
+    private clientAIService: AiServicesSdkClient,
     private flowsDbStateService: FlowsDbStateService
   ) {}
 
@@ -25,6 +29,13 @@ export class VideoGenNodeProcessor implements INodeProcessor {
     const inputNodeAsset = flow.nodes.find(node => node.id === job.inputNodeId);
     const processNodeGen = flow.nodes.find(node => node.id === job.processNodeId);
 
+    const wfType = processNodeGen?.data.nodeData.workflow;
+    console.log('wfType', wfType);
+    
+    if ( wfType == 'image-audio-to-video'){
+      console.log('image-audio-to-video');
+    }
+
     if (!inputNodeAsset) {
       throw new Error(`Node ${job.inputNodeId} not found`);
     }
@@ -33,7 +44,7 @@ export class VideoGenNodeProcessor implements INodeProcessor {
     const processNodeData = processNodeGen?.data.nodeData;
 
     const newAsset: Partial<GeneratedAsset> = {
-      assets: { firstFrame: assetNodeData.storage } as IAssetsGeneration,
+      assets: { firstFrame: assetNodeData.storage } as IAssetsForGeneration,
       prompt: processNodeData?.prompt,
       description: processNodeData?.description,
       request: processNodeData?.request,

@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { IAgentCard, AgentCardService } from '@dataclouder/nest-agent-cards';
-import { AiServicesClient, LLMAdapterService, MessageLLM } from '@dataclouder/nest-vertex';
+
+import {   AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
+
+
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
 import { AgentTaskType, IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
 import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType, ResponseFormat, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
@@ -16,8 +19,7 @@ export class CompletionNodeProcessor implements INodeProcessor {
   constructor(
     private agentCardService: AgentCardService,
     private agentTaskService: AgentTasksService,
-    private chatLLMAdapterService: LLMAdapterService,
-    private aiServicesClient: AiServicesClient,
+    private aiServicesClient: AiServicesSdkClient,
     private agentJobService: AgentOutcomeJobService,
     private promptBuilderService: PromptBuilderService,
     private flowSearches: FlowNodeSearchesService
