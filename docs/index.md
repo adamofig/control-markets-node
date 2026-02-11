@@ -12,6 +12,7 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 - **[Node Library Standard](technical-reference/node-library-reference.md)**: Technical specifications for node processors and their interfaces.
 - **[Real-Time Synchronization](technical-reference/real-time-sync.md)**: Technical details on the SSE-based synchronization between frontend and backend.
 - **[Execution State](technical-reference/execution-state.md)**: Details on the lifecycle, persistence, and the **Flow -> Task -> Job** hierarchy.
+- **[Video Processor](technical-reference/processors/video-processor.md)**: Technical overview of the multi-resource video generation engine.
 
 ### Backend Node Reference Table
 > [!IMPORTANT]
@@ -24,7 +25,8 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 | :--- | :--- | :--- |
 | `AgentNodeComponent` | `CompletionNodeProcessor` | Persona-based AI agent that executes LLM tasks. |
 | `OutcomeNodeComponent` | `OutcomeNodeProcessor` | Final result processing and status update. |
-| `AssetsNodeComponent` | `VideoGenNodeProcessor` | Automation of video generation from input assets. |
+| `AssetsNodeComponent` | `VideoGenNodeProcessor` | Automation of video generation from uploaded input assets. |
+| `VideoGenNodeComponent` | `VideoGenNodeProcessor` | Orchestration of multi-resource video generation (Image + Audio). |
 
 ---
 

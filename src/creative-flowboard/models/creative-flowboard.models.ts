@@ -10,6 +10,7 @@ export enum NodeType {
   AssetsNodeComponent = 'AssetsNodeComponent',
   VideoGenNodeComponent = 'VideoGenNodeComponent',
   AudioTTsNodeComponent = 'AudioTTsNodeComponent',
+  AudioNodeComponent = 'AudioNodeComponent',
   LeadNodeComponent = 'LeadNodeComponent',
   NanoBananaNodeComponent = 'NanoBananaNodeComponent',
   default = 'default',
@@ -80,6 +81,7 @@ export interface ICreativeFlowBoard {
 
 export interface IJobExecutionState {
   inputNodeId: string; // en el FlowDiagram es el Node Id a que nodo se tomó para ser input.
+  inputNodeIds?: string[]; // Para soportar múltiples inputs en un solo job (ej: video con imagen y audio)
   processNodeId: string; // en el FlowDiagram es el Node Id a que nodo se tomó para ser el proceso tarea.
   outputNodeId: string; // en el FlowDiagram es el Node Id a que nodo debe actualizar con el output.
   nodeType: NodeType; // El tipo de Nodo INPUT en Angular, la clase del componente.

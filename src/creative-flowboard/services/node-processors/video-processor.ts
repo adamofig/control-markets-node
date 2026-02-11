@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 
-import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
+import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { INodeProcessor } from './inode.processor';
+import { FlowNodeSearchesService } from '../flow-searches.service';
 
 import { Logger } from '@nestjs/common';
 import { IAssetNodeData } from 'src/creative-flowboard/models/nodes.models';
@@ -20,35 +21,49 @@ export class VideoGenNodeProcessor implements INodeProcessor {
   constructor(
     private generatedAssetService: GeneratedAssetService,
     private clientAIService: AiServicesSdkClient,
-    private flowsDbStateService: FlowsDbStateService
+    private flowsDbStateService: FlowsDbStateService,
+    private flowNodeSearchesService: FlowNodeSearchesService
   ) {}
 
   async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     this.logger.verbose(`Processing job type 🍊 VideoGenNodeProcessor ${job.nodeType} for task ${task.entityId}`);
 
-    const inputNodeAsset = flow.nodes.find(node => node.id === job.inputNodeId);
     const processNodeGen = flow.nodes.find(node => node.id === job.processNodeId);
 
     const wfType = processNodeGen?.data.nodeData.workflow;
     console.log('wfType', wfType);
-    
-    if ( wfType == 'image-audio-to-video'){
-      console.log('image-audio-to-video');
-    }
 
-    if (!inputNodeAsset) {
-      throw new Error(`Node ${job.inputNodeId} not found`);
-    }
-
-    const assetNodeData = inputNodeAsset?.data.nodeData as IAssetNodeData;
     const processNodeData = processNodeGen?.data.nodeData;
+    let assets: IAssetsForGeneration = {} as IAssetsForGeneration;
+
+    if (wfType == 'image-audio-to-video') {
+      const inputNodes = job.inputNodeIds 
+        ? flow.nodes.filter(node => job.inputNodeIds.includes(node.id))
+        : this.flowNodeSearchesService.getInputNodes(job.processNodeId, flow);
+      
+      const audioNode = inputNodes.find(node => node.config.component === NodeType.AudioNodeComponent);
+      const imageNode = inputNodes.find(node => node.config.component === NodeType.AssetsNodeComponent);
+
+      assets = {
+        firstFrame: (imageNode?.data.nodeData as IAssetNodeData)?.storage,
+        firstAudio: (audioNode?.data.nodeData as IAssetNodeData)?.storage,
+      } as IAssetsForGeneration;
+    } else {
+      const inputNodeAsset = flow.nodes.find(node => node.id === job.inputNodeId);
+      if (!inputNodeAsset) {
+        throw new Error(`Node ${job.inputNodeId} not found`);
+      }
+      const assetNodeData = inputNodeAsset?.data.nodeData as IAssetNodeData;
+      assets = { firstFrame: assetNodeData.storage } as IAssetsForGeneration;
+    }
 
     const newAsset: Partial<GeneratedAsset> = {
-      assets: { firstFrame: assetNodeData.storage } as IAssetsForGeneration,
+      assets,
       prompt: processNodeData?.prompt,
       description: processNodeData?.description,
       request: processNodeData?.request,
       provider: processNodeData.provider,
+      workflow: processNodeData.workflow,
     };
 
     const newGeneratedAsset = await this.generatedAssetService.save(newAsset);

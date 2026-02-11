@@ -17,20 +17,29 @@ The processor implements the `INodeProcessor` interface and is dispatched by the
 The processing flow follows a specific sequence to ensure high-quality generation and real-time feedback:
 
 ### 1. Context Resolution
-The processor identifies two critical nodes in the execution context:
-- **Input Node (`inputNodeId`)**: Typically an `AssetsNodeComponent` containing the source image (e.g., the first frame).
-- **Process Node (`processNodeId`)**: The node containing the generation parameters (provider, prompt, request settings).
+The processor identifies the inputs for the generation:
+- **Input Node(s) (`inputNodeIds`/`inputNodeId`)**: The source assets (images, audio). For multi-input workflows like `image-audio-to-video`, the execution engine consolidates all connected nodes into the `inputNodeIds` field of the job.
+- **Process Node (`processNodeId`)**: The `VideoGenNodeComponent` containing the generation parameters (provider, prompt, workflow, etc.).
 
-### 2. GeneratedAsset Creation
+### 2. Multi-Input Support: image-audio-to-video
+
+When the workflow is set to `image-audio-to-video`, the processor uses the `FlowNodeSearchesService` to discover all input nodes connected to the video generation node.
+
+- **Audio Discovery**: Searches for a node with `component: AudioNodeComponent`.
+- **Image Discovery**: Searches for a node with `component: AssetsNodeComponent`.
+
+These are then mapped to the `assets` object as `firstAudio` and `firstFrame` respectively.
+
+### 3. GeneratedAsset Creation
 Before calling the AI service, the processor saves a `GeneratedAsset` entity to MongoDB. This entity acts as the "Job Ticket" for the AI backend.
 
 ```typescript
-const newAsset: Partial<GeneratedAsset> = {
-  assets: { firstFrame: assetNodeData.storage } as IAssetsForGeneration, // Source image
+  assets: assets,                                                // Maps to firstFrame, and firstAudio if available
   prompt: processNodeData?.prompt,                                       // User prompt
   description: processNodeData?.description,                           // Optional description
   request: processNodeData?.request,                                   // Provider-specific settings
   provider: processNodeData.provider,                                  // e.g., 'veo', 'comfy'
+  workflow: processNodeData.workflow,                                  // e.g., 'image-audio-to-video'
 };
 ```
 

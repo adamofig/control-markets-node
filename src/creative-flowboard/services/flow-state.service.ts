@@ -48,6 +48,29 @@ export class FlowStateService {
       if (executionTask) {
         let jobNodes = inputValidJobsNodes;
 
+        // Special handling for VideoGenNodeComponent: consolidate all inputs into a single job
+        if (processNode.config.component === NodeType.VideoGenNodeComponent && inputValidJobsNodes.length > 0) {
+          executionTask.jobs = [
+            {
+              inputNodeId: inputValidJobsNodes[0].id,
+              inputNodeIds: inputValidJobsNodes.map(n => n.id),
+              processNodeId: processNode.id,
+              outputNodeId: null, // Video Gen usually outputs to an outcome node connected to it, handled in processor
+              nodeType: inputValidJobsNodes[0].config.component,
+              processNodeType: processNode.config.component,
+              inputEntityId: inputValidJobsNodes[0].data?.nodeData?.id || inputValidJobsNodes[0].data?.nodeData?._id || null,
+              status: StatusJob.PENDING,
+              statusDescription: '',
+              messages: [],
+              outputEntityId: null,
+              resultType: '',
+              fatherTaskId: executionTask.id,
+              flowExecutionId: executionFlowState.flowExecutionId,
+            },
+          ];
+          continue;
+        }
+
         // If it's a TaskNodeComponent and has no input nodes, we create a job for the Task itself.
         if (processNode.config.component === NodeType.TaskNodeComponent && inputValidJobsNodes.length === 0) {
           jobNodes = [processNode];

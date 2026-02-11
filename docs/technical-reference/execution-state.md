@@ -12,7 +12,9 @@ The execution state follows a three-level hierarchy to manage complexity:
 
 1.  **Flow Execution (`IFlowExecutionState`)**: Represents the entire run of a blackboard or a specific node.
 2.  **Task (`ITaskExecutionState`)**: Represents a "Process" node in the flow (e.g., an `CompletionNodeComponent`). A single flow execution can contain multiple tasks if multiple process nodes are being run.
-3.  **Job (`IJobExecutionState`)**: Represents the granular unit of work. Usually, every "Input" node connected to a "Process" node results in a **Job**. **New**: If a `TaskNodeComponent` has no input nodes connected, it now automatically creates a single Job for itself to allow standalone LLM execution. A Task is only considered finished when **all its jobs** have completed.
+3.  **Job (`IJobExecutionState`)**: Represents the granular unit of work. Usually, every "Input" node connected to a "Process" node results in a **Job**.
+    *   **Standalone Tasks**: If a `TaskNodeComponent` has no input nodes connected, it creates a single Job for itself.
+    *   **Consolidated Jobs (Multi-Resource)**: For nodes like `VideoGenNodeComponent`, the engine can consolidate multiple inputs (e.g., Image + Audio) into a **single Job** using the `inputNodeIds` array. This prevents redundant processing when multiple sources are required for a single generation.
 
 ### Data Model Relations
 
@@ -30,11 +32,12 @@ The `FlowStateService.createInitialState` method is responsible for transforming
 3.  **Job Assignment**: For each process node, it looks for connected **Input Nodes** (excluding `SourcesNodeComponent` which only provide static data).
     *   **Standalone Tasks**: If a `TaskNodeComponent` has no valid input nodes connected, the engine creates a "self-referencing" job for that Task, allowing it to execute using only the task's prompt.
 4.  **Job Creation**: For each valid input node, an `IJobExecutionState` is created. It maps:
-    *   `inputNodeId`: The source of data.
+    *   `inputNodeId`: The primary source of data.
+    *   `inputNodeIds`: (Optional) Array of all input node IDs for consolidated jobs (e.g., multi-resource video).
     *   `processNodeId`: The node performing the action.
-    *   `nodeType`: The "Official Type" of the **Input Node** (resolved from `inputNode.config.component`).
-    *   `processNodeType`: The "Official Type" of the **Process Node** (resolved from `processNode.config.component`).
-    *   `outputNodeId`: The node where the result will be displayed (discovered by looking for nodes that have the input node as their data source).
+    *   `nodeType`: The "Official Type" of the **Input Node**.
+    *   `processNodeType`: The "Official Type" of the **Process Node**.
+    *   `outputNodeId`: The node where the result will be displayed.
 
 > [!CAUTION]
 > **Never use `node.type` for logic**: Always prefer `node.config.component`. The `node.type` field may contain structural wrapper types that do not correspond to the actual business logic of the node.

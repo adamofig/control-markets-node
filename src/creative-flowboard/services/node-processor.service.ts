@@ -21,6 +21,7 @@ export class NodeProcessorService {
     this.processors.set(NodeType.AgentNodeComponent, this.completionNodeProcessor);
     this.processors.set(NodeType.OutcomeNodeComponent, this.outcomeNodeProcessor);
     this.processors.set(NodeType.AssetsNodeComponent, this.assetsNodeProcessor);
+    this.processors.set(NodeType.VideoGenNodeComponent, this.assetsNodeProcessor);
     this.processors.set(NodeType.NanoBananaNodeComponent, this.nanoBananaNodeProcessor);
   }
 
