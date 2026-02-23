@@ -9,6 +9,11 @@ class AddUserToOrganizationDto {
   email: string;
 }
 
+class UserOrganizationOperationDto {
+  email: string;
+  operation: 'add' | 'remove';
+}
+
 @ApiTags('organization')
 @Controller('api/organization') // NOT ENDPOINT Father will tell
 export class OrganizationController extends EntityController<OrganizationDocument> {
@@ -16,8 +21,16 @@ export class OrganizationController extends EntityController<OrganizationDocumen
     super(organizationService);
   }
 
+  /**
+   * @deprecated Use operateUserToOrganization instead
+   */
   @Post(':orgId/add-user')
   async addUserToOrganization(@Param('orgId') orgId: string, @Body() addUserToOrganizationDto: AddUserToOrganizationDto) {
     return this.organizationService.addUserToOrganization(orgId, addUserToOrganizationDto.email);
+  }
+
+  @Post(':orgId/operate-user')
+  async operateUserToOrganization(@Param('orgId') orgId: string, @Body() dto: UserOrganizationOperationDto) {
+    return this.organizationService.operateUserToOrganization(orgId, dto);
   }
 }

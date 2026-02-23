@@ -20,6 +20,12 @@ export class OrganizationEntity implements IOrganization {
 
   @Prop({ required: false, default: [] })
   guests: any[];
+
+  @Prop({ required: false, type: Object })
+  image: any;
+
+  @Prop({ required: false, default: [] })
+  socialNetworks: { type: string, account: string }[];
 }
 
 export const OrganizationSchema = SchemaFactory.createForClass(OrganizationEntity);

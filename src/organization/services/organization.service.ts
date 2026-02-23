@@ -68,4 +68,46 @@ export class OrganizationService extends EntityCommunicationService<Organization
 
     return await this.userService.updateUser(user.id, { organizations: user.organizations });
   }
+
+  async operateUserToOrganization(orgId: string, dto: { email: string; operation: 'add' | 'remove' }): Promise<any> {
+    if (dto.operation === 'add') {
+      return this.addUserToOrganization(orgId, dto.email);
+    } else if (dto.operation === 'remove') {
+      return this.removeUserFromOrganization(orgId, dto.email);
+    } else {
+      throw new AppException({ error_message: `Operation ${dto.operation} not supported` });
+    }
+  }
+
+  async removeUserFromOrganization(orgId: string, email: string): Promise<any> {
+    const user = await this.userService.findUserByEmail(email);
+    if (!user) {
+      throw new AppException({ error_message: `User with email ${email} not found` });
+    }
+
+    const organization = await this.organizationModel.findById(orgId).exec();
+    if (!organization) {
+      throw new AppException({ error_message: `Organization with id ${orgId} not found` });
+    }
+
+    if (user.organizations) {
+      user.organizations = user.organizations.filter(org => org.orgId !== orgId);
+    }
+
+    if (user.defaultOrgId === orgId) {
+      const personalOrg = await this.organizationModel.findOne({ name: email, type: 'personal' }).exec();
+      if (personalOrg) {
+        user.defaultOrgId = personalOrg._id.toString();
+      } else {
+        user.defaultOrgId = null;
+      }
+    }
+
+    if (organization.guests) {
+      organization.guests = organization.guests.filter(guest => guest.email !== email);
+      await organization.save();
+    }
+
+    return await this.userService.updateUser(user.id, { organizations: user.organizations, defaultOrgId: user.defaultOrgId });
+  }
 }
