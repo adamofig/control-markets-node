@@ -29,6 +29,8 @@ import { OrganizationModule } from './organization/organization.module';
 import { LeadModule } from './lead/lead.module';
 import { NestAiServicesMongodbModule } from '@dataclouder/nest-ai-services-mongodb';
 import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
+import { StorageAssetModule } from './storage-asset/storage-asset.module';
+import { SocialMediaTrackerModule } from './social-media-tracker/social-media-tracker.module';
 
 
 @Module({
@@ -60,7 +62,9 @@ import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
     OrganizationModule,
     LeadModule,
     NestAiServicesMongodbModule,
-    NestAiServicesSdkModule
+    NestAiServicesSdkModule,
+    StorageAssetModule,
+    SocialMediaTrackerModule,
   ],
   controllers: [AppController],
 })
