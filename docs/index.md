@@ -11,8 +11,9 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 - **[Node Execution Engine](technical-reference/node-execution-engine.md)**: Deep dive into how the `FlowRunner` orchestrates node execution using the Strategy pattern.
 - **[Node Library Standard](technical-reference/node-library-reference.md)**: Technical specifications for node processors and their interfaces.
 - **[Real-Time Synchronization](technical-reference/real-time-sync.md)**: Technical details on the SSE-based synchronization between frontend and backend.
-- **[Execution State](technical-reference/execution-state.md)**: Details on the lifecycle, persistence, and the **Flow -> Task -> Job** hierarchy.
-- **[Video Processor](technical-reference/processors/video-processor.md)**: Technical overview of the multi-resource video generation engine.
+- [Execution State](technical-reference/execution-state.md): Details on the lifecycle, persistence, and the **Flow -> Task -> Job** hierarchy.
+- [AI Services Communication](technical-reference/ai-services-comunication.md): How the backend requests and coordinates generative tasks with AI Services using Asset IDs.
+- [Video Processor](technical-reference/processors/video-processor.md): Technical overview of the multi-resource video generation engine.
 
 ### Backend Node Reference Table
 > [!IMPORTANT]

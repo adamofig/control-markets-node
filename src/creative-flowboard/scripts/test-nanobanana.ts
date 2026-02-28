@@ -22,7 +22,7 @@ async function bootstrap() {
         data: {
           nodeData: {
             prompt: 'A cute robot making a banana smoothie, 3d render, high detail',
-            model: 'gemini-2.5-flash-image'
+            model: 'gemini-3.1-flash-image-preview'
           }
         }
       }

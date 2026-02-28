@@ -15,11 +15,11 @@ importers:
         specifier: ^0.1.43
         version: 0.1.43(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2)
       '@dataclouder/nest-ai-services-mongodb':
-        specifier: ^0.0.7
-        version: 0.0.7(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/mongoose@11.0.3(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2)
+        specifier: ^0.0.8
+        version: 0.0.8(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/mongoose@11.0.3(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2)
       '@dataclouder/nest-ai-services-sdk':
-        specifier: ^0.0.4
-        version: 0.0.4(@nestjs/axios@4.0.1(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2))(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2)
+        specifier: ^0.0.5
+        version: 0.0.5(@nestjs/axios@4.0.1(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2))(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2)
       '@dataclouder/nest-auth':
         specifier: ^0.0.30
         version: 0.0.30(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
@@ -39,8 +39,8 @@ importers:
         specifier: ^0.1.48
         version: 0.1.48(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2)
       '@dataclouder/nest-storage':
-        specifier: ^0.0.12
-        version: 0.0.12(@fastify/multipart@9.2.1)(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(fastify@5.6.1)(rxjs@7.8.2)
+        specifier: ^0.0.15
+        version: 0.0.15(@fastify/multipart@9.2.1)(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(fastify@5.6.1)(rxjs@7.8.2)
       '@dataclouder/nest-users':
         specifier: ^0.0.10
         version: 0.0.10(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))
@@ -164,9 +164,6 @@ importers:
       openai:
         specifier: ^4.83.0
         version: 4.104.0(ws@8.18.3)(zod@3.25.76)
-      pg:
-        specifier: ^8.16.3
-        version: 8.16.3
       playwright:
         specifier: ^1.55.0
         version: 1.55.0
@@ -649,8 +646,8 @@ packages:
       mongoose: '>=8.0.0'
       rxjs: '>=7.0.0'
 
-  '@dataclouder/nest-ai-services-mongodb@0.0.7':
-    resolution: {integrity: sha512-FPBOXCEdWka3ik6B5+TNG/zAr9o8RangQW8TWTzZatMsgwNxjVJ4TTNhCzOUbSych/69RcNsD5ifvh0r/EheiQ==}
+  '@dataclouder/nest-ai-services-mongodb@0.0.8':
+    resolution: {integrity: sha512-xd8uzEOmvY7cTqKGpP4kxRZNGOxnxbomb9yA6SdoO3IO4BrMuehTf7ej84CRmouSQEvI3oCUor8fWf6x2+sEPA==}
     peerDependencies:
       '@nestjs/common': '>=11.0.0'
       '@nestjs/core': '>=11.0.0'
@@ -658,8 +655,8 @@ packages:
       mongoose: '>=8.0.0'
       rxjs: '>=7.0.0'
 
-  '@dataclouder/nest-ai-services-sdk@0.0.4':
-    resolution: {integrity: sha512-AAplWyNOx6EaoWtKo3l9veXsdi8a1sTjqcdX+iKEGXrtgfBrZZbjmFWB4PqV5YIkZKeuO437fPtSgqoqcX3G/A==}
+  '@dataclouder/nest-ai-services-sdk@0.0.5':
+    resolution: {integrity: sha512-zmkvCsIOqIJCSKOhNXLt1ffZ9iASHDoDK5Geq09E3qCaDNw2XAHTR4fhwWKaKfE7pMc1uMkGg95XKpwCPcOOvQ==}
     peerDependencies:
       '@nestjs/axios': '>=1.0.0'
       '@nestjs/common': '>=11.0.0'
@@ -711,8 +708,8 @@ packages:
       mongoose: '>=8.0.0'
       rxjs: '>=7.0.0'
 
-  '@dataclouder/nest-storage@0.0.12':
-    resolution: {integrity: sha512-iv3wy58Iomc9neoTuzunaMmZuN4hwime6pDM7UR8O7zAfxGXPAscdPt5r69m5vj1l+forHNYMGYZTpnq94VJMA==}
+  '@dataclouder/nest-storage@0.0.15':
+    resolution: {integrity: sha512-KgNTXtTQ9Q7Wu/52MbX6E2CVlUrI4wU2eRDfbIQ8fZQn8HYrXgvrYt/3deBedn3o5jBHgCKVL5KkXOxjMZNNMA==}
     peerDependencies:
       '@fastify/multipart': '>=9.0.0'
       '@nestjs/common': '>=11.0.0'
@@ -6392,7 +6389,7 @@ snapshots:
       mongoose: 8.18.1
       rxjs: 7.8.2
 
-  '@dataclouder/nest-ai-services-mongodb@0.0.7(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/mongoose@11.0.3(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2)':
+  '@dataclouder/nest-ai-services-mongodb@0.0.8(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/mongoose@11.0.3(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2)':
     dependencies:
       '@dataclouder/nest-core': 0.0.19(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
       '@dataclouder/nest-mongo': 0.1.48(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(mongoose@8.18.1)(rxjs@7.8.2)
@@ -6405,7 +6402,7 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@dataclouder/nest-ai-services-sdk@0.0.4(@nestjs/axios@4.0.1(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2))(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2)':
+  '@dataclouder/nest-ai-services-sdk@0.0.5(@nestjs/axios@4.0.1(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2))(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2)':
     dependencies:
       '@nestjs/axios': 4.0.1(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.12.2)(rxjs@7.8.2)
       '@nestjs/common': 11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -6451,7 +6448,7 @@ snapshots:
       mongoose: 8.18.1
       rxjs: 7.8.2
 
-  '@dataclouder/nest-storage@0.0.12(@fastify/multipart@9.2.1)(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(fastify@5.6.1)(rxjs@7.8.2)':
+  '@dataclouder/nest-storage@0.0.15(@fastify/multipart@9.2.1)(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(fastify@5.6.1)(rxjs@7.8.2)':
     dependencies:
       '@aws-sdk/client-s3': 3.914.0
       '@aws-sdk/s3-request-presigner': 3.914.0
@@ -10956,15 +10953,19 @@ snapshots:
   pg-cloudflare@1.2.7:
     optional: true
 
-  pg-connection-string@2.9.1: {}
+  pg-connection-string@2.9.1:
+    optional: true
 
-  pg-int8@1.0.1: {}
+  pg-int8@1.0.1:
+    optional: true
 
   pg-pool@3.10.1(pg@8.16.3):
     dependencies:
       pg: 8.16.3
+    optional: true
 
-  pg-protocol@1.10.3: {}
+  pg-protocol@1.10.3:
+    optional: true
 
   pg-types@2.2.0:
     dependencies:
@@ -10973,6 +10974,7 @@ snapshots:
       postgres-bytea: 1.0.0
       postgres-date: 1.0.7
       postgres-interval: 1.2.0
+    optional: true
 
   pg@8.16.3:
     dependencies:
@@ -10983,10 +10985,12 @@ snapshots:
       pgpass: 1.0.5
     optionalDependencies:
       pg-cloudflare: 1.2.7
+    optional: true
 
   pgpass@1.0.5:
     dependencies:
       split2: 4.2.0
+    optional: true
 
   picocolors@1.1.1: {}
 
@@ -11038,15 +11042,19 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
-  postgres-array@2.0.0: {}
+  postgres-array@2.0.0:
+    optional: true
 
-  postgres-bytea@1.0.0: {}
+  postgres-bytea@1.0.0:
+    optional: true
 
-  postgres-date@1.0.7: {}
+  postgres-date@1.0.7:
+    optional: true
 
   postgres-interval@1.2.0:
     dependencies:
       xtend: 4.0.2
+    optional: true
 
   prelude-ls@1.2.1: {}
 
