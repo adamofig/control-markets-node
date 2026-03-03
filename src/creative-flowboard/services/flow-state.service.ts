@@ -41,7 +41,7 @@ export class FlowStateService {
     for (const processNode of processNodes) {
       const inputNodes = this.agentFlowUtilsService.getInputNodes(processNode.id, flow);
       // CompletionNodeComponent and OutcomeNodeComponent are nodes valid to create a job.
-      const inputTaskableNodes = inputNodes.filter(node => node.config.category === 'input'); // Me parece que esta de más todos deberian ser inputs, pero lo voy a dejar por si acaso.
+      const inputTaskableNodes = inputNodes.filter(node => node.config.category === 'input' || node.config.component === NodeType.AssetGeneratedNodeComponent); // Me parece que esta de más todos deberian ser inputs, pero lo voy a dejar por si acaso.
       const inputValidJobsNodes = inputTaskableNodes.filter(node => node.config.component != NodeType.SourcesNodeComponent);
       // SourcesNodeComponent add information to the flow but don't create a job.
       const executionTask = executionFlowState.tasks.find(t => t.processNodeId === processNode.id);

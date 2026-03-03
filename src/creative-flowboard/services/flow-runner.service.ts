@@ -33,6 +33,13 @@ export class FlowRunnerService {
     for (const task of flowExecutionState.tasks) {
       task.status = StatusJob.IN_PROGRESS;
 
+      if (task.jobs?.length === 0) {
+        this.logger.warn(`Task ${task.entityId} has no jobs, check it should have at least one job`);
+        task.status = StatusJob.COMPLETED;
+        await this.updateExecutionState(flowExecutionState);
+        continue;
+      }
+
       for (const job of task.jobs) {
         job.status = StatusJob.IN_PROGRESS;
         await this.updateExecutionState(flowExecutionState);
