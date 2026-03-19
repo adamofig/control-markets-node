@@ -57,6 +57,7 @@ export class FlowRunnerService {
           if (job.status === StatusJob.FAILED) {
             this.logger.error(`Job failed: ${job.statusDescription}`);
             task.status = StatusJob.FAILED;
+            task.statusDescription = job.statusDescription;
             flowExecutionState.status = StatusJob.FAILED;
             await this.updateExecutionState(flowExecutionState);
             return results;
@@ -67,6 +68,7 @@ export class FlowRunnerService {
           job.status = StatusJob.FAILED;
           job.statusDescription = errorMsg;
           task.status = StatusJob.FAILED;
+          task.statusDescription = errorMsg;
           flowExecutionState.status = StatusJob.FAILED;
           await this.updateExecutionState(flowExecutionState);
           return results;

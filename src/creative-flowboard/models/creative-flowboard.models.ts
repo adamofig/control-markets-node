@@ -110,6 +110,7 @@ export interface ITaskExecutionState {
   entityId: string; // if data exits in db, use nodeType to know what database.
   nodeType: NodeType;
   status: StatusJob;
+  statusDescription?: string;
   jobs: Array<IJobExecutionState>;
 }
 

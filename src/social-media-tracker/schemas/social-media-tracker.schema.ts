@@ -19,6 +19,25 @@ export class SocialMediaTrackerEntity implements ISocialMediaTracker {
   @Prop({ required: false, type: Object })
   asset: any;
 
+  @Prop({
+    required: false,
+    type: Date,
+    set: (v: any) => (v && typeof v === 'object' && !(v instanceof Date) ? undefined : v),
+  })
+  scheduledDate: Date;
+
+  @Prop({ required: false, type: String })
+  platform: string;
+
+  @Prop({ required: false, type: String, default: 'draft' })
+  status: string;
+
+  @Prop({ required: false, type: String })
+  notes: string;
+
+  @Prop({ required: false, type: String })
+  videoUrl: string;
+
   @Prop({ type: AuditDataSchema, required: false, default: {} })
   auditable: IAuditable;
 }
