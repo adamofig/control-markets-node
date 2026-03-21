@@ -5,9 +5,10 @@ import { SocialMediaTrackerService } from './services/social-media-tracker.servi
 import { SocialMediaTrackerEntity, SocialMediaTrackerSchema } from './schemas/social-media-tracker.schema';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { NestStorageModule } from '@dataclouder/nest-storage';
+import { NestAuthModule } from '@dataclouder/nest-auth';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: SocialMediaTrackerEntity.name, schema: SocialMediaTrackerSchema }]), DCMongoDBModule, NestStorageModule],
+  imports: [MongooseModule.forFeature([{ name: SocialMediaTrackerEntity.name, schema: SocialMediaTrackerSchema }]), DCMongoDBModule, NestStorageModule, NestAuthModule],
   controllers: [SocialMediaTrackerController],
   providers: [SocialMediaTrackerService],
   exports: [SocialMediaTrackerService],

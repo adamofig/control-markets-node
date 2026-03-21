@@ -3,6 +3,7 @@ import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { ICreativeFlowBoard, IFlowEdge, IFlowNode } from '../models/creative-flowboard.models';
+import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 export type CreativeFlowboardDocument = FlowBoardEntity & Document;
 
 @Schema({ collection: 'agent_flows', timestamps: true })
@@ -26,6 +27,9 @@ export class FlowBoardEntity implements ICreativeFlowBoard {
 
   @Prop({ type: Object, required: false })
   metadata: any;
+
+  @Prop({ type: AuditDataSchema, required: false, default: {} })
+  auditable: IAuditable;
 }
 
 export const CreativeFlowboardSchema = SchemaFactory.createForClass(FlowBoardEntity);

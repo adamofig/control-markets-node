@@ -5,7 +5,7 @@ import { CreativeFlowboardService } from '../services/creative-flowboard.service
 import { FlowEventsService } from '../services/flow-events.service';
 import { Observable } from 'rxjs';
 import { CreativeFlowboardDocument } from '../schemas/creative-flowboard.schema';
-import { EntityController } from '@dataclouder/nest-mongo';
+import { EntityController, EntityMongoController } from '@dataclouder/nest-mongo';
 import { AllExceptionsHandler } from '@dataclouder/nest-core';
 
 /**
@@ -15,7 +15,7 @@ import { AllExceptionsHandler } from '@dataclouder/nest-core';
 @ApiTags('CreativeFlowboard')
 @Controller('api/creative-flowboard')
 @UseFilters(AllExceptionsHandler)
-export class CreativeFlowboardController extends EntityController<CreativeFlowboardDocument> {
+export class CreativeFlowboardController extends EntityMongoController<CreativeFlowboardDocument> {
   constructor(
     private readonly creativeFlowboardService: CreativeFlowboardService,
     private readonly flowEventsService: FlowEventsService
@@ -34,20 +34,22 @@ export class CreativeFlowboardController extends EntityController<CreativeFlowbo
       return () => this.flowEventsService.unsubscribe(id, handler);
     });
   }
-  @Post('operation')
-  @ApiOperation({ summary: 'Execute a database operation' })
-  override async executeOperation(@Body() operationDto: any): Promise<any> {
-    // TODO: later ill need to add a logic to delete the files in the cloud storage when the flow is deleted.
-    // FOR NOW, storage library is not ready for this. since i have not stanrarized how files are saved or if they are in different buckers and providers. 
-    // I need one method that find file and get all data about the sotrage so i can delete it propertly. 
-    // if (operationDto.action === 'deleteOne') {
-    //   const flow = await this.creativeFlowboardService.findOne(operationDto.query._id);
-    //   if (flow) {
-    //     await this.creativeFlowboardService.cleanupFlowStorage(flow);
-    //   }
-    // }
-    return super.executeOperation(operationDto);
-  }
+
+
+  // @Post('operation')
+  // @ApiOperation({ summary: 'Execute a database operation' })
+  // override async executeOperation(@Body() operationDto: any): Promise<any> {
+  //   // TODO: later ill need to add a logic to delete the files in the cloud storage when the flow is deleted.
+  //   // FOR NOW, storage library is not ready for this. since i have not stanrarized how files are saved or if they are in different buckers and providers. 
+  //   // I need one method that find file and get all data about the sotrage so i can delete it propertly. 
+  //   // if (operationDto.action === 'deleteOne') {
+  //   //   const flow = await this.creativeFlowboardService.findOne(operationDto.query._id);
+  //   //   if (flow) {
+  //   //     await this.creativeFlowboardService.cleanupFlowStorage(flow);
+  //   //   }
+  //   // }
+  //   return super.executeOperation(operationDto, {});
+  // }
 
 
 
