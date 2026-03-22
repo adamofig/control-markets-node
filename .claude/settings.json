@@ -7,7 +7,8 @@
       "Bash(grep -r \"getEntities\\\\|getAll\\\\|query\\\\|list\\\\|findAll\" /Users/adamo/Documents/GitHub/control-markets/control-markets-angular/node_modules/@dataclouder/ngx-core/lib --include=*.d.ts -l)",
       "Bash(grep -r \"getEntities\\\\|getAll\\\\|findAll\\\\|list\\\\b\" /Users/adamo/Documents/GitHub/control-markets/control-markets-angular/node_modules/@dataclouder/ngx-core --include=*.ts -l)",
       "Bash(find /Users/adamo/Documents/GitHub/control-markets/control-markets-angular/node_modules/@dataclouder/ngx-core/types -name *.d.ts)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Read(//Users/adamo/.claude/**)"
     ]
   }
 }

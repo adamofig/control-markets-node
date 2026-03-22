@@ -5,10 +5,13 @@ import { ISocialMediaTracker } from '../models/social-media-tracker.models';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 export type SocialMediaTrackerDocument = SocialMediaTrackerEntity & Document;
 
-@Schema({ collection: 'socialMediaTracker', timestamps: true })
+@Schema({ collection: 'social_media_tracker', timestamps: true })
 export class SocialMediaTrackerEntity implements ISocialMediaTracker {
   @Prop({ required: false })
   id: string;
+
+  @Prop({ required: false })
+  orgId: string;
 
   @Prop({ required: false })
   name: string;

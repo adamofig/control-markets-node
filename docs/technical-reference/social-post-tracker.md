@@ -31,6 +31,7 @@ src/social-media-tracker/
 export interface ISocialMediaTracker {
   _id?: string;
   id?: string;
+  orgId?: string;
   name?: string;         // Human-readable post title
   description?: string;
   asset?: any;           // Legacy storage-asset reference (kept for backward compat)
@@ -56,6 +57,7 @@ export interface ISocialMediaTracker {
 | Field | Mongoose type | Default | Notes |
 | :--- | :--- | :--- | :--- |
 | `id` | String | — | Nanoid, set via `addIdAfterSave` hook |
+| `orgId` | String | — | |
 | `name` | String | — | |
 | `description` | String | — | |
 | `asset` | Object | — | Legacy video-asset reference |

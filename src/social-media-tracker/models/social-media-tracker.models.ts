@@ -6,6 +6,7 @@ export type PostStatus = 'draft' | 'scheduled' | 'published';
 export interface ISocialMediaTracker {
   _id?: string;
   id?: string;
+  orgId?: string;
   name?: string;
   description?: string;
   asset?: any;

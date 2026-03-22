@@ -2,6 +2,11 @@
 
 Welcome to the backend documentation for **Control Markets**, a node-based platform for automation highly specialized in decision-making with creative and tactical touches, helpful for marketing and content creation. This documentation covers the architecture, execution engine, and real-time synchronization of the NestJS backend (CreativeFlowboard).
 
+## 🌍 Getting Started & Vision
+*High-level overview of the project vision and core concepts.*
+
+- **[Understanding Control Markets](business/understanding-control-markets.md)**: What is Control Markets and what are its key features.
+
 ---
 
 ## 📚 Technical Reference

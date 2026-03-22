@@ -4,7 +4,6 @@ import { ConfigModule } from '@nestjs/config';
 import { AgentCardsModule, ConversationRuleModule } from '@dataclouder/nest-agent-cards';
 import { NestAuthModule } from '@dataclouder/nest-auth';
 // import { NotionModule } from '@dataclouder/notion';
-import { LessonsModule } from '@dataclouder/nest-lessons';
 import { NestCoreModule } from '@dataclouder/nest-core';
 
 import { AppController } from './app.controller';
@@ -31,6 +30,7 @@ import { NestAiServicesMongodbModule } from '@dataclouder/nest-ai-services-mongo
 import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
 import { SocialMediaTrackerModule } from './social-media-tracker/social-media-tracker.module';
 import { StorageAssetModule } from '@dataclouder/nest-storage';
+import { InspirationSourceModule } from './inspiration-source/inspiration-source.module';
 
 
 @Module({
@@ -44,7 +44,6 @@ import { StorageAssetModule } from '@dataclouder/nest-storage';
     NestCoreModule,
     TestModule,
     AgentCardsModule,
-    LessonsModule,
     NestAiServicesSdkModule.forRoot({
       apiBaseUrl: process.env.AI_SERVICES_HOST || 'https://api.dataclouder.com',
       apiKey: process.env.AI_SERVICES_API_KEY || '',
@@ -65,6 +64,7 @@ import { StorageAssetModule } from '@dataclouder/nest-storage';
     NestAiServicesSdkModule,
     StorageAssetModule,
     SocialMediaTrackerModule,
+    InspirationSourceModule,
   ],
   controllers: [AppController],
 })
