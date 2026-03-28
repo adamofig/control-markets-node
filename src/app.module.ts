@@ -31,6 +31,7 @@ import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
 import { SocialMediaTrackerModule } from './social-media-tracker/social-media-tracker.module';
 import { StorageAssetModule } from '@dataclouder/nest-storage';
 import { InspirationSourceModule } from './inspiration-source/inspiration-source.module';
+import { RecentResourcesModule } from './recent-resources/recent-resources.module';
 
 
 @Module({
@@ -65,6 +66,7 @@ import { InspirationSourceModule } from './inspiration-source/inspiration-source
     StorageAssetModule,
     SocialMediaTrackerModule,
     InspirationSourceModule,
+    RecentResourcesModule,
   ],
   controllers: [AppController],
 })
