@@ -5,7 +5,7 @@ import { CreativeFlowboardService } from './services/creative-flowboard.service'
 import { FlowBoardEntity, CreativeFlowboardSchema } from './schemas/creative-flowboard.schema';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { NestStorageModule } from '@dataclouder/nest-storage';
-import { FlowsDbStateService } from './services/flows-db-state.service';
+
 import { NestAuthModule } from '@dataclouder/nest-auth';
 import { AgentCardsModule } from '@dataclouder/nest-agent-cards';
 import { AgentsModule } from 'src/agent-tasks/agent-tasks.module';
@@ -39,7 +39,7 @@ import { NanoBananaNodeProcessor } from './services/node-processors/nanobanana-n
   controllers: [CreativeFlowboardController],
   providers: [
     CreativeFlowboardService,
-    FlowsDbStateService,
+
     FlowNodeSearchesService,
     FlowRunnerService,
     NodeProcessorService,
@@ -54,6 +54,6 @@ import { NanoBananaNodeProcessor } from './services/node-processors/nanobanana-n
     NodePromptBuilderService,
     ChatwootService,
   ],
-  exports: [CreativeFlowboardService, FlowsDbStateService, FlowExecutionStateService],
+  exports: [CreativeFlowboardService, FlowExecutionStateService],
 })
 export class CreativeFlowboardModule {}

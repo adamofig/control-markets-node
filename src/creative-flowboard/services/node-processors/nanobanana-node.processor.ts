@@ -7,7 +7,7 @@ import { INodeProcessor } from './inode.processor';
 import { GeneratedAssetService , GeneratedAsset} from '@dataclouder/nest-ai-services-mongodb';
 
 import { IAssetNodeData } from '../../models/nodes.models';
-import { FlowsDbStateService } from '../flows-db-state.service';
+
 import { FlowNodeSearchesService } from '../flow-searches.service';
 
 import { CloudStorageService } from '@dataclouder/nest-storage';
@@ -21,7 +21,7 @@ export class NanoBananaNodeProcessor implements INodeProcessor {
   constructor(
     private configService: ConfigService,
     private generatedAssetService: GeneratedAssetService,
-    private flowsDbStateService: FlowsDbStateService,
+
     private cloudStorageService: CloudStorageService,
     private flowNodeSearchesService: FlowNodeSearchesService,
     private clientAIService: AiServicesSdkClient,

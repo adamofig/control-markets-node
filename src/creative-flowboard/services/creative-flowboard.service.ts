@@ -6,7 +6,7 @@ import { ICreativeFlowBoard, IExecutionResult, IFlowExecutionState, NodeType } f
 import { AddNodesDto, WebhookNodeDto } from '../models/creative-flowboard.dto';
 import { MongoService } from '@dataclouder/nest-mongo';
 import { CloudStorageService } from '@dataclouder/nest-storage';
-import { FlowsDbStateService } from './flows-db-state.service';
+
 import { FlowEventsService } from './flow-events.service';
 
 import { FlowRunnerService } from './flow-runner.service';
@@ -29,7 +29,7 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     protected creativeFlowboardModel: Model<CreativeFlowboardDocument>,
     protected mongoService: MongoService,
     protected cloudStorageService: CloudStorageService,
-    private flowsDbStateService: FlowsDbStateService,
+
     private flowRunnerService: FlowRunnerService,
     private flowStateService: FlowStateService,
     private flowExecutionStateService: FlowExecutionStateService,
@@ -47,7 +47,7 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
   public async runFlow(id: string): Promise<IFlowExecutionState> {
     const flow: FlowBoardEntity = await this.findOne(id);
     const flowExecutionState: IFlowExecutionState = this.flowStateService.createInitialState(flow);
-    await this.flowsDbStateService.createFirebaseLog(flowExecutionState);
+
     const result = await this.flowExecutionStateService.save(flowExecutionState, flowExecutionState.flowExecutionId);
     delete flowExecutionState['_id'];
     console.log('Revisar que al actualizar tenga el execution state y el flow id. en el process, eso va a ser mi flujo más facil...');
@@ -59,8 +59,7 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     this.logger.verbose(`Running node ${nodeId} for flow ${flowId}`);
     const flow: ICreativeFlowBoard = await this.findOne(flowId);
     const flowExecutionState: IFlowExecutionState = this.flowStateService.createInitialState(flow, nodeId);
-    // TODO: check if i can remove this. 
-    await this.flowsDbStateService.createFirebaseLog(flowExecutionState);
+
     const result = await this.flowExecutionStateService.save(flowExecutionState, flowExecutionState.flowExecutionId);
     delete flowExecutionState['_id'];
     this.flowRunnerService.initExecution(flow, flowExecutionState);
@@ -71,7 +70,7 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     this.logger.verbose(`Running node ${nodeId} for flow ${flowId}`);
     const flow: ICreativeFlowBoard = await this.findOne(flowId);
     const flowExecutionState: IFlowExecutionState = this.flowStateService.createInitialState(flow, nodeId);
-    await this.flowsDbStateService.createFirebaseLog(flowExecutionState);
+
     const result = await this.flowExecutionStateService.save(flowExecutionState, flowExecutionState.flowExecutionId);
     delete flowExecutionState['_id'];
     const outcomesExecutions = await this.flowRunnerService.initExecution(flow, flowExecutionState);

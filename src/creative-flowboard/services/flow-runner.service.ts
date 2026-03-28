@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ICreativeFlowBoard, IExecutionResult, IFlowExecutionState, IJobExecutionState, StatusJob } from '../models/creative-flowboard.models';
 import { FlowExecutionStateService } from './flow-execution-state.service';
-import { FlowsDbStateService } from './flows-db-state.service';
+
 import { NodeProcessorService } from './node-processor.service';
 import { FlowEventsService } from './flow-events.service';
 
@@ -10,14 +10,14 @@ export class FlowRunnerService {
   private logger = new Logger(FlowRunnerService.name);
 
   constructor(
-    private flowsDbStateService: FlowsDbStateService,
+
     private nodeProcessorService: NodeProcessorService,
     private readonly flowExecutionStateService: FlowExecutionStateService,
     private readonly flowEventsService: FlowEventsService
   ) {}
 
   private async updateExecutionState(flowExecutionState: IFlowExecutionState): Promise<void> {
-    // await this.flowsDbStateService.updateFirestore(flowExecutionState.flowExecutionId, flowExecutionState);
+
     await this.flowExecutionStateService.save(flowExecutionState);
     this.flowEventsService.emit(flowExecutionState.flowId, flowExecutionState);
   }

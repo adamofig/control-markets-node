@@ -13,7 +13,8 @@ import {   AiServicesSdkClient } from '@dataclouder/nest-ai-services-sdk';
 
 import { GeneratedAssetService , IAssetsForGeneration, GeneratedAsset} from '@dataclouder/nest-ai-services-mongodb';
 
-import { FlowsDbStateService,  } from '../flows-db-state.service';
+import { FlowExecutionStateService } from '../flow-execution-state.service';
+import { FlowEventsService } from '../flow-events.service';
 
 @Injectable()
 export class VideoGenNodeProcessor implements INodeProcessor {
@@ -21,7 +22,8 @@ export class VideoGenNodeProcessor implements INodeProcessor {
   constructor(
     private generatedAssetService: GeneratedAssetService,
     private clientAIService: AiServicesSdkClient,
-    private flowsDbStateService: FlowsDbStateService,
+    private flowExecutionStateService: FlowExecutionStateService,
+    private flowEventsService: FlowEventsService,
     private flowNodeSearchesService: FlowNodeSearchesService
   ) {}
 
@@ -92,7 +94,7 @@ export class VideoGenNodeProcessor implements INodeProcessor {
 
   private async _findJobStateAndComplete(options: { flowExecutionId: string; fatherTaskId: string; inputNodeId: string; outcomeId?: string; status: StatusJob; statusDescription?: string }) {
     const { flowExecutionId, fatherTaskId, inputNodeId, outcomeId, status, statusDescription } = options;
-    const executionState = await this.flowsDbStateService.findOne(flowExecutionId);
+    const executionState = await this.flowExecutionStateService.findOne(flowExecutionId);
     if (!executionState) {
       this.logger.error(`Execution state ${flowExecutionId} not found`);
       return { executionState: null, task: null, job: null };
@@ -120,7 +122,8 @@ export class VideoGenNodeProcessor implements INodeProcessor {
       job.resultType = 'generatedAsset';
     }
 
-    await this.flowsDbStateService.updateFirestore(flowExecutionId, executionState);
+    await this.flowExecutionStateService.save(executionState);
+    this.flowEventsService.emit(executionState.flowId, executionState);
     this.logger.log(`Job ${job.inputNodeId} in task ${task.entityId} updated to ${status}`);
 
     return { executionState, task, job };
