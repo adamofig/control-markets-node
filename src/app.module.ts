@@ -32,6 +32,7 @@ import { SocialMediaTrackerModule } from './social-media-tracker/social-media-tr
 import { StorageAssetModule } from '@dataclouder/nest-storage';
 import { InspirationSourceModule } from './inspiration-source/inspiration-source.module';
 import { RecentResourcesModule } from './recent-resources/recent-resources.module';
+import { ChatModule } from './chat/chat.module';
 
 
 @Module({
@@ -67,6 +68,7 @@ import { RecentResourcesModule } from './recent-resources/recent-resources.modul
     SocialMediaTrackerModule,
     InspirationSourceModule,
     RecentResourcesModule,
+    ChatModule,
   ],
   controllers: [AppController],
 })
