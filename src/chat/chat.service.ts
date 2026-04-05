@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { streamText } from 'ai';
+import { streamText, tool, stepCountIs } from 'ai';
+import { z } from 'zod';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { AppToken } from '@dataclouder/nest-auth';
 import { AppUserService } from '../user/user.service';
+import { CreativeFlowboardService } from '../creative-flowboard/services/creative-flowboard.service';
 
 @Injectable()
 export class ChatService {
@@ -10,7 +12,10 @@ export class ChatService {
     apiKey: process.env.GEMINI_API_KEY,
   });
 
-  constructor(private readonly userService: AppUserService) {}
+  constructor(
+    private readonly userService: AppUserService,
+    private readonly flowboardService: CreativeFlowboardService,
+  ) {}
 
   async streamChat(
     messages: { role: 'user' | 'assistant'; content: string }[],
@@ -22,6 +27,34 @@ export class ChatService {
       model: this.google('gemini-3.1-flash-lite-preview'),
       system,
       messages,
+      stopWhen: stepCountIs(5),
+      tools: {
+        moveNodes: tool({
+          description:
+            'Move one or more nodes on a flowboard canvas to new (x, y) positions. Use when the user asks to rearrange, move, or reposition nodes on a flow.',
+          inputSchema: z.object({
+            flowId: z.string().describe('The ID of the flowboard to update.'),
+            positions: z
+              .array(
+                z.object({
+                  nodeId: z.string().describe('The ID of the node to move.'),
+                  x: z.number().describe('New X coordinate on the canvas.'),
+                  y: z.number().describe('New Y coordinate on the canvas.'),
+                }),
+              )
+              .describe('List of nodes and their new positions.'),
+          }),
+          execute: async ({ flowId, positions }) => {
+            const result = await this.flowboardService.moveNodes(flowId, positions);
+            return {
+              success: true,
+              flowId,
+              updatedNodes: positions.map(p => p.nodeId),
+              totalNodes: result.nodes.length,
+            };
+          },
+        }),
+      },
     });
 
     return result.textStream;

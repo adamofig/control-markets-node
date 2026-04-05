@@ -133,6 +133,26 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
       throw new AppException({ error_message: 'Error calling LLM Service: ' + error.message, explanation: error.response.data });
     }
   }
+  public async saveCanvas(id: string, body: Partial<ICreativeFlowBoard>): Promise<CreativeFlowboardDocument> {
+    this.logger.verbose(`Saving canvas for flow ${id}`);
+    const result = await this.creativeFlowboardModel.findByIdAndUpdate(id, { $set: body }, { new: true });
+    return result;
+  }
+
+  public async moveNodes(flowId: string, positions: { nodeId: string; x: number; y: number }[]): Promise<CreativeFlowboardDocument> {
+    this.logger.verbose(`Moving ${positions.length} node(s) in flow ${flowId}`);
+    const bulkOps = positions.map(({ nodeId, x, y }) => ({
+      updateOne: {
+        filter: { _id: flowId, 'nodes.id': nodeId },
+        update: { $set: { 'nodes.$.point': { x, y } } },
+      },
+    }));
+    await this.creativeFlowboardModel.bulkWrite(bulkOps);
+    const result = await this.creativeFlowboardModel.findById(flowId);
+    this.flowEventsService.emit(flowId, { event: 'SYNC_CANVAS', payload: result });
+    return result;
+  }
+
   public async addNodes(body: AddNodesDto) {
     this.logger.verbose(`Adding nodes to flow ${body.flowId}`);
     const { flowId, nodes, edges } = body;

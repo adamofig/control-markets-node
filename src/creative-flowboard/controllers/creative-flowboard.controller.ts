@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Sse, MessageEvent, Post, Get, Query, UseFilters } from '@nestjs/common';
+import { Body, Controller, Param, Sse, MessageEvent, Post, Get, Put, Query, UseFilters } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AddNodesDto, WebhookNodeDto } from '../models/creative-flowboard.dto';
 import { CreativeFlowboardService } from '../services/creative-flowboard.service';
@@ -36,32 +36,16 @@ export class CreativeFlowboardController extends EntityMongoController<CreativeF
   }
 
 
-  // @Post('operation')
-  // @ApiOperation({ summary: 'Execute a database operation' })
-  // override async executeOperation(@Body() operationDto: any): Promise<any> {
-  //   // TODO: later ill need to add a logic to delete the files in the cloud storage when the flow is deleted.
-  //   // FOR NOW, storage library is not ready for this. since i have not stanrarized how files are saved or if they are in different buckers and providers. 
-  //   // I need one method that find file and get all data about the sotrage so i can delete it propertly. 
-  //   // if (operationDto.action === 'deleteOne') {
-  //   //   const flow = await this.creativeFlowboardService.findOne(operationDto.query._id);
-  //   //   if (flow) {
-  //   //     await this.creativeFlowboardService.cleanupFlowStorage(flow);
-  //   //   }
-  //   // }
-  //   return super.executeOperation(operationDto, {});
-  // }
-
-
 
   @Post('run/:id')
-  @ApiOperation({ summary: 'Run a flow' })
-  @ApiResponse({ status: 200, description: 'Return the flow result.' })
+  @ApiOperation({ summary: 'Run a full flowboard, all process nodes existing in the flowboard will be executed.' })
+  @ApiResponse({ status: 200, description: 'Return the entired flow result.' })
   async run(@Param('id') id: string): Promise<any> {
     return await this.creativeFlowboardService.runFlow(id);
   }
 
   @Post('run-node')
-  @ApiOperation({ summary: 'Run a single node of the flow' })
+  @ApiOperation({ summary: 'Run a single node of the flowboard passed by body nodeId' })
   @ApiResponse({ status: 200, description: 'Return the node result.' })
   async runNodePost(@Body() body: { flowId: string; nodeId: string }): Promise<any> {
     return await this.creativeFlowboardService.runNodev2(body.flowId, body.nodeId);
@@ -70,7 +54,7 @@ export class CreativeFlowboardController extends EntityMongoController<CreativeF
   // Diference with Post, this is intended to query for other services and it waits for the response.
   // TODO: teminar el método, probablemente no necesite guardar en la base de datos y tampoco lo de firebase, entonces modificar métodos para hacer una versión corta.
   @Get('run-node')
-  @ApiOperation({ summary: 'Run a node of the flow' })
+  @ApiOperation({ summary: 'Run a node, for external services that need to wait for the response. of the flowboard passed by query parameters flowId and nodeId' })
   @ApiResponse({ status: 200, description: 'Return the node result.' })
   async runNode(@Query('flowId') flowId: string, @Query('nodeId') nodeId: string): Promise<any> {
     return await this.creativeFlowboardService.runAndWait(flowId, nodeId);
@@ -85,6 +69,15 @@ export class CreativeFlowboardController extends EntityMongoController<CreativeF
     const results = await this.creativeFlowboardService.runTaskNode(body);
     return results;
   }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Save the full canvas and broadcast SYNC_CANVAS to all subscribers' })
+  async saveCanvas(@Param('id') id: string, @Body() body: any): Promise<any> {
+    const result = await this.creativeFlowboardService.saveCanvas(id, body);
+    this.flowEventsService.emit(id, { event: 'SYNC_CANVAS', payload: result });
+    return result;
+  }
+
   @Post('add-nodes')
   @ApiOperation({ summary: 'Add nodes and edges to a flow' })
   @ApiResponse({ status: 200, description: 'Return the updated flow.' })
