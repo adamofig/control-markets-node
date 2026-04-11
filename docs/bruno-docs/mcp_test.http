@@ -1,0 +1,154 @@
+### MCP Server Tests
+### Requires VS Code REST Client extension
+### Server: http://localhost:8121
+
+@baseUrl = http://localhost:8121
+@sessionId = {{initialize.response.headers.mcp-session-id}}
+
+### 1. Initialize MCP session (run this first, captures session ID)
+# @name initialize
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{
+  "jsonrpc": "2.0",
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "http-client",
+      "version": "1.0"
+    }
+  },
+  "id": 1
+}
+
+###
+
+### 2. Send initialized notification (run after initialize)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+mcp-session-id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized",
+  "params": {}
+}
+
+###
+
+### 3. List available tools
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+mcp-session-id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/list",
+  "params": {},
+  "id": 2
+}
+
+###
+
+### 4. getFlow — get a flowboard definition
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+mcp-session-id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "getFlow",
+    "arguments": {
+      "flowId": "69d1bca03ff37604a47b470e"
+    }
+  },
+  "id": 3
+}
+
+###
+
+### 5. moveNodes — move nodes on a flowboard
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+mcp-session-id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "moveNodes",
+    "arguments": {
+      "flowId": "REPLACE_WITH_FLOW_ID",
+      "positions": [
+        { "nodeId": "node-1", "x": 100, "y": 200 },
+        { "nodeId": "node-2", "x": 400, "y": 200 }
+      ]
+    }
+  },
+  "id": 4
+}
+
+###
+
+### 6. addNodes — add nodes and edges to a flowboard
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+mcp-session-id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "addNodes",
+    "arguments": {
+      "flowId": "REPLACE_WITH_FLOW_ID",
+      "nodes": [
+        {
+          "id": "new-node-1",
+          "type": "agentCard",
+          "position": { "x": 300, "y": 150 },
+          "data": { "label": "New Agent" }
+        }
+      ],
+      "edges": []
+    }
+  },
+  "id": 5
+}
+
+###
+
+### 7. runFlow — execute a full flowboard
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+mcp-session-id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "runFlow",
+    "arguments": {
+      "flowId": "REPLACE_WITH_FLOW_ID"
+    }
+  },
+  "id": 6
+}
+
+###
+
+### 8. Terminate session
+DELETE {{baseUrl}}/mcp
+mcp-session-id: {{sessionId}}

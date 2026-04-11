@@ -20,6 +20,7 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 - [Run-Node Communication Flow](technical-reference/run-node-communication.md): Full lifecycle of a node execution — HTTP trigger, execution loop, error propagation, and SSE stream.
 - [AI Services Communication](technical-reference/ai-services-comunication.md): How the backend requests and coordinates generative tasks with AI Services using Asset IDs.
 - [Social Post Tracker](technical-reference/social-post-tracker.md): Schema and API reference for the content planning module — scheduling fields, MongoDB collection, and CRUD endpoints.
+- [MCP Server](technical-reference/mcp-server.md): How the platform is exposed as an MCP server — available tools, endpoint URLs, and how to register it in Claude Code.
 - [Video Processor](technical-reference/processors/video-processor.md): Technical overview of the multi-resource video generation engine.
 
 ### Backend Node Reference Table
@@ -61,6 +62,8 @@ The project uses [Bruno](https://usebruno.com) for API testing and documentation
 
 - **[Astro Blog Publishing Plan](plans/astro_blog_publishing_plan.md)**: Strategy for automated content publishing.
 - **[New Real-Time Architecture](plans/new_realtime_architecture.md)**: Proposed improvements to the synchronization layer.
+- **[MCP Server Integration](plans/mcp-server-plan.md)**: Plan for exposing the platform as an MCP server so Claude Code and other AI agents can control it from the terminal.
+- **[MCP Tools Expansion Plan](plans/mcp-tools-expansion-plan.md)**: Full plan for all resources and services that can be exposed as MCP tools — organized by module, priority, and implementation phase.
 
 ---
 

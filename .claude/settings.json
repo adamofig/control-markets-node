@@ -8,7 +8,27 @@
       "Bash(grep -r \"getEntities\\\\|getAll\\\\|findAll\\\\|list\\\\b\" /Users/adamo/Documents/GitHub/control-markets/control-markets-angular/node_modules/@dataclouder/ngx-core --include=*.ts -l)",
       "Bash(find /Users/adamo/Documents/GitHub/control-markets/control-markets-angular/node_modules/@dataclouder/ngx-core/types -name *.d.ts)",
       "Bash(npx tsc:*)",
-      "Read(//Users/adamo/.claude/**)"
+      "Read(//Users/adamo/.claude/**)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"const m = require\\('@rekog/mcp-nest'\\); console.log\\(Object.keys\\(m\\)\\)\")",
+      "Bash(curl -s -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}')",
+      "Bash(curl -s -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}')",
+      "Bash(curl -s -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"curl-test\",\"version\":\"1.0\"}}}')",
+      "Bash(curl -s -D - -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"curl-test\",\"version\":\"1.0\"}}}')",
+      "Bash(curl -s -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '[:*)",
+      "Bash(curl -sv -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"curl-test\",\"version\":\"1.0\"}}}')",
+      "Bash(curl -s -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}')",
+      "Bash(curl -s -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}},\"id\":1}')",
+      "Bash(curl -s -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}},\"id\":1}')",
+      "Bash(npx @modelcontextprotocol/inspector@0.16.2 --cli http://localhost:8121/mcp --transport http --method tools/list)",
+      "Bash(curl -v -X POST http://localhost:8121/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}},\"id\":1}')",
+      "Read(//Users/adamo/Documents/GitHub/control-markets/control-markets-node/**)",
+      "Bash(grep -n \"getProviders\\\\|DiscoveryService\\\\|tool-scanner\\\\|scanner\" /Users/adamo/Documents/GitHub/control-markets/control-markets-node/node_modules/@rekog/mcp-nest/dist/mcp/*.js)",
+      "Bash(head -20 echo \"---\" grep -n \"async \" /Users/adamo/Documents/GitHub/control-markets/control-markets-node/src/recent-resources/services/*.ts)",
+      "Bash(grep -n \"findAll\\\\|getAll\\\\|list\" /Users/adamo/Documents/GitHub/control-markets/control-markets-node/src/creative-flowboard/controllers/*.ts)",
+      "Bash(cat /Users/adamo/Documents/GitHub/control-markets/control-markets-node/src/social-media-tracker/schemas/*.ts)"
     ]
   }
 }

@@ -33,6 +33,9 @@ import { StorageAssetModule } from '@dataclouder/nest-storage';
 import { InspirationSourceModule } from './inspiration-source/inspiration-source.module';
 import { RecentResourcesModule } from './recent-resources/recent-resources.module';
 import { ChatModule } from './chat/chat.module';
+import { McpModule } from '@rekog/mcp-nest';
+import { AppMcpModule } from './mcp/mcp.module';
+import { randomUUID } from 'crypto';
 
 
 @Module({
@@ -69,6 +72,16 @@ import { ChatModule } from './chat/chat.module';
     InspirationSourceModule,
     RecentResourcesModule,
     ChatModule,
+    McpModule.forRoot({
+      name: 'control-markets',
+      version: '1.0.0',
+      streamableHttp: {
+        enableJsonResponse: false,
+        sessionIdGenerator: () => randomUUID(),
+        statelessMode: false,
+      },
+    }),
+    AppMcpModule,
   ],
   controllers: [AppController],
 })
