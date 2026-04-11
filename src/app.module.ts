@@ -33,6 +33,7 @@ import { StorageAssetModule } from '@dataclouder/nest-storage';
 import { InspirationSourceModule } from './inspiration-source/inspiration-source.module';
 import { RecentResourcesModule } from './recent-resources/recent-resources.module';
 import { ChatModule } from './chat/chat.module';
+import { HumanResourcesModule } from './human-resources/human-resources.module';
 import { McpModule } from '@rekog/mcp-nest';
 import { AppMcpModule } from './mcp/mcp.module';
 import { randomUUID } from 'crypto';
@@ -72,6 +73,7 @@ import { randomUUID } from 'crypto';
     InspirationSourceModule,
     RecentResourcesModule,
     ChatModule,
+    HumanResourcesModule,
     McpModule.forRoot({
       name: 'control-markets',
       version: '1.0.0',

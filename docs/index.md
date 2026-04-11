@@ -17,6 +17,7 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 - [Social Post Tracker](technical-reference/social-post-tracker.md): Schema and API reference for the content planning module — scheduling fields, MongoDB collection, and CRUD endpoints.
 - [MCP Server](technical-reference/mcp-server.md): How the platform is exposed as an MCP server — available tools, endpoint URLs, and how to register it in Claude Code.
 - [Organizations](technical-reference/organizations.md): Multi-tenant organization model, schema, and related API.
+- [Human Resources](technical-reference/human-resources.md): HR collaborator tracking module — schema, payment config, API endpoints, and AI agent integration guide.
 
 ### Flowboard
 
