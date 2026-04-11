@@ -16,6 +16,17 @@ export enum NodeType {
   default = 'default',
 }
 
+export const ProcessNodeType = {
+  AgentNodeComponent: NodeType.AgentNodeComponent,
+  TaskNodeComponent: NodeType.TaskNodeComponent,
+  VideoGenNodeComponent: NodeType.VideoGenNodeComponent,
+  AudioTTsNodeComponent: NodeType.AudioTTsNodeComponent,
+  AudioNodeComponent: NodeType.AudioNodeComponent,
+  NanoBananaNodeComponent: NodeType.NanoBananaNodeComponent,
+} as const;
+
+export type ProcessNodeType = (typeof ProcessNodeType)[keyof typeof ProcessNodeType];
+
 export interface NodeData {
   nodeData?: any;
   inputNodeId?: string;

@@ -1,28 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { GoogleGenAI } from '@google/genai';
 import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType, StatusJob } from '../../models/creative-flowboard.models';
 import { INodeProcessor } from './inode.processor';
 
-import { GeneratedAssetService , GeneratedAsset} from '@dataclouder/nest-ai-services-mongodb';
+import { GeneratedAssetService, GeneratedAsset } from '@dataclouder/nest-ai-services-mongodb';
 
 import { IAssetNodeData } from '../../models/nodes.models';
 
 import { FlowNodeSearchesService } from '../flow-searches.service';
 
-import { CloudStorageService } from '@dataclouder/nest-storage';
 import { AiServicesSdkClient } from '@dataclouder/nest-ai-services-sdk';
 
 @Injectable()
 export class NanoBananaNodeProcessor implements INodeProcessor {
   private logger = new Logger(NanoBananaNodeProcessor.name);
-  private genAI: GoogleGenAI;
 
   constructor(
-    private configService: ConfigService,
     private generatedAssetService: GeneratedAssetService,
-
-    private cloudStorageService: CloudStorageService,
     private flowNodeSearchesService: FlowNodeSearchesService,
     private clientAIService: AiServicesSdkClient,
   ) {
@@ -30,12 +23,6 @@ export class NanoBananaNodeProcessor implements INodeProcessor {
 
   async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     this.logger.log(`Processing job: NanoBanana image generation for node ${job.inputNodeId}`);
-
-    const inputNode = flow.nodes.find(n => n.id === job.inputNodeId);
-
-    const imageUrl = inputNode.data.nodeData.storage.url;
-
-    
 
     const processNode = flow.nodes.find(n => n.id === job.processNodeId);
 

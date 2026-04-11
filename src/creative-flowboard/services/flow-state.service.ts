@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ObjectId } from 'mongodb';
 import { FlowNodeSearchesService } from './flow-searches.service';
 import {
@@ -9,23 +9,20 @@ import {
   ITaskExecutionState,
   NodeType,
   StatusJob,
+  ProcessNodeType,
 } from '../models/creative-flowboard.models';
 
 @Injectable()
 export class FlowStateService {
   constructor(private agentFlowUtilsService: FlowNodeSearchesService) {}
 
+  private logger = new Logger(FlowStateService.name);
+
   public createInitialState(flow: ICreativeFlowBoard, nodeId?: string): IFlowExecutionState {
     const id = new ObjectId().toHexString();
-    console.log('id', id);
+    this.logger.log(`Creating initial state for flow ${flow.id}`);
 
-    const newFlowState: IFlowExecutionState = {
-      id: id,
-      flowExecutionId: id,
-      flowId: flow.id.toString(),
-      status: StatusJob.PENDING,
-      tasks: [],
-    };
+    const newFlowState: IFlowExecutionState = { id: id, flowExecutionId: id, flowId: flow.id.toString(), status: StatusJob.PENDING, tasks: [] };
 
     let processNodes = flow.nodes.filter(node => node.config.category === 'process');
     if (nodeId) {
@@ -39,53 +36,85 @@ export class FlowStateService {
 
   private _assignJobsToTasks(flow: ICreativeFlowBoard, processNodes: IFlowNode[], executionFlowState: IFlowExecutionState): void {
     for (const processNode of processNodes) {
+      const executionTask = executionFlowState.tasks.find(t => t.processNodeId === processNode.id);
+      if (!executionTask) continue;
+
       const inputNodes = this.agentFlowUtilsService.getInputNodes(processNode.id, flow);
       // CompletionNodeComponent and OutcomeNodeComponent are nodes valid to create a job.
-      const inputTaskableNodes = inputNodes.filter(node => node.config.category === 'input' || node.config.component === NodeType.AssetGeneratedNodeComponent); // Me parece que esta de más todos deberian ser inputs, pero lo voy a dejar por si acaso.
-      const inputValidJobsNodes = inputTaskableNodes.filter(node => node.config.component != NodeType.SourcesNodeComponent);
-      // SourcesNodeComponent add information to the flow but don't create a job.
-      const executionTask = executionFlowState.tasks.find(t => t.processNodeId === processNode.id);
-      if (executionTask) {
-        let jobNodes = inputValidJobsNodes;
+      const inputTaskableNodes = inputNodes.filter(node => node.config.category === 'input' || node.config.component === NodeType.AssetGeneratedNodeComponent);
+      // SourcesNodeComponent adds information to the flow but doesn't create a job.
+      const inputValidJobsNodes = inputTaskableNodes.filter(node => node.config.component !== NodeType.SourcesNodeComponent);
 
-        // Special handling for VideoGenNodeComponent: consolidate all inputs into a single job
-        if (processNode.config.component === NodeType.VideoGenNodeComponent && inputValidJobsNodes.length > 0) {
-          executionTask.jobs = [
-            {
-              inputNodeId: inputValidJobsNodes[0].id,
-              inputNodeIds: inputValidJobsNodes.map(n => n.id),
-              processNodeId: processNode.id,
-              outputNodeId: null, // Video Gen usually outputs to an outcome node connected to it, handled in processor
-              nodeType: inputValidJobsNodes[0].config.component,
-              processNodeType: processNode.config.component,
-              inputEntityId: inputValidJobsNodes[0].data?.nodeData?.id || inputValidJobsNodes[0].data?.nodeData?._id || null,
-              status: StatusJob.PENDING,
-              statusDescription: '',
-              messages: [],
-              outputEntityId: null,
-              resultType: '',
-              fatherTaskId: executionTask.id,
-              flowExecutionId: executionFlowState.flowExecutionId,
-            },
-          ];
-          continue;
-        }
-
-        // If it's a TaskNodeComponent and has no input nodes, we create a job for the Task itself.
-        if (processNode.config.component === NodeType.TaskNodeComponent && inputValidJobsNodes.length === 0) {
-          jobNodes = [processNode];
-        }
-
-        executionTask.jobs = this._createJobStates(
-          flow,
-          jobNodes,
-          executionTask.id,
-          executionFlowState.flowExecutionId,
-          processNode.id,
-          processNode.config.component
-        );
+      if (processNode.config.component === ProcessNodeType.VideoGenNodeComponent) {
+        executionTask.jobs = this._createVideoGenJob(inputValidJobsNodes, processNode, executionTask, executionFlowState);
+        continue;
       }
+
+      if (processNode.config.component === ProcessNodeType.NanoBananaNodeComponent) {
+        executionTask.jobs = this._createNanoBananaJob(inputValidJobsNodes, processNode, executionTask, executionFlowState);
+        continue;
+      }
+
+      if (inputNodes.length === 0) {
+        if (processNode.config.component === NodeType.TaskNodeComponent) {
+          // TaskNodeComponent can run with no input nodes — use the process node itself as the job source.
+          executionTask.jobs = this._createJobStates(flow, [processNode], executionTask.id, executionFlowState.flowExecutionId, processNode.id, processNode.config.component);
+        } else {
+          this.logger.warn(`Task ${processNode.config.component} ${processNode.id} has no input nodes, need at least one to create a job. Skipping...`);
+        }
+        continue;
+      }
+
+      executionTask.jobs = this._createJobStates(flow, inputValidJobsNodes, executionTask.id, executionFlowState.flowExecutionId, processNode.id, processNode.config.component);
     }
+  }
+
+  private _createVideoGenJob(inputNodes: IFlowNode[], processNode: IFlowNode, executionTask: ITaskExecutionState, executionFlowState: IFlowExecutionState): IJobExecutionState[] {
+    if (inputNodes.length === 0) {
+      this.logger.warn(`VideoGen node ${processNode.id} has no input nodes. Skipping...`);
+      return [];
+    }
+    return [
+      {
+        inputNodeId: inputNodes[0].id,
+        inputNodeIds: inputNodes.map(n => n.id),
+        processNodeId: processNode.id,
+        outputNodeId: null,
+        nodeType: inputNodes[0].config.component,
+        processNodeType: processNode.config.component,
+        inputEntityId: inputNodes[0].data?.nodeData?.id || inputNodes[0].data?.nodeData?._id || null,
+        status: StatusJob.PENDING,
+        statusDescription: '',
+        messages: [],
+        outputEntityId: null,
+        resultType: '',
+        fatherTaskId: executionTask.id,
+        flowExecutionId: executionFlowState.flowExecutionId,
+      },
+    ];
+  }
+
+  private _createNanoBananaJob(inputNodes: IFlowNode[], processNode: IFlowNode, executionTask: ITaskExecutionState, executionFlowState: IFlowExecutionState): IJobExecutionState[] {
+    // NanoBanana can generate from prompt alone — input nodes are optional.
+    const firstNode = inputNodes[0] ?? null;
+    return [
+      {
+        inputNodeId: firstNode?.id ?? null,
+        inputNodeIds: inputNodes.map(n => n.id),
+        processNodeId: processNode.id,
+        outputNodeId: null,
+        nodeType: firstNode?.config.component ?? processNode.config.component,
+        processNodeType: processNode.config.component,
+        inputEntityId: firstNode?.data?.nodeData?.id || firstNode?.data?.nodeData?._id || null,
+        status: StatusJob.PENDING,
+        statusDescription: '',
+        messages: [],
+        outputEntityId: null,
+        resultType: '',
+        fatherTaskId: executionTask.id,
+        flowExecutionId: executionFlowState.flowExecutionId,
+      },
+    ];
   }
 
   private _createJobStates(

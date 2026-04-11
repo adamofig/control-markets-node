@@ -13,15 +13,20 @@ Welcome to the backend documentation for **Control Markets**, a node-based platf
 *Architecture, core technologies, and fundamental concepts.*
 
 - **[Project Architecture](technical-reference/architecture.md)**: High-level overview of the backend tech stack (NestJS, Fastify, MongoDB).
-- **[Node Execution Engine](technical-reference/node-execution-engine.md)**: Deep dive into how the `FlowRunner` orchestrates node execution using the Strategy pattern.
-- **[Node Library Standard](technical-reference/node-library-reference.md)**: Technical specifications for node processors and their interfaces.
-- **[Real-Time Synchronization](technical-reference/real-time-sync.md)**: Technical details on the SSE-based synchronization between frontend and backend.
-- [Execution State](technical-reference/execution-state.md): Details on the lifecycle, persistence, and the **Flow -> Task -> Job** hierarchy.
-- [Run-Node Communication Flow](technical-reference/run-node-communication.md): Full lifecycle of a node execution — HTTP trigger, execution loop, error propagation, and SSE stream.
 - [AI Services Communication](technical-reference/ai-services-comunication.md): How the backend requests and coordinates generative tasks with AI Services using Asset IDs.
 - [Social Post Tracker](technical-reference/social-post-tracker.md): Schema and API reference for the content planning module — scheduling fields, MongoDB collection, and CRUD endpoints.
 - [MCP Server](technical-reference/mcp-server.md): How the platform is exposed as an MCP server — available tools, endpoint URLs, and how to register it in Claude Code.
-- [Video Processor](technical-reference/processors/video-processor.md): Technical overview of the multi-resource video generation engine.
+- [Organizations](technical-reference/organizations.md): Multi-tenant organization model, schema, and related API.
+
+### Flowboard
+
+- **[Node Execution Engine](technical-reference/flowboard/node-execution-engine.md)**: Deep dive into how the `FlowRunner` orchestrates node execution using the Strategy pattern.
+- **[Node Library Standard](technical-reference/flowboard/node-library-reference.md)**: Technical specifications for node processors and their interfaces.
+- **[Real-Time Synchronization](technical-reference/flowboard/real-time-sync.md)**: Technical details on the SSE-based synchronization between frontend and backend.
+- [Execution State](technical-reference/flowboard/execution-state.md): Details on the lifecycle, persistence, and the **Flow -> Task -> Job** hierarchy.
+- [Run-Node Communication Flow](technical-reference/flowboard/run-node-communication.md): Full lifecycle of a node execution — HTTP trigger, execution loop, error propagation, and SSE stream.
+- [Nano Banana Integration](technical-reference/flowboard/nano-banana-integration.md): Integration details for the Nano Banana node and its execution flow.
+- [Video Processor](technical-reference/flowboard/processors/video-processor.md): Technical overview of the multi-resource video generation engine.
 
 ### Backend Node Reference Table
 > [!IMPORTANT]
