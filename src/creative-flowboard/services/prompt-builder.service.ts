@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { IAgentCard, buildInitialConversation, parseConversation, ChatRole, ChatMessage } from '@dataclouder/nest-agent-cards';
-import { IAgentOutcomeJob, IAgentSource, ILlmTask, AgentTaskType } from 'src/agent-tasks/models/classes';
+import { IAgentOutcomeJob, IAgentSource, IAgentTask, AgentTaskType } from 'src/agent-tasks/models/classes';
 import { IFlowNode, NodeType } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { outcomePromptTemplate } from './flow-prompt-templates';
 
 @Injectable()
 export class PromptBuilderService {
-  public async build(task: ILlmTask, inputNodeData: IAgentCard | IAgentOutcomeJob, sourceNodes: IFlowNode[] = [], nodeType: NodeType): Promise<ChatMessage[]> {
+  public async build(task: IAgentTask, inputNodeData: IAgentCard | IAgentOutcomeJob, sourceNodes: IFlowNode[] = [], nodeType: NodeType): Promise<ChatMessage[]> {
     let chatMessages: ChatMessage[] = [];
     if (nodeType === NodeType.AgentNodeComponent && inputNodeData) {
       chatMessages = buildInitialConversation(inputNodeData as IAgentCard);

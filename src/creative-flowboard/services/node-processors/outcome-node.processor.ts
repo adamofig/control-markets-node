@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {  GeminiModels, AiServicesSdkClient } from '@dataclouder/nest-ai-services-sdk';
 
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
-import { IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
+import { IAgentOutcomeJob, IAgentTask } from 'src/agent-tasks/models/classes';
 import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { PromptBuilderService } from '../prompt-builder.service';
 import { INodeProcessor } from './inode.processor';
@@ -25,7 +25,7 @@ export class OutcomeNodeProcessor implements INodeProcessor {
   async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     this.logger.verbose(`Processing job type 🫆AgentNodeProcessor🫆 ${job.nodeType} for task ${task.entityId}`);
 
-    const agentTask: ILlmTask = await this.agentTaskService.findOne(task.entityId);
+    const agentTask: IAgentTask = await this.agentTaskService.findOne(task.entityId);
     const outcomeNode = this.flowSearches.getNodeById(job.inputNodeId, flow);
 
     const chatMessagesRequest = await this.promptBuilderService.build(agentTask, outcomeNode.data.nodeData, [], job.nodeType);
@@ -55,7 +55,7 @@ export class OutcomeNodeProcessor implements INodeProcessor {
       inputNodeId: outcomeNode.id,
     };
 
-    const jobCreated = await this.agentJobService.create(outcomeJob);
+    const jobCreated = await this.agentJobService.save(outcomeJob);
 
     return {
       status: StatusJob.COMPLETED,

@@ -16,6 +16,7 @@ export interface MessageAI {
 export enum AgentTaskType {
   REVIEW_TASK = 'review_task',
   CREATE_CONTENT = 'create_content',
+  HUMAN_TASK = 'human_task',
 }
 
 export interface ISourceTask {
@@ -33,43 +34,44 @@ export enum AssignedType {
 
 export interface ITask {
   _id?: string;
-  id: string;
+  id?: string;
+  orgId?: string;
 
   name: string;
-  description: string;
-  content: string;
+  description?: string;
+  content?: string;
 
-  assignedTo: string;
-  assignedType: AssignedType;
-  status: string;
+  assignedTo?: any;
+  assignedType?: AssignedType;
+  status?: string;
   image?: CloudStorageData;
-
+  taskType?: AgentTaskType;
 }
 
-
-export interface ILlmTask extends ITask {
-  _id?: string;
-  id: string;
-
-  agentCard: IAgentCardMinimal;
-  agentCards: IAgentCardMinimal[];
-  name: string;
-  description: string;
-
-  prompt: string;
-  taskType: AgentTaskType;
-  sources: ISourceTask[];
-  model: IAIModel;
-  output: ILlmTaskOutput;
-  outputFormat: 'json' | 'default';
-  taskAttached: Partial<ILlmTask>;
+export interface IAgentTaskSettings {
+  agentCard?: IAgentCardMinimal;
+  agentCards?: IAgentCardMinimal[];
+  sources?: ISourceTask[];
+  model?: IAIModel;
+  output?: ILlmTaskOutput;
+  outputFormat?: 'json' | 'default';
+  taskAttached?: Partial<IAgentTask>;
 }
+
+export interface IAgentTask extends ITask {
+  prompt?: string;
+  userPrompt?: string;
+  agentTask?: IAgentTaskSettings;
+}
+
+/** @deprecated Use IAgentTask instead */
+export type ILlmTask = IAgentTask;
 
 // Tiene una relación con el agente y la tarea. parcial asi muestro graficamente que pasa.
 export interface IAgentOutcomeJob {
   _id?: string;
   id?: string;
-  task: Partial<ILlmTask>; // Relation with the task
+  task: Partial<IAgentTask>; // Relation with the task
   agentCard?: Partial<IAgentCardMinimal>; // Relation with the agent card
   messages: MessageAI[]; // OpenAI format for Messages Request
   response?: MessageAI; // OpenAI format for Response of the AI

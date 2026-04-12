@@ -11,7 +11,7 @@ import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mong
 import { buildInitialConversation, ChatRole, AgentCardService, IAgentCard, ChatMessage } from '@dataclouder/nest-agent-cards';
 // local
 import { AgentTaskEntity, AgentTaskDocument } from '../schemas/agent-task.schema';
-import { AgentTaskType, IAgentOutcomeJob, ILlmTask, ISourceTask, MessageAI, OutputTaks } from '../models/classes';
+import { AgentTaskType, AssignedType, IAgentTask, IAgentOutcomeJob, ISourceTask, MessageAI, OutputTaks } from '../models/classes';
 import { AgentOutcomeJobService } from './agent-job.service';
 import { AgentSourcesService } from './agent-sources.service';
 import { ChatLLMRequestAdapter, AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
@@ -35,13 +35,13 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     super(agentTaskModel, mongoService);
   }
 
-  async save(createAgentTaskDto: ILlmTask) {
+  async save(createAgentTaskDto: IAgentTask) {
     const id = createAgentTaskDto.id || createAgentTaskDto._id;
-    if (createAgentTaskDto?.agentCard?.id) {
+    if (createAgentTaskDto?.agentTask?.agentCard?.id) {
       // TODO: fix this to only get assets
-      const agentCard = await this.conversationAiService.getConversationById(createAgentTaskDto.agentCard.id);
+      const agentCard = await this.conversationAiService.getConversationById(createAgentTaskDto.agentTask.agentCard.id);
       const { assets, title } = agentCard;
-      createAgentTaskDto.agentCard = { id: createAgentTaskDto.agentCard.id, assets, title, name: agentCard?.characterCard?.data?.name };
+      createAgentTaskDto.agentTask.agentCard = { id: createAgentTaskDto.agentTask.agentCard.id, assets, title, name: agentCard?.characterCard?.data?.name };
     }
     if (id) {
       return this.update(id, createAgentTaskDto);
@@ -53,11 +53,11 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     }
   }
 
-  async callPythonAgent(chatMessages: ChatMessage[], task: ILlmTask): Promise<{ content: string; role: string; metadata: any }> {
+  async callPythonAgent(chatMessages: ChatMessage[], task: IAgentTask): Promise<{ content: string; role: string; metadata: any }> {
     const request = {
       messages: chatMessages,
-      modelName: task.model.modelName,
-      provider: task.model.provider,
+      modelName: task.agentTask?.model?.modelName,
+      provider: task.agentTask?.model?.provider,
       type: task.taskType,
       additionalProp1: {},
     };
@@ -91,16 +91,20 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
   // }
 
   async execute(id: string) {
-    const task: ILlmTask = await this.findOne(id);
+    const task: IAgentTask = await this.findOne(id);
 
     if (!task) {
       throw new Error('Task not found');
     }
 
+    if (task.assignedType === AssignedType.USER) {
+      throw new Error('Cannot execute a task assigned to a user');
+    }
+
     let infoFromSources = null;
 
-    if (task?.sources?.length > 0) {
-      const sources = await this.agentSourcesService.findManyByIds(task.sources.map(source => source.id));
+    if (task?.agentTask?.sources?.length > 0) {
+      const sources = await this.agentSourcesService.findManyByIds(task.agentTask.sources.map(source => source.id));
       for (const source of sources) {
         infoFromSources += `\n\n<Text from ${source.name}>\n\n`;
         infoFromSources += source.content;
@@ -110,7 +114,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
 
     const results = [];
 
-    if (task.agentCards.length == 0) {
+    if (!task.agentTask?.agentCards?.length) {
       return await this.executeTaskNoAgent(task, infoFromSources);
     } else if (task.taskType === AgentTaskType.CREATE_CONTENT) {
       return await this.executeContentTask(task, infoFromSources);
@@ -119,14 +123,14 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     }
   }
 
-  private async executeReviewTask(task: ILlmTask, infoFromSources: string) {
+  private async executeReviewTask(task: IAgentTask, infoFromSources: string) {
     const results = [];
     console.log('-> Reviewing task: ', task.name);
-    const jobs = (await this.agentJobService.findByTaskAttachedIdToday(task.taskAttached.id)) as unknown as IAgentOutcomeJob[];
+    const jobs = (await this.agentJobService.findByTaskAttachedIdToday(task.agentTask?.taskAttached?.id)) as unknown as IAgentOutcomeJob[];
     for (const finishedJob of jobs) {
       console.log(`-> Evaluando Job: ${finishedJob?.task?.name} - ${finishedJob?.agentCard?.title} `);
 
-      for (const agentCardMinimal of task.agentCards) {
+      for (const agentCardMinimal of task.agentTask.agentCards) {
         console.log(`-> Agente encargado: ${agentCardMinimal.name} - ${agentCardMinimal.title}`);
         const agentCard: IAgentCard = await this.conversationAiService.getConversationById(agentCardMinimal.id);
         const chatMessages = buildInitialConversation(agentCard);
@@ -144,10 +148,10 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
           messages: chatMessages as MessageAI[],
           response: response,
           responseFormat: 'text',
-          sources: task.sources,
+          sources: task.agentTask?.sources,
           infoFromSources: infoFromSources,
         };
-        const jobCreated = await this.agentJobService.create(job);
+        const jobCreated = await this.agentJobService.save(job);
         console.log(`-> Job created: ${jobCreated.task.name} by ${jobCreated.agentCard.title}`);
 
         // const notionResponse = await this.postInNotion(task, agentCard, response.content);
@@ -159,10 +163,10 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     return jobs;
   }
 
-  private async executeContentTask(task: ILlmTask, infoFromSources: string) {
+  private async executeContentTask(task: IAgentTask, infoFromSources: string) {
     let results = [];
 
-    for (const agentCardMinimal of task.agentCards) {
+    for (const agentCardMinimal of task.agentTask.agentCards) {
       const agentCard: IAgentCard = await this.conversationAiService.getConversationById(agentCardMinimal.id);
       const chatMessages = buildInitialConversation(agentCard);
 
@@ -181,7 +185,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
 
       const request: ChatLLMRequestAdapter = {
         messages: chatMessages as MessageLLM[],
-        model: task.model || null,
+        model: task.agentTask?.model || null,
         returnJson: true,
       };
       // Probably in need a flag is is adapter or not.
@@ -196,18 +200,18 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
         response: response.json,
         result: response,
         responseFormat: 'text',
-        sources: task.sources,
+        sources: task.agentTask?.sources,
         infoFromSources: infoFromSources,
       };
 
-      const jobCreated = await this.agentJobService.create(job);
+      const jobCreated = await this.agentJobService.save(job);
       console.log('finished job for: ', jobCreated?.task?.name);
       results.push(jobCreated);
     }
     return results;
   }
 
-  private async executeTaskNoAgent(task: ILlmTask, infoFromSources: string) {
+  private async executeTaskNoAgent(task: IAgentTask, infoFromSources: string) {
     const chatMessages = [];
     if (infoFromSources) {
       chatMessages.push({
@@ -224,14 +228,14 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
       messages: chatMessages,
       response: response,
       responseFormat: 'text',
-      sources: task.sources,
+      sources: task.agentTask?.sources,
       infoFromSources: infoFromSources,
     };
 
-    const jobCreated = await this.agentJobService.create(job);
+    const jobCreated = await this.agentJobService.save(job);
     // TODO: ya no tengo que revisar la intención más bien la salida que sea notion.
 
-    if (task.output.type === OutputTaks.NOTION_PAGE) {
+    if (task.agentTask?.output?.type === OutputTaks.NOTION_PAGE) {
       // this.postInNotion(task, { title: 'No Agent' } as any, response.content);
     }
     return { job: jobCreated, response: response };

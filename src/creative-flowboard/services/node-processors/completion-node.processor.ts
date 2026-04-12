@@ -5,7 +5,7 @@ import {   AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services
 
 
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
-import { AgentTaskType, IAgentOutcomeJob, ILlmTask } from 'src/agent-tasks/models/classes';
+import { AgentTaskType, IAgentOutcomeJob, IAgentTask } from 'src/agent-tasks/models/classes';
 import { ICreativeFlowBoard, IExecutionResult, IJobExecutionState, ITaskExecutionState, NodeType, ResponseFormat, StatusJob } from 'src/creative-flowboard/models/creative-flowboard.models';
 import { PromptBuilderService } from '../prompt-builder.service';
 import { INodeProcessor } from './inode.processor';
@@ -28,7 +28,7 @@ export class CompletionNodeProcessor implements INodeProcessor {
   async processJob(job: IJobExecutionState, task: ITaskExecutionState, flow: ICreativeFlowBoard): Promise<Partial<IExecutionResult>> {
     this.logger.verbose(`Processing job type 🫆AgentNodeProcessor🫆 ${job.nodeType} for task ${task.entityId}`);
 
-    const agentTask: ILlmTask = await this.agentTaskService.findOne(task.entityId);
+    const agentTask: IAgentTask = await this.agentTaskService.findOne(task.entityId);
     let agentCard: IAgentCard = null;
 
     if (job.nodeType === NodeType.AgentNodeComponent && job.inputEntityId) {
@@ -48,7 +48,7 @@ export class CompletionNodeProcessor implements INodeProcessor {
       try {
         result = await this.aiServicesClient.llm.chat({
           messages: chatMessagesRequest as MessageLLM[],
-          model: agentTask.model,
+          model: agentTask.agentTask?.model,
           returnJson: true,
         });
 
@@ -69,7 +69,7 @@ export class CompletionNodeProcessor implements INodeProcessor {
       this.logger.verbose(`Response: Getting Response from llm`, result);
     } else {
       try {
-        response = await this.aiServicesClient.llm.chat({ messages: chatMessagesRequest as MessageLLM[], model: agentTask.model });
+        response = await this.aiServicesClient.llm.chat({ messages: chatMessagesRequest as MessageLLM[], model: agentTask.agentTask?.model });
       } catch (error) {
         console.log(error.message);
 
@@ -94,7 +94,7 @@ export class CompletionNodeProcessor implements INodeProcessor {
       inputNodeId: job.inputNodeId,
     };
 
-    const jobCreated = await this.agentJobService.create(outcomeJob);
+    const jobCreated = await this.agentJobService.save(outcomeJob);
 
     return {
       status: StatusJob.COMPLETED,

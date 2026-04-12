@@ -1,18 +1,19 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { ILlmTask, AgentTaskType, ISourceTask, IAgentCardMinimal, CloudStorageData } from '../models/classes';
+import { IAgentTask, IAgentTaskSettings, AgentTaskType, AssignedType, CloudStorageData } from '../models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
-import { IAIModel } from '@dataclouder/nest-ai-services-sdk';
 
 export type AgentTaskDocument = AgentTaskEntity & Document;
 
-// TODO: Change the table name to llm_tasks in future.
 @Schema({ collection: 'agent_tasks', timestamps: true })
-export class AgentTaskEntity implements ILlmTask {
+export class AgentTaskEntity implements IAgentTask {
   _id?: string;
 
   @Prop({ required: false })
   id: string;
+
+  @Prop({ required: false })
+  orgId: string;
 
   @Prop({ required: false })
   name: string;
@@ -27,28 +28,7 @@ export class AgentTaskEntity implements ILlmTask {
   userPrompt: string;
 
   @Prop({ required: false, type: Object })
-  model: IAIModel;
-
-  @Prop({ required: false, type: Object })
-  output: { id: string; name: string; type: string };
-
-  @Prop({ required: false, type: String, enum: ['json', 'default'] })
-  outputFormat: 'json' | 'default';
-
-  @Prop({ required: false, type: Object })
-  notionOutput: { id: string; name: string; type: string };
-
-  @Prop({ required: false, type: Object })
   image?: CloudStorageData;
-
-  @Prop({ required: false, type: Object })
-  agentCard: IAgentCardMinimal;
-
-  @Prop({ required: false, type: [Object] })
-  agentCards: IAgentCardMinimal[];
-
-  @Prop({ required: false })
-  sources: ISourceTask[];
 
   @Prop({ required: false })
   status: string;
@@ -57,7 +37,18 @@ export class AgentTaskEntity implements ILlmTask {
   taskType: AgentTaskType;
 
   @Prop({ required: false, type: Object })
-  taskAttached: Partial<ILlmTask>;
+  assignedTo: any;
+
+  @Prop({ required: false, type: String, enum: AssignedType })
+  assignedType: AssignedType;
+
+  /** All AI-specific settings nested here */
+  @Prop({ required: false, type: Object })
+  agentTask: IAgentTaskSettings;
+
+  // @deprecated — kept for backward compat with existing records
+  @Prop({ required: false, type: Object })
+  notionOutput: { id: string; name: string; type: string };
 }
 
 export const AgentTaskSchema = SchemaFactory.createForClass(AgentTaskEntity);

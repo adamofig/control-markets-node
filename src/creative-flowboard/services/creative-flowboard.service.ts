@@ -78,7 +78,7 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     const firstOutcomeId = outcomesExecutions[0].outputEntityId;
     console.log('outcomesExecutions', outcomesExecutions);
 
-    const job = await this.agentJobService.agentJobModel.findOne({ id: firstOutcomeId }, { result: 1, response: 1, responseFormat: 1 });
+    const job = await this.agentJobService.findOneByQuery({ id: firstOutcomeId }, { result: 1, response: 1, responseFormat: 1 });
 
     console.log('Buscando -  Datos del flujo ');
     return job;
