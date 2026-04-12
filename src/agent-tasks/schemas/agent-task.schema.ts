@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { IAgentTask, IAgentTaskSettings, AgentTaskType, AssignedType, CloudStorageData } from '../models/classes';
+import { IAgentTask, IAgentTaskSettings, AgentTaskType, AssignedType, IAssignedTo, CloudStorageData } from '../models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 
 export type AgentTaskDocument = AgentTaskEntity & Document;
@@ -37,7 +37,7 @@ export class AgentTaskEntity implements IAgentTask {
   taskType: AgentTaskType;
 
   @Prop({ required: false, type: Object })
-  assignedTo: any;
+  assignedTo: IAssignedTo;
 
   @Prop({ required: false, type: String, enum: AssignedType })
   assignedType: AssignedType;

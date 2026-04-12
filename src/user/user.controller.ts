@@ -2,12 +2,10 @@ import { Body, Controller, Delete, Get, Post, Res, UseFilters, UseGuards } from 
 import { InjectModel } from '@nestjs/mongoose';
 import { UserEntity } from './user.entity';
 import { Model } from 'mongoose';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DecodedToken } from 'src/common/token.decorator';
-import { DecodedIdToken } from 'firebase-admin/auth';
 import { AppUserService } from './user.service';
 import { AppHttpCode } from 'src/common/app-enums';
-import { IUser } from './user.class';
 import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
 import { AppToken, AuthGuard } from '@dataclouder/nest-auth';
 import { AppGuard } from '@dataclouder/nest-core';

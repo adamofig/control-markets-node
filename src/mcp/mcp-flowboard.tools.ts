@@ -8,7 +8,7 @@ export class McpFlowboardTools {
   constructor(private flowboardService: CreativeFlowboardService) {}
 
   @Tool({
-    name: 'listFlows',
+    name: 'flow_listFlows',
     description: 'List all available flowboards with their IDs and basic metadata.',
     parameters: z.object({}),
   })
@@ -19,7 +19,7 @@ export class McpFlowboardTools {
   }
 
   @Tool({
-    name: 'runNode',
+    name: 'flow_runNode',
     description: 'Execute a single node within a flowboard. Returns the initial IFlowExecutionState (async — node runs in background).',
     parameters: z.object({
       flowId: z.string().describe('The ID of the flowboard.'),
@@ -32,7 +32,7 @@ export class McpFlowboardTools {
   }
 
   @Tool({
-    name: 'runAndWait',
+    name: 'flow_runAndWait',
     description: 'Execute a single node and wait for the result. Returns the completed AgentOutcomeJob with the AI-generated content.',
     parameters: z.object({
       flowId: z.string().describe('The ID of the flowboard.'),
@@ -45,7 +45,7 @@ export class McpFlowboardTools {
   }
 
   @Tool({
-    name: 'moveNodes',
+    name: 'flow_moveNodes',
     description: 'Move one or more nodes on a flowboard canvas to new (x, y) positions.',
     parameters: z.object({
       flowId: z.string().describe('The ID of the flowboard.'),
@@ -64,7 +64,7 @@ export class McpFlowboardTools {
   }
 
   @Tool({
-    name: 'runFlow',
+    name: 'flow_runFlow',
     description: 'Execute a full flowboard — runs all agent nodes in sequence.',
     parameters: z.object({
       flowId: z.string().describe('The ID of the flowboard to run.'),
@@ -76,7 +76,7 @@ export class McpFlowboardTools {
   }
 
   @Tool({
-    name: 'getFlow',
+    name: 'flow_getFlow',
     description: 'Get the full definition of a flowboard including all nodes and edges.',
     parameters: z.object({
       flowId: z.string().describe('The ID of the flowboard.'),
@@ -88,7 +88,7 @@ export class McpFlowboardTools {
   }
 
   @Tool({
-    name: 'addNodes',
+    name: 'flow_addNodes',
     description: 'Add nodes and edges to an existing flowboard.',
     parameters: z.object({
       flowId: z.string().describe('The target flowboard ID.'),

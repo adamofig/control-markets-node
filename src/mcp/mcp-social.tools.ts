@@ -3,12 +3,55 @@ import { Tool } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { SocialMediaTrackerService } from '../social-media-tracker/services/social-media-tracker.service';
 
+// Shared operation schema — mirrors OperationDto from @dataclouder/nest-mongo
+const operationSchema = z.object({
+  action: z
+    .enum(['find', 'findOne', 'create', 'updateOne', 'updateMany', 'deleteOne', 'aggregate', 'clone'])
+    .describe(
+      `MongoDB operation.
+find/findOne → use query, projection, options.
+create → use payload.
+updateOne/updateMany → use query + payload (supports $set, $push, etc).
+deleteOne → use query.
+aggregate → use payload as pipeline array.
+clone → use query with _id.`,
+    ),
+  query: z.record(z.string(), z.unknown()).optional().describe('MongoDB filter (e.g. { "platform": "tiktok", "status": "draft" }).'),
+  payload: z.unknown().optional().describe('Document for create, update payload, or aggregate pipeline array.'),
+  projection: z.record(z.string(), z.unknown()).optional().describe('Fields to include/exclude (e.g. { "name": 1, "scheduledDate": 1 }).'),
+  options: z.record(z.string(), z.unknown()).optional().describe('Mongoose options (e.g. { "sort": { "scheduledDate": 1 }, "limit": 50 }).'),
+});
+
+type OperationInput = z.infer<typeof operationSchema>;
+
 @Injectable()
 export class McpSocialTools {
   constructor(private socialService: SocialMediaTrackerService) {}
 
   @Tool({
-    name: 'listScheduledPosts',
+    name: 'social_operation',
+    description: `Execute any MongoDB operation on the social_media_tracker collection.
+Use this for advanced queries, bulk updates, aggregations, or anything the convenience tools don't cover.
+Key fields:
+  name          — Title or short name for the post.
+  platform      — "tiktok" | "instagram" | "youtube".
+  status        — "draft" | "scheduled" | "published".
+  scheduledDate — ISO date for when the post should go live.
+  description   — Post caption or content body.
+  videoUrl      — URL of the associated video asset.
+  notes         — Internal notes.
+  orgId         — Organization this post belongs to.
+
+Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_createPost / social_updatePost for common operations.`,
+    parameters: operationSchema,
+  })
+  async socialOperation(operation: OperationInput) {
+    const result = await this.socialService.executeOperation(operation);
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+
+  @Tool({
+    name: 'social_listPosts',
     description:
       'List social media posts. Optionally filter by platform (tiktok, instagram, youtube) and/or status (draft, scheduled, published). Returns posts ordered by scheduledDate.',
     parameters: z.object({
@@ -32,7 +75,7 @@ export class McpSocialTools {
   }
 
   @Tool({
-    name: 'getPostsThisWeek',
+    name: 'social_getPostsThisWeek',
     description: 'Get all social media posts scheduled for the current week (Monday to Sunday).',
     parameters: z.object({
       platform: z.enum(['tiktok', 'instagram', 'youtube']).optional().describe('Optionally filter by platform.'),
@@ -65,7 +108,7 @@ export class McpSocialTools {
   }
 
   @Tool({
-    name: 'getSocialPost',
+    name: 'social_getPost',
     description: 'Get the full details of a single social media post by its ID.',
     parameters: z.object({
       postId: z.string().describe('The ID of the social media post.'),
@@ -77,7 +120,7 @@ export class McpSocialTools {
   }
 
   @Tool({
-    name: 'createSocialPost',
+    name: 'social_createPost',
     description: 'Create a new social media post entry in the tracker.',
     parameters: z.object({
       name: z.string().describe('Title or short name for the post.'),
@@ -107,7 +150,7 @@ export class McpSocialTools {
   }
 
   @Tool({
-    name: 'updateSocialPost',
+    name: 'social_updatePost',
     description: 'Update fields of an existing social media post.',
     parameters: z.object({
       postId: z.string().describe('The ID of the post to update.'),

@@ -32,6 +32,14 @@ export enum AssignedType {
   USER = 'user',
 }
 
+export interface IAssignedUser {
+  userId: string;
+  email: string;
+  name: string;
+}
+
+export type IAssignedTo = IAssignedUser | IAgentCardMinimal;
+
 export interface ITask {
   _id?: string;
   id?: string;
@@ -41,7 +49,7 @@ export interface ITask {
   description?: string;
   content?: string;
 
-  assignedTo?: any;
+  assignedTo?: IAssignedTo;
   assignedType?: AssignedType;
   status?: string;
   image?: CloudStorageData;
