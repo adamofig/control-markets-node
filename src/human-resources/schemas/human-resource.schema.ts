@@ -3,6 +3,7 @@ import { Document } from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 import { HRContractType, HRStatus, IHumanResource, IPaymentConfig } from '../models/human-resource.models';
+import { CloudStorageData } from 'src/agent-tasks/models/classes';
 
 export type HumanResourceDocument = HumanResourceEntity & Document;
 
@@ -25,6 +26,9 @@ export class HumanResourceEntity implements IHumanResource {
 
   @Prop({ required: false })
   description: string;
+
+  @Prop({ required: false, type: Object })
+  image?: CloudStorageData;
 
   @Prop({ type: String, required: false, enum: HRStatus, default: HRStatus.ACTIVE })
   status: HRStatus;

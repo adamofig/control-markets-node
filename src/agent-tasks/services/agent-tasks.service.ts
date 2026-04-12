@@ -6,7 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { CreatePageParameters } from '@notionhq/client/build/src/api-endpoints';
 // @dataclouder libs
-import { FiltersConfig, IQueryResponse, MongoService } from '@dataclouder/nest-mongo';
+import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mongo';
 // import { NotionService, NotionWritesService, renderPageContentToMarkdown } from 'libs/nest-notion/src';
 import { buildInitialConversation, ChatRole, AgentCardService, IAgentCard, ChatMessage } from '@dataclouder/nest-agent-cards';
 // local
@@ -17,36 +17,22 @@ import { AgentSourcesService } from './agent-sources.service';
 import { ChatLLMRequestAdapter, AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
 import { taskPrompt } from '../prompts/task-prompts';
 import { AppException } from '@dataclouder/nest-core';
+
 @Injectable()
-export class AgentTasksService {
+export class AgentTasksService extends EntityCommunicationService<AgentTaskDocument> {
   constructor(
     @InjectModel(AgentTaskEntity.name)
-    private agentTaskModel: Model<AgentTaskDocument>,
+    agentTaskModel: Model<AgentTaskDocument>,
+    mongoService: MongoService,
     private conversationAiService: AgentCardService,
     private httpService: HttpService,
     // private notionWritesService: NotionWritesService,
     // private notionService: NotionService,
     private agentJobService: AgentOutcomeJobService,
-    private mongoService: MongoService,
     private agentSourcesService: AgentSourcesService,
     private aiServicesClient: AiServicesSdkClient
-  ) {}
-
-  async findAll() {
-    return this.agentTaskModel.find().exec();
-  }
-
-  async findOne(id: string): Promise<AgentTaskEntity> {
-    return await this.agentTaskModel.findById(id).lean().exec();
-  }
-
-  async create(createAgentTaskDto: ILlmTask) {
-    const createdTask = new this.agentTaskModel(createAgentTaskDto);
-    return createdTask.save();
-  }
-
-  async queryUsingFiltersConfig(filterConfig: FiltersConfig): Promise<IQueryResponse<AgentTaskEntity>> {
-    return await this.mongoService.queryUsingFiltersConfig(filterConfig, this.agentTaskModel);
+  ) {
+    super(agentTaskModel, mongoService);
   }
 
   async save(createAgentTaskDto: ILlmTask) {
@@ -62,17 +48,9 @@ export class AgentTasksService {
     } else {
       delete createAgentTaskDto._id;
       delete createAgentTaskDto.id;
-      const createdTask = new this.agentTaskModel(createAgentTaskDto);
+      const createdTask = new this.genericModel(createAgentTaskDto);
       return createdTask.save();
     }
-  }
-
-  async update(id: string, updateAgentTaskDto: any) {
-    return this.agentTaskModel.findByIdAndUpdate(id, updateAgentTaskDto, { new: true }).exec();
-  }
-
-  async delete(id: string) {
-    return this.agentTaskModel.findByIdAndDelete(id).exec();
   }
 
   async callPythonAgent(chatMessages: ChatMessage[], task: ILlmTask): Promise<{ content: string; role: string; metadata: any }> {

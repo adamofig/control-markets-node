@@ -1,4 +1,5 @@
 import { IAuditable } from '@dataclouder/nest-core';
+import { CloudStorageData } from 'src/agent-tasks/models/classes';
 
 export enum HRStatus {
   ACTIVE = 'active',
@@ -54,6 +55,8 @@ export interface IHumanResource {
   skills?: string[];
 
   payment?: IPaymentConfig;
+
+  image?: CloudStorageData;
 
   startDate?: Date;
   endDate?: Date;

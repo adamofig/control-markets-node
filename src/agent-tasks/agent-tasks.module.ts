@@ -18,6 +18,7 @@ import { NestStorageModule } from '@dataclouder/nest-storage';
 import { AgentDistributionChannelsController } from './controllers/agent-distribution-channels.controller';
 import { AgentDistributionChannelService } from './services/agent-distribution-channel.service';
 import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
+import { NestAuthModule } from '@dataclouder/nest-auth';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
     // NotionModule,
     NestStorageModule,
     NestAiServicesSdkModule,
+    NestAuthModule,
   ],
   controllers: [AgentTasksController, AgentJobsController, AgentSourcesController, AgentDistributionChannelsController],
   providers: [AgentTasksService, AgentOutcomeJobService, AgentSourcesService, AgentDistributionChannelService],

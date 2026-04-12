@@ -26,7 +26,28 @@ export interface ISourceTask {
 
 export type IAgentCardMinimal = Pick<IAgentCard, 'id' | 'assets' | 'title'> & { name: string };
 
-export interface ILlmTask {
+export enum AssignedType {
+  AGENT = 'agent',
+  USER = 'user',
+}
+
+export interface ITask {
+  _id?: string;
+  id: string;
+
+  name: string;
+  description: string;
+  content: string;
+
+  assignedTo: string;
+  assignedType: AssignedType;
+  status: string;
+  image?: CloudStorageData;
+
+}
+
+
+export interface ILlmTask extends ITask {
   _id?: string;
   id: string;
 
@@ -34,7 +55,7 @@ export interface ILlmTask {
   agentCards: IAgentCardMinimal[];
   name: string;
   description: string;
-  status: string;
+
   prompt: string;
   taskType: AgentTaskType;
   sources: ISourceTask[];
@@ -42,7 +63,6 @@ export interface ILlmTask {
   output: ILlmTaskOutput;
   outputFormat: 'json' | 'default';
   taskAttached: Partial<ILlmTask>;
-  image?: CloudStorageData;
 }
 
 // Tiene una relación con el agente y la tarea. parcial asi muestro graficamente que pasa.
