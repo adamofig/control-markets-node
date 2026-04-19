@@ -50,3 +50,4 @@ export const SocialMediaTrackerSchema = SchemaFactory.createForClass(SocialMedia
 addIdAfterSave(SocialMediaTrackerSchema);
 
 SocialMediaTrackerSchema.index({ id: 1 }, { unique: true });
+SocialMediaTrackerSchema.index({ name: 'text', description: 'text', notes: 'text' });

@@ -37,3 +37,4 @@ export const CreativeFlowboardSchema = SchemaFactory.createForClass(FlowBoardEnt
 addIdAfterSave(CreativeFlowboardSchema);
 
 CreativeFlowboardSchema.index({ id: 1 });
+CreativeFlowboardSchema.index({ name: 'text' });

@@ -78,3 +78,4 @@ InspirationSourceSchema.index({ id: 1 }, { unique: true });
 InspirationSourceSchema.index({ orgId: 1 });
 InspirationSourceSchema.index({ type: 1 });
 InspirationSourceSchema.index({ status: 1 });
+InspirationSourceSchema.index({ title: 'text', description: 'text' });

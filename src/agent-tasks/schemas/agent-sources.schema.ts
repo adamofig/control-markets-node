@@ -59,3 +59,5 @@ export class AgentSourceEntity implements IAgentSource {
 export const AgentSourceSchema = SchemaFactory.createForClass(AgentSourceEntity);
 
 addIdAfterSave(AgentSourceSchema);
+
+AgentSourceSchema.index({ name: 'text', description: 'text' });

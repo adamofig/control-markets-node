@@ -54,3 +54,5 @@ export class AgentTaskEntity implements IAgentTask {
 export const AgentTaskSchema = SchemaFactory.createForClass(AgentTaskEntity);
 
 addIdAfterSave(AgentTaskSchema);
+
+AgentTaskSchema.index({ name: 'text', description: 'text' });

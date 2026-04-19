@@ -59,3 +59,4 @@ addIdAfterSave(HumanResourceSchema);
 HumanResourceSchema.index({ id: 1 }, { unique: true });
 HumanResourceSchema.index({ orgId: 1 });
 HumanResourceSchema.index({ userId: 1 });
+HumanResourceSchema.index({ name: 'text', description: 'text' });

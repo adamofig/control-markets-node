@@ -41,3 +41,5 @@ export class DeckCommanderEntity implements IDeckCommander {
 export const DeckCommanderSchema = SchemaFactory.createForClass(DeckCommanderEntity);
 
 addIdAfterSave(DeckCommanderSchema);
+
+DeckCommanderSchema.index({ name: 'text', description: 'text' });

@@ -33,3 +33,4 @@ export const OrganizationSchema = SchemaFactory.createForClass(OrganizationEntit
 addIdAfterSave(OrganizationSchema);
 
 OrganizationSchema.index({ id: 1 }, { unique: true });
+OrganizationSchema.index({ name: 'text', description: 'text' });

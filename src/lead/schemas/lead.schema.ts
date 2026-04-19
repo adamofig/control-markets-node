@@ -44,3 +44,4 @@ export const LeadSchema = SchemaFactory.createForClass(LeadEntity);
 addIdAfterSave(LeadSchema);
 
 LeadSchema.index({ id: 1 }, { unique: true });
+LeadSchema.index({ name: 'text', description: 'text' });
