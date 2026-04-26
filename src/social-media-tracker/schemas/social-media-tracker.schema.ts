@@ -32,6 +32,9 @@ export class SocialMediaTrackerEntity implements ISocialMediaTracker {
   @Prop({ required: false, type: String })
   platform: string;
 
+  @Prop({ required: false, type: [Object] })
+  platforms: any[];  
+
   @Prop({ required: false, type: String, default: 'draft' })
   status: string;
 
@@ -39,10 +42,14 @@ export class SocialMediaTrackerEntity implements ISocialMediaTracker {
   notes: string;
 
   @Prop({ required: false, type: String })
+  breakdown: string;
+
+  @Prop({ required: false, type: String })
   videoUrl: string;
 
   @Prop({ type: AuditDataSchema, required: false, default: {} })
   auditable: IAuditable;
+
 }
 
 export const SocialMediaTrackerSchema = SchemaFactory.createForClass(SocialMediaTrackerEntity);

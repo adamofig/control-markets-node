@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { IAssets, IDialog, IOverlayPlan, IVideoProjectGenerator } from '../models/video-project.models';
+import { IAssets, IDialog, IOverlayPlan, IScene, IVideoBrief, IVideoProjectGenerator } from '../models/video-project.models';
 import * as mongoose from 'mongoose';
 import { IAgentSource, IMinimalAgentSource } from 'src/agent-tasks/models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
@@ -32,6 +32,12 @@ const AgentCardReferenceSchema = new mongoose.Schema(
 
 @Schema({ timestamps: true, collection: 'video_projects' })
 export class VideoGeneratorEntity implements IVideoProjectGenerator {
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  brief: IVideoBrief;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  scenes: IScene[];
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   compositionPlan: { overlays: IOverlayPlan[] };
 

@@ -13,13 +13,48 @@ export interface IDialog {
   content: string;
   audio: CloudStorageData;
   voice: string;
-  transcription: any; // TODO: Define transcription type whisper
-  captions: any; // TODO: Define captions type whisper
+  transcription: any;
+  captions: any;
 }
+
+export interface ISceneAssetRef {
+  generatedAssetId?: string;
+  url?: string;
+  status?: 'pending' | 'generating' | 'completed' | 'failed';
+}
+
+export interface IScene {
+  index: number;
+  dialog: {
+    content: string;
+    voice?: string;
+    audio?: ISceneAssetRef;
+    transcription?: any;
+  };
+  mediaType?: 'image' | 'video';
+  imagePrompt?: string;
+  videoPrompt?: string;
+  visual?: ISceneAssetRef;
+  durationSec?: number;
+  transition?: string;
+  visualStyle?: string;
+}
+
+export interface IVideoBrief {
+  concept?: string;
+  tone?: string;
+  targetAudience?: string;
+  targetDurationSec?: number;
+  aspectRatio?: '9:16' | '16:9' | '1:1';
+  sceneCount?: number;
+}
+
 export interface IVideoProjectGenerator {
   id: string;
   name?: string;
   description?: string;
+  brief?: IVideoBrief;
+  scenes?: IScene[];
   agent?: Partial<IAgentCard>;
   task?: Partial<ILlmTask>;
   assets: IAssets;

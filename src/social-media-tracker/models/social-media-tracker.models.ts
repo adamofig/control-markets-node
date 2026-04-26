@@ -13,6 +13,8 @@ export interface ISocialMediaTracker {
   auditable?: IAuditable;
   scheduledDate?: Date | string;
   platform?: string;
+  platforms?: any[];
+  breakdown?: string;
   status?: string;
   notes?: string;
   videoUrl?: string;
