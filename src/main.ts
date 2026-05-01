@@ -17,7 +17,6 @@ function printEnvironmentVariables() {
   console.log('MONGO_DB -> ' + process.env.MONGO_DB);
   console.log('GOOGLE_CLOUD_PROJECT_ID -> ' + process.env.GOOGLE_CLOUD_PROJECT_ID);
   console.log('GOOGLE_APPLICATION_CREDENTIALS -> ' + process.env.GOOGLE_APPLICATION_CREDENTIALS);
-  console.log('OPENAI_API_KEY -> ' + process.env.OPENAI_API_KEY);
   console.log('STORAGE_BUCKET -> ' + process.env.STORAGE_BUCKET);
   console.log('PROJECT_ID -> ' + process.env.PROJECT_ID);
   console.log('PYTHON_SERVER_URL -> ' + process.env.PYTHON_SERVER_URL);

@@ -1,33 +1,27 @@
-# Stage 1: Build the application
+# Stage 1: Build
 FROM node:22-alpine AS builder
 LABEL stage="builder"
 
 WORKDIR /app
 
-# Copy package files and install dependencies
 COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm i
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
-# Copy the rest of the application source code
 COPY . .
-
-# Build the application for production
 RUN pnpm run build
 
-# Stage 2: Production image
+# Stage 2: Production
 FROM node:22-alpine AS production
 LABEL stage="production"
 
 WORKDIR /app
 
-# Copy production dependencies from the builder stage
-COPY --from=builder /app/node_modules ./node_modules
-# Copy the built application from the builder stage
+COPY package.json pnpm-lock.yaml ./
+RUN npm install -g pnpm && pnpm install --frozen-lockfile --prod && npm uninstall -g pnpm
+
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 
-# Expose the application port
-EXPOSE 3000
+EXPOSE 8121
 
-# Start the application
-CMD [ "node", "dist/main.js" ]
+CMD ["node", "dist/main.js"]

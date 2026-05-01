@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.*
+.cred
+*.log
+coverage
+test
+docs
+.claude
+libs
+*.md
+.eslintrc*
+.prettierrc*
+jest.config*

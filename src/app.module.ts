@@ -13,7 +13,6 @@ import { TestModule } from './test/test.module';
 
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
-import { NestWhisperModule } from '@dataclouder/nest-whisper';
 import { NestUsersModule } from '@dataclouder/nest-users';
 import { AgentsModule } from './agent-tasks/agent-tasks.module';
 import { VideoGeneratorModule } from './video-projects/video-project-generator.module';
@@ -22,7 +21,6 @@ import { InitModule } from './init/init.module';
 import { DeckCommanderModule } from './deck-commander/deck-commander.module';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { CreativeFlowboardModule } from './creative-flowboard/creative-flowboard.module';
-import { TiktokBotModule } from './tiktok-bot/tiktok-bot.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { OrganizationModule } from './organization/organization.module';
 import { LeadModule } from './lead/lead.module';
@@ -55,14 +53,12 @@ import { randomUUID } from 'crypto';
       apiKey: process.env.AI_SERVICES_API_KEY || '',
     }),
     NestAuthModule,
-    NestWhisperModule,
     NestUsersModule,
     AgentsModule,
     NotionAgentsModule,
     VideoGeneratorModule,
     InitModule,
     DeckCommanderModule,
-    TiktokBotModule,
     ConversationRuleModule,
     OrganizationModule,
     LeadModule,
