@@ -27,7 +27,7 @@ import { LeadModule } from './lead/lead.module';
 import { NestAiServicesMongodbModule } from '@dataclouder/nest-ai-services-mongodb';
 import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
 import { SocialMediaTrackerModule } from './social-media-tracker/social-media-tracker.module';
-import { StorageAssetModule } from '@dataclouder/nest-storage';
+import { StorageAssetOverrideModule } from './storage-asset/storage-asset-override.module';
 import { InspirationSourceModule } from './inspiration-source/inspiration-source.module';
 import { RecentResourcesModule } from './recent-resources/recent-resources.module';
 import { ChatModule } from './chat/chat.module';
@@ -64,7 +64,7 @@ import { randomUUID } from 'crypto';
     LeadModule,
     NestAiServicesMongodbModule,
     NestAiServicesSdkModule,
-    StorageAssetModule,
+    StorageAssetOverrideModule,
     SocialMediaTrackerModule,
     InspirationSourceModule,
     RecentResourcesModule,

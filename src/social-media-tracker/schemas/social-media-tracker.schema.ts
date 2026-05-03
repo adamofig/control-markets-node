@@ -1,8 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { ISocialMediaTracker } from '../models/social-media-tracker.models';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
+import { StorageAssetEntity } from '@dataclouder/nest-storage';
 export type SocialMediaTrackerDocument = SocialMediaTrackerEntity & Document;
 
 @Schema({ collection: 'social_media_tracker', timestamps: true })
@@ -19,7 +20,7 @@ export class SocialMediaTrackerEntity implements ISocialMediaTracker {
   @Prop({ required: false })
   description: string;
 
-  @Prop({ required: false, type: Object })
+  @Prop({ required: false, type: Types.ObjectId, ref: 'StorageAssetEntity' })
   asset: any;
 
   @Prop({
