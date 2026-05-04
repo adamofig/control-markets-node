@@ -15,10 +15,13 @@ export class InspirationSourceEntity implements IInspirationSource {
   orgId: string;
 
   @Prop({ required: false })
-  title: string;
+  name: string;
 
   @Prop({ required: false })
   description: string;
+
+  @Prop({ required: false })
+  account: string;
 
   @Prop({ required: false, type: String, enum: InspirationType })
   type: InspirationType;

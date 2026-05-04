@@ -19,8 +19,9 @@ export interface IInspirationSource {
   _id?: string;
   id?: string;
   orgId?: string;
-  title?: string;
   description?: string;
+
+  account?: string;
 
   type?: InspirationType;
   platform?: 'tiktok' | 'instagram' | 'youtube' | 'web' | 'blog';
