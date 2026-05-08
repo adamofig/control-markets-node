@@ -20,24 +20,24 @@
 
 | Folder | Purpose |
 | :--- | :--- |
-| [01_analysis_and_decisions/](01_analysis_and_decisions/index.md) | Architecture Decision Records — the "why" behind major choices |
-| [02_plans/](02_plans/index.md) | Work-in-progress specs and unimplemented ideas |
-| [03_references/](03_references/index.md) | Source-of-truth module docs, API contracts, schemas |
-| [04_how-to/](04_how-to/index.md) | Step-by-step developer guides |
-| [05_diagrams/](05_diagrams/index.md) | Excalidraw visual models |
-| [06_business/](06_business/index.md) | Domain knowledge, user personas, product requirements |
+| [01_business/](01_business/index.md) | Domain knowledge, user personas, product requirements |
+| [02_references/](02_references/index.md) | Source-of-truth module docs, API contracts, schemas |
+| [03_how-to/](03_how-to/index.md) | Step-by-step developer guides |
+| [04_analysis_and_decisions/](04_analysis_and_decisions/index.md) | Architecture Decision Records — the "why" behind major choices |
+| [05_plans/](05_plans/index.md) | Work-in-progress specs and unimplemented ideas |
+| [06_diagrams/](06_diagrams/index.md) | Excalidraw visual models |
 | [99_more/](99_more/index.md) | Bruno API collections and miscellaneous content |
 
 ---
 
 ## Critical Files (Quick Access)
 
-- [03_references/architecture.md](03_references/architecture.md) — Backend tech stack overview
-- [03_references/flowboard/node-execution-engine.md](03_references/flowboard/node-execution-engine.md) — How `FlowRunner` orchestrates node execution
-- [03_references/flowboard/execution-state.md](03_references/flowboard/execution-state.md) — Flow → Task → Job lifecycle
-- [03_references/flowboard/real-time-sync.md](03_references/flowboard/real-time-sync.md) — SSE architecture details
-- [04_how-to/creating-backend-node-logic.md](04_how-to/creating-backend-node-logic.md) — How to add a new node processor
-- [06_business/understanding-control-markets.md](06_business/understanding-control-markets.md) — What the platform is and why it exists
+- [02_references/architecture.md](02_references/architecture.md) — Backend tech stack overview
+- [02_references/flowboard/node-execution-engine.md](02_references/flowboard/node-execution-engine.md) — How `FlowRunner` orchestrates node execution
+- [02_references/flowboard/execution-state.md](02_references/flowboard/execution-state.md) — Flow → Task → Job lifecycle
+- [02_references/flowboard/real-time-sync.md](02_references/flowboard/real-time-sync.md) — SSE architecture details
+- [03_how-to/creating-backend-node-logic.md](03_how-to/creating-backend-node-logic.md) — How to add a new node processor
+- [01_business/understanding-control-markets.md](01_business/understanding-control-markets.md) — What the platform is and why it exists
 
 ---
 
