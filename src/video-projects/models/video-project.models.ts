@@ -55,6 +55,7 @@ export interface IVideoProjectGenerator {
   description?: string;
   brief?: IVideoBrief;
   scenes?: IScene[];
+  sceneIds?: string[];
   agent?: Partial<IAgentCard>;
   task?: Partial<ILlmTask>;
   assets: IAssets;

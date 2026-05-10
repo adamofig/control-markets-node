@@ -16,6 +16,7 @@ import { join } from 'path';
 import { NestUsersModule } from '@dataclouder/nest-users';
 import { AgentsModule } from './agent-tasks/agent-tasks.module';
 import { VideoGeneratorModule } from './video-projects/video-project-generator.module';
+import { VideoSceneModule } from './video-scene/video-scene.module';
 import { NotionAgentsModule } from './notion-agents-module/notion-agents.module';
 import { InitModule } from './init/init.module';
 import { DeckCommanderModule } from './deck-commander/deck-commander.module';
@@ -57,6 +58,7 @@ import { randomUUID } from 'crypto';
     AgentsModule,
     NotionAgentsModule,
     VideoGeneratorModule,
+    VideoSceneModule,
     InitModule,
     DeckCommanderModule,
     ConversationRuleModule,

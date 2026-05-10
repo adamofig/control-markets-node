@@ -51,13 +51,16 @@ export class VideoGeneratorEntity implements IVideoProjectGenerator {
   // agentCards: Partial<IAgentCard>[];
 
   @Prop({ type: AgentCardReferenceSchema, required: false })
-  agent: Partial<IAgentCard>;
+  agentCard: Partial<IAgentCard>;
 
   @Prop({ type: String, required: false })
   type: 'video-project';
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   assets: IAssets;
+
+  @Prop({ type: [String], required: false, default: [] })
+  sceneIds: string[];
 
   @Prop({ type: String, required: false })
   id: string;
