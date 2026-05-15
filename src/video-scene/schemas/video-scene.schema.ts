@@ -51,6 +51,15 @@ export class VideoSceneEntity implements IVideoScene {
   @Prop({ required: false, default: 'draft' })
   status: string;
 
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  speechStorage: any;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  videoStorage: any;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  imageStorage: any;
+
   @Prop({ type: AuditDataSchema, required: false, default: {} })
   auditable: IAuditable;
 }

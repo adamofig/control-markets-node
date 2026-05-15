@@ -27,6 +27,10 @@ export interface IVideoScene {
 
   status?: string;
 
+  speechStorage?: any;
+  videoStorage?: any;
+  imageStorage?: any;
+
   agentCard?: any;
 
   auditable?: IAuditable;
