@@ -4,13 +4,13 @@
 FROM node:22-alpine AS base
 WORKDIR /app
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack prepare --activate
 
 # ---- build: install all deps (cached on manifests), then compile ----
 FROM base AS build
 RUN --mount=type=cache,id=pnpm-store-node,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts
+    pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm run build
 
@@ -18,7 +18,7 @@ RUN pnpm run build
 FROM base AS prod_deps
 ENV NODE_ENV=production
 RUN --mount=type=cache,id=pnpm-store-node,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --prod --ignore-scripts
+    pnpm install --frozen-lockfile --prod
 
 # ---- production: slim runtime image ----
 FROM node:22-alpine AS production
