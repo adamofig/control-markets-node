@@ -43,5 +43,5 @@ jobs:
 
       - name: Trigger Coolify Deployment
         run: |
-          curl -X GET "http://coolify-home.polito.casa/api/v1/deploy?uuid=k1cfnn8bte8lamfxesvg15cp&force=false" \
+          curl -X GET "http://coolify-home.polito.casa/api/v1/deploy?uuid=ir7hxeodhvm5vdvtgard56bm&force=false" \
                -H "Authorization: Bearer bbvPvAo5CLaFRbmmCGwoobYbmOAwhn3mmHKqPOvi8e41e5f0"
