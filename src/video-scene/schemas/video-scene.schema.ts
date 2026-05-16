@@ -25,16 +25,31 @@ export class VideoSceneEntity implements IVideoScene {
   index: number;
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  speechPrompt: string;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  speechStorage: any;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  videoPrompt: string;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  videoStorage: any;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  imagePrompt: string;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  imageStorage: any;
+
+
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   dialog: IVideoScene['dialog'];
 
   @Prop({ required: false })
   mediaType: string;
 
-  @Prop({ required: false })
-  imagePrompt: string;
-
-  @Prop({ required: false })
-  videoPrompt: string;
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   agentCard: any;
@@ -51,14 +66,7 @@ export class VideoSceneEntity implements IVideoScene {
   @Prop({ required: false, default: 'draft' })
   status: string;
 
-  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
-  speechStorage: any;
 
-  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
-  videoStorage: any;
-
-  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
-  imageStorage: any;
 
   @Prop({ type: AuditDataSchema, required: false, default: {} })
   auditable: IAuditable;

@@ -1,4 +1,5 @@
 import { IAuditable } from '@dataclouder/nest-core';
+import { IStorageAsset } from '@dataclouder/nest-storage';
 
 export interface IVideoScene {
   _id?: string;
@@ -17,19 +18,25 @@ export interface IVideoScene {
     transcription?: any;
   };
 
-  mediaType?: 'image' | 'video' | string;
-  imagePrompt?: string;
+  speechPrompt?: string;
+  speechStorage?: Partial<IStorageAsset>
+
   videoPrompt?: string;
+  videoStorage?: Partial<IStorageAsset>
+
+  imagePrompt?: string;
+  imageStorage?: Partial<IStorageAsset>
+
+  mediaType?: 'image' | 'video' | string;
+
+  
+
 
   durationSec?: number;
   transition?: string;
   visualStyle?: string;
 
   status?: string;
-
-  speechStorage?: any;
-  videoStorage?: any;
-  imageStorage?: any;
 
   agentCard?: any;
 
