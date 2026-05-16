@@ -5,6 +5,7 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "pnpm@11.1.1",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"libs/**/*.ts\"",
@@ -134,6 +135,16 @@
     ],
     "moduleNameMapper": {
       "^@dataclouder/nest-mongo(|/.*)$": "<rootDir>/libs/nest-mongo/src/$1"
+    }
+  },
+  "pnpm": {
+    "allowBuilds": {
+      "@firebase/util": true,
+      "@nestjs/core": true,
+      "@scarf/scarf": true,
+      "@swc/core": true,
+      "protobufjs": true,
+      "sharp": true
     }
   }
 }
