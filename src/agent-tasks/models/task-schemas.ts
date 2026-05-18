@@ -55,7 +55,7 @@ export const agentTaskSummarySchema = z.object({
   orgId: z.string().optional(),
   name: z.string(),
   description: z.string().optional(),
-  status: z.string().optional().describe('Free string, e.g. "pending" | "done" | "in_progress"'),
+  status: z.enum(['pending', 'in_progress', 'done', 'paused', '', null as any]).optional().describe('Task status'),
   taskType: z.enum(['review_task', 'create_content', 'human_task']).optional(),
   assignedType: z.enum(['agent', 'user']).optional(),
   assignedTo: assignedToSchema.optional(),

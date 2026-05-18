@@ -27,6 +27,15 @@ export interface ISourceTask {
 
 export type IAgentCardMinimal = Pick<IAgentCard, 'id' | 'assets' | 'title'> & { name: string };
 
+export enum TaskStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  DONE = 'done',
+  PAUSED = 'paused',
+  NOT_DEFINED = '',
+  NA = null,
+}
+
 export enum AssignedType {
   AGENT = 'agent',
   USER = 'user',
@@ -51,7 +60,7 @@ export interface ITask {
 
   assignedTo?: IAssignedTo;
   assignedType?: AssignedType;
-  status?: string;
+  status?: TaskStatus;
   image?: CloudStorageData;
   taskType?: AgentTaskType;
 }

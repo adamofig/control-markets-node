@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import mongoose, { Document } from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 import { HRContractType, HRStatus, IHumanResource, IPaymentConfig } from '../models/human-resource.models';
@@ -9,6 +9,10 @@ export type HumanResourceDocument = HumanResourceEntity & Document;
 
 @Schema({ collection: 'human_resources', timestamps: true })
 export class HumanResourceEntity implements IHumanResource {
+  _id?: string;
+
+
+
   @Prop({ required: false })
   id: string;
 
@@ -20,6 +24,9 @@ export class HumanResourceEntity implements IHumanResource {
 
   @Prop({ required: false })
   name: string;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  user: any;
 
   @Prop({ required: false })
   role: string;

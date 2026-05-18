@@ -58,7 +58,7 @@ The schema is derived directly from the TypeScript models — it is always up to
     name: 'tasks_operation',
     description: `Execute any MongoDB operation on the agent_tasks collection.
 Call tasks_getSchema first if you are unsure of field names or nested shapes. Here are only the basic fields, so user request make sense:
-Fields: name, description, status (e.g. "pending"|"done"|"in_progress"), orgId,
+Fields: name, description, status ("pending"|"in_progress"|"done"|"paused"|""|null), orgId,
 taskType ("review_task"|"create_content"|"human_task"),
 assignedType ("agent"|"user"),
 assignedTo {userId, email, name} — nested object, always query with dot-notation:

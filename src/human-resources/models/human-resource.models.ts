@@ -46,6 +46,7 @@ export interface IHumanResource {
   id?: string;
   orgId?: string;
   userId: string;
+  user: any; // Soft Reference to User
 
   name?: string;
   role?: string;

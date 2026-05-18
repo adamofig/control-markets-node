@@ -59,3 +59,4 @@ export class UserEntity extends Document implements IUser {
 export const UserSchema = SchemaFactory.createForClass(UserEntity);
 addIdAfterSave(UserSchema);
 UserSchema.index({ id: 1 });
+UserSchema.index({ email: 'text', 'personalData.firstname': 'text', 'personalData.lastname': 'text', 'personalData.emotionalName': 'text' });
