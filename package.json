@@ -62,7 +62,7 @@
     "@stable-canvas/comfyui-client": "^1.4.3",
     "@types/node-notifier": "^8.0.5",
     "@webundsoehne/nest-fastify-file-upload": "^2.3.1",
-    "ai": "^6.0.146",
+    "ai": "^6.0.185",
     "axios": "^1.12.2",
     "cheerio": "^1.1.2",
     "class-transformer": "^0.5.1",

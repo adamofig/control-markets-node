@@ -1,5 +1,6 @@
 import { IAgentCard } from '@dataclouder/nest-agent-cards';
 import { IAIModel } from '@dataclouder/nest-ai-services-sdk';
+import { IAuditable } from '@dataclouder/nest-core';
 import { ObjectId } from 'mongoose';
 
 export interface CloudStorageData {
@@ -63,6 +64,8 @@ export interface ITask {
   status?: TaskStatus;
   image?: CloudStorageData;
   taskType?: AgentTaskType;
+
+  auditable?: IAuditable;
 }
 
 export interface IAgentTaskSettings {

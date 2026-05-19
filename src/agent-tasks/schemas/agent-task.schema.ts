@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { IAgentTask, IAgentTaskSettings, AgentTaskType, AssignedType, IAssignedTo, CloudStorageData, TaskStatus } from '../models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
+import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 
 export type AgentTaskDocument = AgentTaskEntity & Document;
 
@@ -20,6 +21,9 @@ export class AgentTaskEntity implements IAgentTask {
 
   @Prop({ required: false })
   description: string;
+
+  @Prop({ required: false })
+  content: string;
 
   @Prop({ required: false })
   prompt: string;
@@ -49,6 +53,9 @@ export class AgentTaskEntity implements IAgentTask {
   // @deprecated — kept for backward compat with existing records
   @Prop({ required: false, type: Object })
   notionOutput: { id: string; name: string; type: string };
+
+  @Prop({ type: AuditDataSchema, required: false, default: {} })
+  auditable: IAuditable;
 }
 
 export const AgentTaskSchema = SchemaFactory.createForClass(AgentTaskEntity);

@@ -13,6 +13,7 @@ class ChatMessageDto {
 
 class ChatRequestDto {
   messages: ChatMessageDto[];
+  orgId?: string;
 }
 
 @ApiTags('Chat')
@@ -31,7 +32,7 @@ export class ChatController {
     res.raw.setHeader('Access-Control-Allow-Origin', '*');
 
     try {
-      const textStream = await this.chatService.streamChat(body.messages, token);
+      const textStream = await this.chatService.streamChat(body.messages, token, body.orgId);
 
       for await (const chunk of textStream) {
         res.raw.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
