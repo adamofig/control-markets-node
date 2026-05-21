@@ -17,6 +17,7 @@ export interface MessageAI {
 export enum AgentTaskType {
   REVIEW_TASK = 'review_task',
   CREATE_CONTENT = 'create_content',
+  TEXT_RESPONSE = 'text_response',
   HUMAN_TASK = 'human_task',
 }
 
@@ -63,7 +64,7 @@ export interface ITask {
   assignedType?: AssignedType;
   status?: TaskStatus;
   image?: CloudStorageData;
-  taskType?: AgentTaskType;
+  taskType?: AgentTaskType | string;
 
   auditable?: IAuditable;
 }

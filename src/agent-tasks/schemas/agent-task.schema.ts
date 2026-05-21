@@ -37,8 +37,8 @@ export class AgentTaskEntity implements IAgentTask {
   @Prop({ required: false, type: String, enum: Object.values(TaskStatus) })
   status: TaskStatus;
 
-  @Prop({ required: false, type: String, enum: AgentTaskType })
-  taskType: AgentTaskType;
+  @Prop({ required: false, type: String })
+  taskType: AgentTaskType | string;
 
   @Prop({ required: false, type: Object })
   assignedTo: IAssignedTo;
