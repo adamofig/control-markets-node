@@ -131,6 +131,9 @@ importers:
       discord.js:
         specifier: ^14.26.4
         version: 14.26.4
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.4.7
       es-toolkit:
         specifier: ^1.41.0
         version: 1.41.0

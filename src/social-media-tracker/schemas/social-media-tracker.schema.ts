@@ -48,6 +48,12 @@ export class SocialMediaTrackerEntity implements ISocialMediaTracker {
   @Prop({ required: false, type: String })
   videoUrl: string;
 
+  @Prop({ required: false, type: String })
+  aspectRatio: string;
+
+  @Prop({ required: false, type: String, default: 'video' })
+  postType: string;
+
   @Prop({ type: AuditDataSchema, required: false, default: {} })
   auditable: IAuditable;
 

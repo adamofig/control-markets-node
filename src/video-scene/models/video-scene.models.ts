@@ -26,11 +26,10 @@ export interface IVideoScene {
 
   imagePrompt?: string;
   imageStorage?: Partial<IStorageAsset>
+  imageRef?: Partial<IStorageAsset>;
 
   mediaType?: 'image' | 'video' | string;
-
-  
-
+  aspectRatio?: string;
 
   durationSec?: number;
   transition?: string;

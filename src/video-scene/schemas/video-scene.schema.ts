@@ -42,13 +42,17 @@ export class VideoSceneEntity implements IVideoScene {
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   imageStorage: any;
 
-
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  imageRef: any;
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   dialog: IVideoScene['dialog'];
 
   @Prop({ required: false })
   mediaType: string;
+
+  @Prop({ required: false })
+  aspectRatio: string;
 
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })

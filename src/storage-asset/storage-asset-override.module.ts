@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { HttpModule } from '@nestjs/axios';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
-import { NestStorageModule, StorageAssetController, StorageAssetEntity, StorageAssetService } from '@dataclouder/nest-storage';
+import { NestStorageModule, StorageAssetEntity, StorageAssetService } from '@dataclouder/nest-storage';
 import { StorageAssetExtendedEntity, StorageAssetExtendedSchema } from './schemas/storage-asset-extended.schema';
 import { NestAuthModule } from '@dataclouder/nest-auth';
 import { StorageAssetCaptionsService } from './storage-asset-captions.service';
 import { StorageAssetCaptionsController } from './storage-asset-captions.controller';
+import { StorageAssetController } from './storage-asset.controller';
 
 @Module({
   imports: [

@@ -43,6 +43,8 @@ export interface ISocialMediaTracker {
   status?: string;                // 'draft' | 'scheduled' | 'published'
   notes?: string;                 // Caption, hashtags, or internal notes
   videoUrl?: string;              // Public cloud storage URL of the video file
+  aspectRatio?: string;           // 'vertical_9_16' | 'horizontal_16_9' | 'square'
+  postType?: string;              // 'video' | 'carrusel'
 }
 ```
 
@@ -66,6 +68,8 @@ export interface ISocialMediaTracker {
 | `status` | String | `'draft'` | Workflow state |
 | `notes` | String | — | Free-text caption or hashtags |
 | `videoUrl` | String | — | Direct public URL returned by the cloud storage upload |
+| `aspectRatio` | String | — | Aspect ratio of the media asset ('vertical_9_16', 'horizontal_16_9', 'square') |
+| `postType` | String | `'video'` | Post format type ('video' or 'carrusel') |
 | `auditable` | AuditDataSchema | `{}` | Created/updated by user metadata |
 
 ---

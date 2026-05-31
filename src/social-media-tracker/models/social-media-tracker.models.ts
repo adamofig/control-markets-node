@@ -20,4 +20,6 @@ export interface ISocialMediaTracker {
   status?: string;
   notes?: string;
   videoUrl?: string;
+  aspectRatio?: string;
+  postType?: string;
 }
