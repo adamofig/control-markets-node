@@ -9,4 +9,8 @@ export interface IOrganization {
   type?: string;
   guests?: any[];
   socialNetworks?: { type: string, account: string }[];
+  blog?: {
+    githubRepo?: string;
+    postPath?: string;
+  };
 }

@@ -26,6 +26,12 @@ export class OrganizationEntity implements IOrganization {
 
   @Prop({ required: false, default: [] })
   socialNetworks: { type: string, account: string }[];
+
+  @Prop({ required: false, type: Object })
+  blog?: {
+    githubRepo?: string;
+    postPath?: string;
+  };
 }
 
 export const OrganizationSchema = SchemaFactory.createForClass(OrganizationEntity);

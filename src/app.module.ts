@@ -36,6 +36,7 @@ import { HumanResourcesModule } from './human-resources/human-resources.module';
 import { McpModule } from '@rekog/mcp-nest';
 import { AppMcpModule } from './mcp/mcp.module';
 import { randomUUID } from 'crypto';
+import { BlogEntryModule } from './blog-entry/blog-entry.module';
 
 
 @Module({
@@ -82,6 +83,7 @@ import { randomUUID } from 'crypto';
       },
     }),
     AppMcpModule,
+    BlogEntryModule,
   ],
   controllers: [AppController],
 })
