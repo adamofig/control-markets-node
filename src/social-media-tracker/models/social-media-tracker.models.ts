@@ -12,6 +12,7 @@ export interface ISocialMediaTracker {
   description?: string;
   
   asset?: string | IStorageAsset;
+  assets?: (string | IStorageAsset)[];
   
   scheduledDate?: Date | string;
   platform?: string;

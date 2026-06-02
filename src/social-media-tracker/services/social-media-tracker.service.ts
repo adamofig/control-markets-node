@@ -26,4 +26,19 @@ export class SocialMediaTrackerService extends EntityCommunicationService<Social
   ) {
     super(socialMediaTrackerModel, mongoService);
   }
+
+  override async executeOperation(operation: any): Promise<any> {
+    const result = await super.executeOperation(operation);
+    if (operation && result) {
+      if (operation.action === 'find' || result.data) {
+        const docs = result.data || result;
+        if (Array.isArray(docs)) {
+          await this.genericModel.populate(docs, { path: 'asset assets' });
+        }
+      } else {
+        await this.genericModel.populate(result, { path: 'asset assets' });
+      }
+    }
+    return result;
+  }
 }

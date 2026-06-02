@@ -23,6 +23,9 @@ export class SocialMediaTrackerEntity implements ISocialMediaTracker {
   @Prop({ required: false, type: Types.ObjectId, ref: 'StorageAssetEntity' })
   asset: any;
 
+  @Prop({ required: false, type: [{ type: Types.ObjectId, ref: 'StorageAssetEntity' }] })
+  assets: any[];
+
   @Prop({
     required: false,
     type: Date,

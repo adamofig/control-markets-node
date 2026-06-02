@@ -60,20 +60,40 @@ import { StorageAssetModule } from '@dataclouder/nest-storage';
 export class SocialMediaTrackerModule {}
 ```
 
-## Querying and Resolving the Asset
+## Querying and Resolving Assets
 
-Because we store the `ObjectId` in the database, backend queries will only return the ID string by default. 
+Because we store references as `ObjectId` strings in the database, Mongoose operations return unpopulated IDs by default. To provide the frontend with full asset details (such as the storage URL and metadata), references must be populated.
 
-To provide the frontend with the full asset details (like the image or video `url`), you must use Mongoose's `.populate()` method when querying the database.
-
-**Example Service Query:**
+### 1. Query-Time Population
+For standard queries (e.g. `findOne` or `find`), populate can be requested via Mongoose options:
 ```typescript
 async getTrackerWithAsset(id: string) {
   return this.socialMediaTrackerModel
     .findById(id)
-    .populate('asset') // <--- Replaces the ObjectId with the full StorageAsset object
+    .populate('asset assets') // <--- Resolves ObjectIds to full StorageAsset objects
     .exec();
 }
 ```
 
-By ensuring `.populate('asset')` is called, the frontend can seamlessly access `tracker.asset.url` without making additional API calls.
+### 2. Write-Time Population (Save & Update)
+When a document is created or updated in the backend, the base `EntityCommunicationService` executes the operation and returns the raw saved document. By default, MongoDB returns references as raw string/ObjectId keys (not populated).
+
+If the frontend patches its state using this response, the populated assets would revert to IDs, breaking image/video previews.
+
+To prevent this, `SocialMediaTrackerService` overrides `executeOperation` to intercept write operations and force-populate the `asset` and `assets` paths before returning the document:
+
+```typescript
+// social-media-tracker.service.ts
+override async executeOperation(operation: any): Promise<any> {
+  const result = await super.executeOperation(operation);
+  
+  // Force population after writes to maintain frontend state integrity
+  if (operation && (operation.action === 'updateOne' || operation.action === 'create') && result) {
+    await this.genericModel.populate(result, { path: 'asset assets' });
+  }
+  
+  return result;
+}
+```
+This guarantees that any create or update operations return the fully populated asset objects to the frontend.
+
