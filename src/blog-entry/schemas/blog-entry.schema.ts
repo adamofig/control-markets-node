@@ -52,6 +52,9 @@ export class BlogEntryEntity implements IBlogEntry {
   @Prop({ required: false })
   filePath: string;
 
+  @Prop({ required: false })
+  githubSha: string;
+
   @Prop({ type: AuditDataSchema, required: false, default: {} })
   auditable: IAuditable;
 }

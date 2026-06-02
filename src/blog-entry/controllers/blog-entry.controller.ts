@@ -54,9 +54,21 @@ export class BlogEntryController extends EntityMongoController<BlogEntryDocument
     return await this.blogEntryService.syncFilesToDatabase(body.orgId);
   }
 
+  // Sync posts from GitHub (Remote Sync for Production)
+  @Post('sync-from-github')
+  async syncFromGithub(@Body() body: { orgId?: string }) {
+    return await this.blogEntryService.syncFromGithub(body.orgId);
+  }
+
   // Push post directly to GitHub repository using REST API
   @Post('push-to-github')
   async pushToGithub(@Body() body: { id: string }) {
     return await this.blogEntryService.pushPostToGithub(body.id);
+  }
+
+  // Test connection to GitHub repository
+  @Post('test-github-connection')
+  async testGithubConnection(@Body() body: { githubRepo: string; postPath: string }) {
+    return await this.blogEntryService.testGithubConnection(body.githubRepo, body.postPath);
   }
 }

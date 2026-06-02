@@ -16,5 +16,6 @@ export interface IBlogEntry {
   lang: string;
   content: string; // Markdown body text
   filePath?: string; // Relative path, e.g. 'src/content/posts/my-post.md'
+  githubSha?: string;
   auditable?: IAuditable;
 }
