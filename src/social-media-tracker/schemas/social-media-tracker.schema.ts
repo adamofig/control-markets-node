@@ -57,6 +57,9 @@ export class SocialMediaTrackerEntity implements ISocialMediaTracker {
   @Prop({ required: false, type: String, default: 'video' })
   postType: string;
 
+  @Prop({ required: false, type: String })
+  emoji: string;
+
   @Prop({ type: AuditDataSchema, required: false, default: {} })
   auditable: IAuditable;
 

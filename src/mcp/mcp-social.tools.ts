@@ -41,6 +41,7 @@ Key fields:
   videoUrl      — URL of the associated video asset.
   notes         — Internal notes.
   orgId         — Organization this post belongs to.
+  emoji         — 1 or 2 emoji characters to identify great performance posts.
 
 Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_createPost / social_updatePost for common operations.`,
     parameters: operationSchema,
@@ -130,6 +131,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
       status: z.enum(['draft', 'scheduled', 'published']).optional().default('draft').describe('Post status.'),
       notes: z.string().optional().describe('Internal notes about this post.'),
       videoUrl: z.string().optional().describe('URL of the video asset if already generated.'),
+      emoji: z.string().max(8).optional().describe('1 or 2 emoji characters to identify great performance posts.'),
     }),
   })
   async createSocialPost(dto: {
@@ -140,6 +142,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     status?: string;
     notes?: string;
     videoUrl?: string;
+    emoji?: string;
   }) {
     const result = await this.socialService.save({
       ...dto,
@@ -161,6 +164,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
       status: z.enum(['draft', 'scheduled', 'published']).optional().describe('New status.'),
       notes: z.string().optional().describe('Updated internal notes.'),
       videoUrl: z.string().optional().describe('Updated video URL.'),
+      emoji: z.string().max(8).optional().describe('Updated emoji indicator.'),
     }),
   })
   async updateSocialPost({
@@ -176,6 +180,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     status?: string;
     notes?: string;
     videoUrl?: string;
+    emoji?: string;
   }) {
     const updates: any = { ...rest };
     if (scheduledDate) updates.scheduledDate = new Date(scheduledDate);

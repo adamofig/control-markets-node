@@ -23,4 +23,5 @@ export interface ISocialMediaTracker {
   videoUrl?: string;
   aspectRatio?: string;
   postType?: string;
+  emoji?: string;
 }

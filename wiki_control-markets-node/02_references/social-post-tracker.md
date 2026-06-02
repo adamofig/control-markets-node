@@ -45,6 +45,7 @@ export interface ISocialMediaTracker {
   videoUrl?: string;              // Public cloud storage URL of the video file
   aspectRatio?: string;           // 'vertical_9_16' | 'horizontal_16_9' | 'square'
   postType?: string;              // 'video' | 'carrusel'
+  emoji?: string;                 // 1 or 2 emoji characters to categorize high-performance posts
 }
 ```
 
@@ -70,6 +71,7 @@ export interface ISocialMediaTracker {
 | `videoUrl` | String | — | Direct public URL returned by the cloud storage upload |
 | `aspectRatio` | String | — | Aspect ratio of the media asset ('vertical_9_16', 'horizontal_16_9', 'square') |
 | `postType` | String | `'video'` | Post format type ('video' or 'carrusel') |
+| `emoji` | String | — | 1 or 2 emoji characters to identify/categorize high-performing posts |
 | `auditable` | AuditDataSchema | `{}` | Created/updated by user metadata |
 
 ---
