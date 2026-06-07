@@ -24,7 +24,7 @@ const AgentCardReferenceSchema = new mongoose.Schema(
   {
     id: String,
     reference: { type: mongoose.Schema.Types.ObjectId, ref: 'AgentCardEntity' },
-    title: String,
+    name: String,
     assets: Object,
   },
   { _id: false }

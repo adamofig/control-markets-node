@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { IAgentTask, IAgentTaskSettings, AgentTaskType, AssignedType, IAssignedTo, CloudStorageData, TaskStatus } from '../models/classes';
+import { IAgentTask, IAgentTaskSettings, AgentTaskType, AssignedType, IAssignedTo, CloudStorageData, TaskStatus, IAgentCardMinimal } from '../models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 
@@ -49,6 +49,9 @@ export class AgentTaskEntity implements IAgentTask {
   /** All AI-specific settings nested here */
   @Prop({ required: false, type: Object })
   agentTask: IAgentTaskSettings;
+
+  @Prop({ required: false, type: Object })
+  agentCard: IAgentCardMinimal;
 
   // @deprecated — kept for backward compat with existing records
   @Prop({ required: false, type: Object })

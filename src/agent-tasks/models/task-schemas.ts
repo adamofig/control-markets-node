@@ -59,6 +59,7 @@ export const agentTaskSummarySchema = z.object({
   taskType: z.enum(['review_task', 'create_content', 'human_task']).optional(),
   assignedType: z.enum(['agent', 'user']).optional(),
   assignedTo: assignedToSchema.optional(),
+  agentCard: agentCardMinimalSchema.optional(),
 });
 
 // ─── AgentOutcomeJob (partial — enough for MCP query guidance) ───────────────

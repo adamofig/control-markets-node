@@ -107,7 +107,7 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
 
   async addAgentCardToVideoProject(videoProjectId: string, agentCardId: string) {
     // According to hibrid relation strategy, save basic info including id, so i can remove it later
-    const videoProject = await this.agentCardService.findOne(agentCardId, { _id: 0, id: 1, title: 1, assets: 1 });
+    const videoProject = await this.agentCardService.findOne(agentCardId, { _id: 0, id: 1, name: 1, assets: 1 });
     if (!videoProject) {
       throw new AppException({ error_message: 'Agent card not found', statusCode: 404 });
     }

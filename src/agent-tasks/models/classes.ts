@@ -27,7 +27,7 @@ export interface ISourceTask {
   type: string;
 }
 
-export type IAgentCardMinimal = Pick<IAgentCard, 'id' | 'assets' | 'title'> & { name: string };
+export type IAgentCardMinimal = Pick<IAgentCard, 'id' | 'assets' | 'description' | 'name'>;
 
 export enum TaskStatus {
   PENDING = 'pending',
@@ -83,6 +83,7 @@ export interface IAgentTask extends ITask {
   prompt?: string;
   userPrompt?: string;
   agentTask?: IAgentTaskSettings;
+  agentCard?: IAgentCardMinimal;
 }
 
 /** @deprecated Use IAgentTask instead */

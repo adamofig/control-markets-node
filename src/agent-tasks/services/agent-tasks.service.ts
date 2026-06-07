@@ -37,11 +37,11 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
 
   async save(createAgentTaskDto: IAgentTask) {
     const id = createAgentTaskDto.id || createAgentTaskDto._id;
-    if (createAgentTaskDto?.agentTask?.agentCard?.id) {
-      // TODO: fix this to only get assets
-      const agentCard = await this.conversationAiService.getConversationById(createAgentTaskDto.agentTask.agentCard.id);
-      const { assets, title } = agentCard;
-      createAgentTaskDto.agentTask.agentCard = { id: createAgentTaskDto.agentTask.agentCard.id, assets, title, name: agentCard?.characterCard?.data?.name };
+    if (createAgentTaskDto?.agentCard?.id) {
+      const agentCard = await this.conversationAiService.getConversationById(createAgentTaskDto.agentCard.id);
+      const { assets, description } = agentCard;
+      const name = agentCard?.characterCard?.data?.name || agentCard?.name || '';
+      createAgentTaskDto.agentCard = { id: createAgentTaskDto.agentCard.id, assets, name, description };
     }
     if (id) {
       return this.update(id, createAgentTaskDto);
@@ -101,6 +101,15 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
       throw new Error('Cannot execute a task assigned to a user');
     }
 
+    if (!task.agentTask) {
+      task.agentTask = {};
+    }
+    if (!task.agentTask.agentCards || task.agentTask.agentCards.length === 0) {
+      if (task.agentCard) {
+        task.agentTask.agentCards = [task.agentCard];
+      }
+    }
+
     let infoFromSources = null;
 
     if (task?.agentTask?.sources?.length > 0) {
@@ -128,10 +137,10 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     console.log('-> Reviewing task: ', task.name);
     const jobs = (await this.agentJobService.findByTaskAttachedIdToday(task.agentTask?.taskAttached?.id)) as unknown as IAgentOutcomeJob[];
     for (const finishedJob of jobs) {
-      console.log(`-> Evaluando Job: ${finishedJob?.task?.name} - ${finishedJob?.agentCard?.title} `);
+      console.log(`-> Evaluando Job: ${finishedJob?.task?.name} - ${finishedJob?.agentCard?.name} `);
 
       for (const agentCardMinimal of task.agentTask.agentCards) {
-        console.log(`-> Agente encargado: ${agentCardMinimal.name} - ${agentCardMinimal.title}`);
+        console.log(`-> Agente encargado: ${agentCardMinimal.name}`);
         const agentCard: IAgentCard = await this.conversationAiService.getConversationById(agentCardMinimal.id);
         const chatMessages = buildInitialConversation(agentCard);
         const textToReview = finishedJob.response.content;
@@ -144,7 +153,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
         console.log('-> Response: ', response.content.slice(0, 100) + '...');
         const job: IAgentOutcomeJob = {
           task: { id: task.id, name: task.name },
-          agentCard: { id: agentCard.id, assets: agentCard.assets, title: agentCard.title, name: agentCard?.characterCard?.data?.name },
+          agentCard: { id: agentCard.id, assets: agentCard.assets,  name: agentCard?.characterCard?.data?.name || agentCard.name },
           messages: chatMessages as MessageAI[],
           response: response,
           responseFormat: 'text',
@@ -152,7 +161,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
           infoFromSources: infoFromSources,
         };
         const jobCreated = await this.agentJobService.save(job);
-        console.log(`-> Job created: ${jobCreated.task.name} by ${jobCreated.agentCard.title}`);
+        console.log(`-> Job created: ${jobCreated.task.name} by ${jobCreated.agentCard.name}`);
 
         // const notionResponse = await this.postInNotion(task, agentCard, response.content);
 
@@ -194,7 +203,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
 
       const job: IAgentOutcomeJob = {
         task: { id: task.id, name: task.name },
-        agentCard: { id: agentCard.id, assets: agentCard.assets, title: agentCard.title, name: agentCard?.characterCard?.data?.name },
+        agentCard: { id: agentCard.id, assets: agentCard.assets,  name: agentCard?.characterCard?.data?.name || agentCard.name },
         messages: chatMessages as MessageAI[],
         // Check for now these are duplicated, response should be ai response not the object
         response: response.json,
@@ -250,7 +259,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
   //     properties: {
   //       Name: { title: [{ text: { content: task.name } }] },
   //       Date: { date: { start: new Date().toISOString() } },
-  //       Agent: { rich_text: [{ text: { content: agentCard?.title ?? 'AI' } }] },
+  //       Agent: { rich_text: [{ text: { content: agentCard?.name ?? 'AI' } }] },
   //     },
   //   });
 
@@ -263,7 +272,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
   //   const properties: CreatePageParameters['properties'] = {
   //     Name: { title: [{ text: { content: `${task.name} - ${agentCard.characterCard?.data?.name}` } }] },
   //     Date: { date: { start: new Date().toISOString() } },
-  //     Agent: { rich_text: [{ text: { content: agentCard?.title ?? 'AI' } }] },
+  //     Agent: { rich_text: [{ text: { content: agentCard?.name ?? 'AI' } }] },
   //   };
 
   //   const notionPage = await this.notionWritesService.createDatabaseEntry({
