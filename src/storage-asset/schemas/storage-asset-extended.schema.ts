@@ -7,8 +7,7 @@ export type StorageAssetExtendedDocument = StorageAssetExtendedEntity & Document
 
 @Schema({ collection: 'storage_assets', timestamps: true })
 export class StorageAssetExtendedEntity extends StorageAssetEntity {
-  @Prop({ required: false, type: String })
-  orgId?: string;
+
 }
 
 export const StorageAssetExtendedSchema = SchemaFactory.createForClass(StorageAssetExtendedEntity);
