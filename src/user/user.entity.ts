@@ -33,6 +33,9 @@ export class UserEntity extends Document implements IUser {
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   organizations: IUserOrganization[];
 
+  @Prop({ type: String, required: false })
+  token?: string;
+
   @Prop({
     default: {
       baseLanguage: 'es',
@@ -59,4 +62,5 @@ export class UserEntity extends Document implements IUser {
 export const UserSchema = SchemaFactory.createForClass(UserEntity);
 addIdAfterSave(UserSchema);
 UserSchema.index({ id: 1 });
+UserSchema.index({ token: 1 }, { unique: true, sparse: true });
 UserSchema.index({ email: 'text', 'personalData.firstname': 'text', 'personalData.lastname': 'text', 'personalData.emotionalName': 'text' });

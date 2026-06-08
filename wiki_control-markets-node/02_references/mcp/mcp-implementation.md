@@ -100,3 +100,24 @@ Four of the five tool files expose a generic `*_operation` tool that accepts:
 ```
 
 Use dot-notation for nested fields: `"assignedTo.email"`, `"guests.userId"`, `"personalData.firstname"`.
+
+### Gotcha: JSON String Serialization in Parameters
+Some LLMs or MCP clients serialize parameters like `payload`, `query`, `projection`, or `options` as stringified JSON (e.g. `"payload": "{\"name\": \"...\"}"`) rather than nested JSON objects. If passed directly to Mongoose, this raises:
+`TypeError: First argument to Model constructor must be an object, not a string.`
+
+To resolve this issue, all MCP tool schemas utilize a `z.preprocess()` function to automatically parse stringified JSON values:
+
+```typescript
+const preprocessJson = (val: unknown) => {
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val);
+    } catch {
+      return val;
+    }
+  }
+  return val;
+};
+```
+
+This guarantees that the database layer always receives structured JavaScript objects, regardless of how the client handles serialization.

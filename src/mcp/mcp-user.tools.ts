@@ -3,6 +3,17 @@ import { Tool } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { AppUserService } from '../user/user.service';
 
+const preprocessJson = (val: unknown) => {
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val);
+    } catch {
+      return val;
+    }
+  }
+  return val;
+};
+
 // Shared operation schema — mirrors OperationDto from @dataclouder/nest-mongo
 const operationSchema = z.object({
   action: z
@@ -16,10 +27,10 @@ deleteOne → use query.
 aggregate → use payload as pipeline array.
 clone → use query with _id.`,
     ),
-  query: z.record(z.string(), z.unknown()).optional().describe('MongoDB filter (e.g. { "email": "user@example.com" }).'),
-  payload: z.unknown().optional().describe('Document for create, update payload, or aggregate pipeline array.'),
-  projection: z.record(z.string(), z.unknown()).optional().describe('Fields to include/exclude (e.g. { "email": 1, "personalData": 1 }).'),
-  options: z.record(z.string(), z.unknown()).optional().describe('Mongoose options (e.g. { "sort": { "createdAt": -1 }, "limit": 20 }).'),
+  query: z.preprocess(preprocessJson, z.record(z.string(), z.unknown())).optional().describe('MongoDB filter (e.g. { "email": "user@example.com" }).'),
+  payload: z.preprocess(preprocessJson, z.unknown()).optional().describe('Document for create, update payload, or aggregate pipeline array.'),
+  projection: z.preprocess(preprocessJson, z.record(z.string(), z.unknown())).optional().describe('Fields to include/exclude (e.g. { "email": 1, "personalData": 1 }).'),
+  options: z.preprocess(preprocessJson, z.record(z.string(), z.unknown())).optional().describe('Mongoose options (e.g. { "sort": { "createdAt": -1 }, "limit": 20 }).'),
 });
 
 type OperationInput = z.infer<typeof operationSchema>;

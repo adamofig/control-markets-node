@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Post, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { UserEntity } from './user.entity';
 import { Model } from 'mongoose';
@@ -43,6 +44,13 @@ export class UserController extends EntityController<UserEntity> {
       await user.save();
       return user;
     }
+  }
+
+  @Post('/regenerate-token')
+  async regenerateToken(@DecodedToken() token: AppToken): Promise<{ token: string }> {
+    const pat = `cm_pat_${Date.now().toString(36)}${randomBytes(2).toString('hex').slice(0, 3)}`;
+    await this.userModel.updateOne({ fbId: token.uid }, { $set: { token: pat } }).exec();
+    return { token: pat };
   }
 
   // This is replace by the one in init.controller

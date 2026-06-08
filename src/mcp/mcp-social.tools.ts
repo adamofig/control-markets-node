@@ -3,6 +3,17 @@ import { Tool } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { SocialMediaTrackerService } from '../social-media-tracker/services/social-media-tracker.service';
 
+const preprocessJson = (val: unknown) => {
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val);
+    } catch {
+      return val;
+    }
+  }
+  return val;
+};
+
 // Shared operation schema — mirrors OperationDto from @dataclouder/nest-mongo
 const operationSchema = z.object({
   action: z
@@ -16,10 +27,10 @@ deleteOne → use query.
 aggregate → use payload as pipeline array.
 clone → use query with _id.`,
     ),
-  query: z.record(z.string(), z.unknown()).optional().describe('MongoDB filter (e.g. { "platform": "tiktok", "status": "draft" }).'),
-  payload: z.unknown().optional().describe('Document for create, update payload, or aggregate pipeline array.'),
-  projection: z.record(z.string(), z.unknown()).optional().describe('Fields to include/exclude (e.g. { "name": 1, "scheduledDate": 1 }).'),
-  options: z.record(z.string(), z.unknown()).optional().describe('Mongoose options (e.g. { "sort": { "scheduledDate": 1 }, "limit": 50 }).'),
+  query: z.preprocess(preprocessJson, z.record(z.string(), z.unknown())).optional().describe('MongoDB filter (e.g. { "platform": "tiktok", "status": "draft" }).'),
+  payload: z.preprocess(preprocessJson, z.unknown()).optional().describe('Document for create, update payload, or aggregate pipeline array.'),
+  projection: z.preprocess(preprocessJson, z.record(z.string(), z.unknown())).optional().describe('Fields to include/exclude (e.g. { "name": 1, "scheduledDate": 1 }).'),
+  options: z.preprocess(preprocessJson, z.record(z.string(), z.unknown())).optional().describe('Mongoose options (e.g. { "sort": { "scheduledDate": 1 }, "limit": 50 }).'),
 });
 
 type OperationInput = z.infer<typeof operationSchema>;
