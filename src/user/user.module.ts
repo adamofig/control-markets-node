@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common'; // Import forwardRef
+import { Module, Global } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UserEntity, UserSchema } from './user.entity';
 import { UserController } from './user.controller';
@@ -12,10 +12,11 @@ import { AuthGuard, NestAuthModule } from '@dataclouder/nest-auth';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { OrganizationModule } from '../organization/organization.module';
 
+@Global()
 @Module({
   imports: [MongooseModule.forFeature([{ name: UserEntity.name, schema: UserSchema }]), HttpModule, ConfigModule.forFeature(config), NestAuthModule, DCMongoDBModule, OrganizationModule],
   controllers: [UserController],
   providers: [AppUserService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }],
-  exports: [AppUserService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }],
+  exports: [AppUserService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }, MongooseModule],
 })
 export class UserModule {}
