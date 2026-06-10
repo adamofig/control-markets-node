@@ -48,7 +48,7 @@ export class UserController extends EntityController<UserEntity> {
 
   @Post('/regenerate-token')
   async regenerateToken(@DecodedToken() token: AppToken): Promise<{ token: string }> {
-    const pat = `cm_pat_${Date.now().toString(36)}${randomBytes(2).toString('hex').slice(0, 3)}`;
+    const pat = `cm_pat_${Date.now().toString(36)}${randomBytes(3).toString('hex').slice(0, 5)}`;
     await this.userModel.updateOne({ fbId: token.uid }, { $set: { token: pat } }).exec();
     return { token: pat };
   }

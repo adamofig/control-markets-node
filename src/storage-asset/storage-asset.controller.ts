@@ -26,7 +26,9 @@ export class StorageAssetController extends EntityMongoController<StorageAssetEx
     @OrgId() orgId?: string,
   ): Promise<any> {
     const userEmail = token?.email;
-    const resolvedOrgId = orgId || token?.userId || (token as any).id || (token as any).uid;
+    const isAdmin = token?.roles?.admin || token?.claims?.roles?.admin;
+    const isBypass = isAdmin && operationDto.options?.adminBypass;
+    const resolvedOrgId = isBypass ? undefined : (orgId || token?.userId || (token as any).id || (token as any).uid);
 
     if (operationDto.payload) {
       if (operationDto.action === 'create') {
