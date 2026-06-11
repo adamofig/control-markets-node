@@ -10,6 +10,7 @@ import { McpSocialTools } from './mcp-social.tools';
 import { McpTasksTools } from './mcp-tasks.tools';
 import { McpOrganizationTools } from './mcp-organization.tools';
 import { McpUserTools } from './mcp-user.tools';
+import { AgenticProfileModule } from '../agentic-profile/agentic-profile.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { McpUserTools } from './mcp-user.tools';
     AgentsModule,
     OrganizationModule,
     UserModule,
+    AgenticProfileModule,
     McpModule.forFeature([McpFlowboardTools, McpSocialTools, McpTasksTools, McpOrganizationTools, McpUserTools], 'control-markets'),
   ],
   providers: [McpFlowboardTools, McpSocialTools, McpTasksTools, McpOrganizationTools, McpUserTools],

@@ -18,6 +18,7 @@ interface ExtractedSection {
 interface ExtractedAgent {
   agentCardId: string;
   orgId: string;
+  agenticProfileId?: string;
   agentName: string;
   agentTitle: string;
   sections: ExtractedSection[];
@@ -87,8 +88,8 @@ function extractAgentCard(filePath: string): ExtractedAgent {
   // 2. Parse Agent Name and Title
   // Expected line: # Borges — Agente Experto...
   const titleMatch = fileContent.match(/^#\s+([^\r\n—-]+?)\s*(?:[—-]\s*([^\r\n]+))?$/m);
-  const agentName = titleMatch ? titleMatch[1].trim() : '';
-  const agentTitle = titleMatch && titleMatch[2] ? titleMatch[2].trim() : '';
+  const agentName = meta.name || (titleMatch ? titleMatch[1].trim() : '');
+  const agentTitle = meta.title || (titleMatch && titleMatch[2] ? titleMatch[2].trim() : '');
 
   // 3. Parse Sections by Numerical Headers (e.g. ## 1. Title)
   const lines = fileContent.split(/\r?\n/);
@@ -143,6 +144,7 @@ function extractAgentCard(filePath: string): ExtractedAgent {
   return {
     agentCardId: meta.agentCardId || '',
     orgId: meta.orgId || '',
+    agenticProfileId: meta.agenticProfileId || '',
     agentName,
     agentTitle,
     sections

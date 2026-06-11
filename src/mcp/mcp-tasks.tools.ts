@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AgentTasksService } from '../agent-tasks/services/agent-tasks.service';
 import { AgentOutcomeJobService } from '../agent-tasks/services/agent-job.service';
 import { assignedUserSchema, agentTaskSummarySchema, agentOutcomeJobSummarySchema } from '../agent-tasks/models/task-schemas';
+import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 
 const preprocessJson = (val: unknown) => {
   if (typeof val === 'string') {
@@ -42,6 +43,7 @@ export class McpTasksTools {
   constructor(
     private agentTasksService: AgentTasksService,
     private agentJobService: AgentOutcomeJobService,
+    private agenticProfileService: AgenticProfileService,
   ) {}
 
   // ─── Schema introspection ────────────────────────────────────────────────
@@ -132,5 +134,50 @@ Key reminder: task and agentCard are nested — query with "task._id", "task.nam
   async jobsOperation(operation: OperationInput) {
     const result = await this.agentJobService.executeOperation(operation);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+
+  @Tool({
+    name: 'agentic_profile_get_context',
+    description: `Retrieves the full compiled Markdown context of an agentic profile (character instructions, knowledge sources, rules/skills, and active tasks) in a single unified Markdown text.
+Either profileId or agentName must be provided. Use this to prepare your conversation with all the files and personality details of the agent.`,
+    parameters: z.object({
+      profileId: z.string().optional().describe('The MongoDB ID of the Agentic Profile.'),
+      agentName: z.string().optional().describe('The name of the agent (e.g. "Borges", "Entei") to search for in MongoDB if profileId is not known.'),
+    }),
+  })
+  async getAgenticProfileContext({ profileId, agentName }: { profileId?: string; agentName?: string }) {
+    let resolvedId = profileId;
+    let resolvedOrgId: string | undefined;
+
+    if (!resolvedId && agentName) {
+      const profiles = await this.agenticProfileService.executeOperation({
+        action: 'find',
+        query: {
+          $or: [
+            { name: new RegExp('^' + agentName + '$', 'i') },
+            { 'agentCard.name': new RegExp('^' + agentName + '$', 'i') }
+          ]
+        },
+        options: { limit: 1 }
+      });
+
+      if (profiles && Array.isArray(profiles) && profiles.length > 0) {
+        resolvedId = profiles[0].id || profiles[0]._id?.toString();
+        resolvedOrgId = profiles[0].orgId;
+      } else {
+        return { content: [{ type: 'text', text: `Error: Could not find any agentic profile for agent name "${agentName}"` }] };
+      }
+    }
+
+    if (!resolvedId) {
+      return { content: [{ type: 'text', text: 'Error: Must provide either profileId or agentName.' }] };
+    }
+
+    try {
+      const fullContext = await this.agenticProfileService.composeFullContext(resolvedId, resolvedOrgId);
+      return { content: [{ type: 'text', text: fullContext }] };
+    } catch (err: any) {
+      return { content: [{ type: 'text', text: `Error composing profile context: ${err.message}` }] };
+    }
   }
 }
