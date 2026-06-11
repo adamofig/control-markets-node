@@ -39,6 +39,7 @@ import { randomUUID } from 'crypto';
 import { BlogEntryModule } from './blog-entry/blog-entry.module';
 import { UniversalModule } from './universal/universal.module';
 import { AgenticProfileModule } from './agentic-profile/agentic-profile.module';
+import { LocalAgentModule } from './local-agent/local-agent.module';
 
 
 @Module({
@@ -88,6 +89,7 @@ import { AgenticProfileModule } from './agentic-profile/agentic-profile.module';
     BlogEntryModule,
     UniversalModule,
     AgenticProfileModule,
+    LocalAgentModule,
   ],
   controllers: [AppController],
 })
