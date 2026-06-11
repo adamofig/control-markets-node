@@ -38,6 +38,7 @@ import { AppMcpModule } from './mcp/mcp.module';
 import { randomUUID } from 'crypto';
 import { BlogEntryModule } from './blog-entry/blog-entry.module';
 import { UniversalModule } from './universal/universal.module';
+import { AgenticProfileModule } from './agentic-profile/agentic-profile.module';
 
 
 @Module({
@@ -86,6 +87,7 @@ import { UniversalModule } from './universal/universal.module';
     AppMcpModule,
     BlogEntryModule,
     UniversalModule,
+    AgenticProfileModule,
   ],
   controllers: [AppController],
 })
