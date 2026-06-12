@@ -49,6 +49,23 @@ export class FilesystemToolsService {
     return abs;
   }
 
+  /** Sandboxed read for external engines (e.g. the ACP bridge fs/read_text_file delegation). */
+  async readTextFileSafe(filePath: string, line?: number, limit?: number): Promise<string> {
+    const safe = await this.resolveSafe(filePath);
+    const raw = await fs.readFile(safe, 'utf-8');
+    if (line == null && limit == null) return raw;
+    const lines = raw.split('\n');
+    const start = Math.max((line ?? 1) - 1, 0);
+    return lines.slice(start, limit != null ? start + limit : undefined).join('\n');
+  }
+
+  /** Sandboxed write for external engines (e.g. the ACP bridge fs/write_text_file delegation). */
+  async writeTextFileSafe(filePath: string, content: string): Promise<void> {
+    const safe = await this.resolveSafe(filePath, true);
+    await fs.mkdir(path.dirname(safe), { recursive: true });
+    await fs.writeFile(safe, content, 'utf-8');
+  }
+
   /** Builds the tools object for the Vercel AI SDK streamText loop. */
   buildTools(): Record<string, any> {
     if (!this.enabled) return {};

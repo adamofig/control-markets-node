@@ -28,6 +28,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.25.0",
     "@ai-sdk/google": "^3.0.58",
     "@dataclouder/nest-agent-cards": "^0.1.47",
     "@dataclouder/nest-ai-services-mongodb": "^0.0.9",

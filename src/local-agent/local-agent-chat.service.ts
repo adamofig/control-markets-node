@@ -17,7 +17,11 @@ export type LocalAgentStreamEvent =
   | { type: 'tool-call'; toolName: string; input: unknown }
   | { type: 'tool-result'; toolName: string; output: unknown }
   | { type: 'finish'; usage?: unknown }
-  | { type: 'error'; error: string };
+  | { type: 'error'; error: string }
+  // ACP (Gemini CLI) engine extras:
+  | { type: 'session'; sessionId: string }
+  | { type: 'permission-request'; requestId: string; toolName: string; rationale: string; options: { optionId: string; name: string; kind: string }[] }
+  | { type: 'plan'; entries: unknown[] };
 
 const MAX_STEPS = 25;
 const CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -109,7 +113,7 @@ Answer in the user's language.
 ${profileContext ? `# AGENT PROFILE (your identity, knowledge and tasks)\n\n${profileContext}` : ''}`;
   }
 
-  private async getProfileContext(profileId: string, orgId?: string): Promise<string> {
+  async getProfileContext(profileId: string, orgId?: string): Promise<string> {
     const key = `${profileId}:${orgId ?? ''}`;
     const cached = this.contextCache.get(key);
     if (cached && Date.now() - cached.at < CONTEXT_CACHE_TTL_MS) return cached.markdown;
