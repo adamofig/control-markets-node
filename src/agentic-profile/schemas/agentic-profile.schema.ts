@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
-import { IAgentCardRef, IAgenticProfile, IAgenticProfileSource, IAgenticProfileSkill, IAgenticProfileTaskRef } from '../models/agentic-profile.models';
+import { IAgentCardRef, IAgenticProfile, IAgenticProfileSource, IAgenticProfileSkill, IAgenticProfileTaskRef, IAgenticProfileMemory } from '../models/agentic-profile.models';
 
 export type AgenticProfileDocument = AgenticProfileEntity & Document;
 
@@ -18,7 +18,13 @@ export class AgenticProfileEntity implements IAgenticProfile {
   name: string;
 
   @Prop({ required: false })
+  title: string;
+
+  @Prop({ required: false })
   description: string;
+
+  @Prop({ required: false })
+  domain: string;
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   agentCard?: IAgentCardRef;
@@ -31,6 +37,9 @@ export class AgenticProfileEntity implements IAgenticProfile {
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false, default: [] })
   tasks?: IAgenticProfileTaskRef[];
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false, default: [] })
+  memories?: IAgenticProfileMemory[];
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false, default: {} })
   metadata?: Record<string, any>;
@@ -46,4 +55,4 @@ addIdAfterSave(AgenticProfileSchema);
 AgenticProfileSchema.index({ id: 1 }, { unique: true });
 AgenticProfileSchema.index({ orgId: 1 });
 AgenticProfileSchema.index({ 'agentCard.id': 1 });
-AgenticProfileSchema.index({ name: 'text', description: 'text' });
+AgenticProfileSchema.index({ name: 'text', description: 'text', title: 'text', domain: 'text' });

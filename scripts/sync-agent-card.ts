@@ -23,6 +23,8 @@ interface ExtractedAgent {
   agenticProfileId?: string;
   agentName: string;
   agentTitle: string;
+  agentDescription?: string;
+  agentDomain?: string;
   sections: ExtractedSection[];
 }
 
@@ -219,12 +221,18 @@ function extractAgentCard(filePath: string): ExtractedAgent {
     return resultSec;
   });
 
+  // Find Section 2 content (Domain Context)
+  const sec2 = sections.find(s => s.number === 2);
+  const agentDomain = sec2 ? sec2.content : '';
+
   return {
     agentCardId: meta.agentCardId || '',
     orgId: meta.orgId || '',
     agenticProfileId: meta.agenticProfileId || '',
     agentName,
     agentTitle,
+    agentDescription: meta.description || '',
+    agentDomain,
     sections
   };
 }
@@ -276,6 +284,7 @@ async function main() {
           orgId: agentData.orgId,
           name: agentData.agentName,
           title: agentData.agentTitle,
+          description: agentData.agentDescription || '',
           agenticProfileId: result.profileId
         });
       }

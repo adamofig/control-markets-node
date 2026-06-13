@@ -22,7 +22,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
   }
 
   async syncFromMarkdown(payload: any, orgId: string, userEmail: string): Promise<any> {
-    const { agentCardId, agenticProfileId, agentName, agentTitle, sections } = payload;
+    const { agentCardId, agenticProfileId, agentName, agentTitle, agentDescription, agentDomain, sections } = payload;
 
     if (!agentCardId) {
       throw new Error('agentCardId is required in the frontmatter YAML');
@@ -82,7 +82,9 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       const newProfile = new this.genericModel({
         orgId,
         name: `${agentName} Profile`,
-        description: agentTitle,
+        title: agentTitle,
+        description: agentDescription || '',
+        domain: agentDomain || '',
         agentCard: {
           id: agentCardId,
           name: agentName,
@@ -91,6 +93,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         sources: [],
         skills: [],
         tasks: [],
+        memories: [],
         auditable: {
           createdBy: userEmail,
           updatedBy: userEmail,
@@ -99,7 +102,9 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       profile = await newProfile.save();
     } else {
       profile.name = `${agentName} Profile`;
-      profile.description = agentTitle;
+      profile.title = agentTitle;
+      profile.description = agentDescription || '';
+      profile.domain = agentDomain || '';
       profile.agentCard = {
         id: agentCardId,
         name: agentName,
@@ -298,6 +303,57 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
     profile.tasks = resolvedTasks;
 
+    // 6. Sync Memories (Section 6)
+    const sec6 = sections.find((s: any) => s.number === 6);
+    const resolvedMemories = [];
+    if (sec6 && sec6.links) {
+      for (const link of sec6.links) {
+        const query = { sourceUrl: link.url, orgId };
+        let memoryEntity = await this.agentSourcesService.executeOperation({
+          action: 'findOne',
+          query,
+        });
+
+        const fileContent = getLocalFileContent(link.url);
+        const memoryData: any = {
+          orgId,
+          name: link.label,
+          description: link.description,
+          sourceUrl: link.url,
+          type: 'document',
+          content: fileContent || link.description,
+          tag: 'memory', // memories act as memory sources
+          status: 'active',
+        };
+
+        if (memoryEntity) {
+          await this.agentSourcesService.executeOperation({
+            action: 'updateOne',
+            query: { id: memoryEntity.id },
+            payload: { $set: memoryData },
+          });
+          memoryEntity = await this.agentSourcesService.executeOperation({
+            action: 'findOne',
+            query: { id: memoryEntity.id },
+          });
+        } else {
+          memoryData.auditable = { createdBy: userEmail, updatedBy: userEmail };
+          memoryEntity = await this.agentSourcesService.executeOperation({
+            action: 'create',
+            payload: memoryData,
+          });
+        }
+
+        resolvedMemories.push({
+          id: memoryEntity.id || memoryEntity._id?.toString(),
+          name: memoryEntity.name,
+          description: memoryEntity.description,
+          enabled: true,
+        });
+      }
+    }
+    profile.memories = resolvedMemories;
+
     // Save profile updates
     await profile.save();
 
@@ -341,9 +397,10 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     const sourceIds = (profile.sources || []).map((s: any) => s.id);
     const skillIds = (profile.skills || []).map((s: any) => s.id);
     const taskIds = (profile.tasks || []).map((t: any) => t.id);
+    const memoryIds = (profile.memories || []).map((m: any) => m.id);
 
-    // Query Source, Skill, and Task entities
-    const [sources, skills, tasks] = await Promise.all([
+    // Query Source, Skill, Task, and Memory entities
+    const [sources, skills, tasks, memories] = await Promise.all([
       sourceIds.length > 0
         ? this.agentSourcesService.findManyByIds(sourceIds)
         : Promise.resolve([]),
@@ -355,6 +412,9 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
             action: 'find',
             query: { id: { $in: taskIds } }
           })
+        : Promise.resolve([]),
+      memoryIds.length > 0
+        ? this.agentSourcesService.findManyByIds(memoryIds)
         : Promise.resolve([])
     ]);
 
@@ -363,11 +423,12 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     md += `agentCardId: "${profile.agentCard?.id || ''}"\n`;
     md += `orgId: "${profile.orgId || ''}"\n`;
     md += `name: "${agentName}"\n`;
-    md += `title: "${profile.description || ''}"\n`;
+    md += `title: "${profile.title || ''}"\n`;
+    md += `description: "${profile.description || ''}"\n`;
     md += `agenticProfileId: "${profile.id || profile._id?.toString() || ''}"\n`;
     md += `---\n\n`;
 
-    md += `# ${agentName} — ${profile.description || ''}\n\n`;
+    md += `# ${agentName} — ${profile.title || ''}\n\n`;
 
     md += `## 1. Identidad y Persona y Responsabilidades\n\n`;
     md += instructions ? `${instructions}\n\n` : `*(No instructions provided)*\n\n`;
@@ -375,7 +436,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     md += `---\n\n`;
 
     md += `## 2. Conceptos Clave del Dominio y Reglas (Domain Context)\n\n`;
-    md += `*(Refiérase a los documentos de conocimiento y skills vinculados a continuación para reglas operativas específicas)*\n\n`;
+    md += profile.domain ? `${profile.domain}\n\n` : `*(Refiérase a los documentos de conocimiento y skills vinculados a continuación para reglas operativas específicas)*\n\n`;
 
     md += `---\n\n`;
 
@@ -425,7 +486,18 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
 
     md += `## 6. Memorias - Notas de Sesión y Foco Actual (Memories)\n\n`;
-    md += `*(Historial de sesiones y notas de ejecución)*\n\n`;
+    if (memories && memories.length > 0) {
+      for (const mem of memories) {
+        md += `### Memoria: ${mem.name || 'Sin título'}\n`;
+        if (mem.description) {
+          md += `> Descripción: ${mem.description}\n\n`;
+        }
+        md += mem.content ? `${mem.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        md += `---\n\n`;
+      }
+    } else {
+      md += `*(No hay memorias vinculadas)*\n\n`;
+    }
 
     return md.trim() + '\n';
   }

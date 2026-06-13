@@ -2,11 +2,18 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { CloudStorageData, IAgentSource, IImageSource, IVideoSource, SourceType } from '../models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
+import { AuditDataSchema } from '@dataclouder/nest-core';
 
 export type AgentSourceDocument = AgentSourceEntity & Document;
 
 @Schema({ collection: 'agent_sources', timestamps: true })
 export class AgentSourceEntity implements IAgentSource {
+  @Prop({ required: false })
+  orgId?: string;
+
+  @Prop({ type: AuditDataSchema, required: false })
+  auditable?: any;
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   thumbnail: CloudStorageData;
 

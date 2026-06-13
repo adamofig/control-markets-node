@@ -114,6 +114,8 @@ export enum SourceType {
 
 export interface IAgentSource {
   id: string;
+  orgId?: string;
+  auditable?: IAuditable;
   name: string;
   description: string; // Summary of the source
   content: string; // Content of the source
