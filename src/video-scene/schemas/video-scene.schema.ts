@@ -12,6 +12,9 @@ export class VideoSceneEntity implements IVideoScene {
   @Prop({ required: false })
   id: string;
 
+  @Prop({ required: false, index: true })
+  orgId: string;
+
   @Prop({ required: false })
   name: string;
 
@@ -80,6 +83,7 @@ export const VideoSceneSchema = SchemaFactory.createForClass(VideoSceneEntity);
 VideoSceneSchema.plugin(addIdAfterSave);
 
 VideoSceneSchema.index({ id: 1 }, { unique: true });
+VideoSceneSchema.index({ orgId: 1 });
 VideoSceneSchema.index({ projectId: 1, index: 1 });
 VideoSceneSchema.index({ projectId: 1, status: 1 });
 VideoSceneSchema.index({ 'dialog.content': 'text', imagePrompt: 'text' });

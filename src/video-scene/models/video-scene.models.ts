@@ -4,6 +4,7 @@ import { IStorageAsset } from '@dataclouder/nest-storage';
 export interface IVideoScene {
   _id?: string;
   id?: string;
+  orgId?: string;
 
   name?: string;
   description?: string;

@@ -30,6 +30,17 @@ const AgentCardReferenceSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const VideoSceneReferenceSchema = new mongoose.Schema(
+  {
+    id: String,
+    reference: { type: mongoose.Schema.Types.ObjectId, ref: 'VideoSceneEntity' },
+    name: String,
+    description: String,
+    imageUrl: String,
+  },
+  { _id: false }
+);
+
 @Schema({ timestamps: true, collection: 'video_projects' })
 export class VideoGeneratorEntity implements IVideoProjectGenerator {
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
@@ -37,6 +48,9 @@ export class VideoGeneratorEntity implements IVideoProjectGenerator {
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   scenes: IScene[];
+
+  @Prop({ type: [VideoSceneReferenceSchema], required: false })
+  videoScene: any[];
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   compositionPlan: { overlays: IOverlayPlan[] };

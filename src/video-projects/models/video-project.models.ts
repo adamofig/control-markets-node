@@ -40,6 +40,14 @@ export interface IScene {
   visualStyle?: string;
 }
 
+export interface IVideoSceneRef {
+  id: string;
+  reference?: any;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+}
+
 export interface IVideoBrief {
   concept?: string;
   tone?: string;
@@ -55,6 +63,7 @@ export interface IVideoProjectGenerator {
   description?: string;
   brief?: IVideoBrief;
   scenes?: IScene[];
+  videoScene?: IVideoSceneRef[];
   sceneIds?: string[];
   agent?: Partial<IAgentCard>;
   task?: Partial<ILlmTask>;
