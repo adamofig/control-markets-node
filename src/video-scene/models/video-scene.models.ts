@@ -1,6 +1,19 @@
 import { IAuditable } from '@dataclouder/nest-core';
 import { IStorageAsset } from '@dataclouder/nest-storage';
 
+export interface IAnimationSettings {
+  backgroundEffect: 'ken-burns' | 'pan' | 'none' | 'rapid-zoom' | 'pulse' | 'camera-shake' | 'glitch';
+  introEffect: 'fade';
+  outroEffect: 'fade';
+  introDurationSec: number;
+  outroDurationSec: number;
+}
+
+export interface IImageReference {
+  asset: Partial<IStorageAsset>;
+  tag?: 'character' | 'style' | 'background' | string;
+}
+
 export interface IVideoScene {
   _id?: string;
   id?: string;
@@ -8,9 +21,6 @@ export interface IVideoScene {
 
   name?: string;
   description?: string;
-
-  projectId: string;
-  index: number;
 
   dialog: {
     content: string;
@@ -27,13 +37,15 @@ export interface IVideoScene {
 
   imagePrompt?: string;
   imageStorage?: Partial<IStorageAsset>
+  /** @deprecated Use imageRefs instead */
   imageRef?: Partial<IStorageAsset>;
+  imageRefs?: IImageReference[];
 
   mediaType?: 'image' | 'video' | string;
   aspectRatio?: string;
 
   durationSec?: number;
-  transition?: string;
+  animationSettings?: IAnimationSettings;
   visualStyle?: string;
 
   status?: string;

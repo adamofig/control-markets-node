@@ -21,11 +21,7 @@ export class VideoSceneEntity implements IVideoScene {
   @Prop({ required: false })
   description: string;
 
-  @Prop({ required: false, index: true })
-  projectId: string;
 
-  @Prop({ required: false, default: 0 })
-  index: number;
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   speechPrompt: string;
@@ -49,6 +45,9 @@ export class VideoSceneEntity implements IVideoScene {
   imageRef: any;
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  imageRefs: any;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   dialog: IVideoScene['dialog'];
 
   @Prop({ required: false })
@@ -64,8 +63,8 @@ export class VideoSceneEntity implements IVideoScene {
   @Prop({ required: false })
   durationSec: number;
 
-  @Prop({ required: false })
-  transition: string;
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  animationSettings: any;
 
   @Prop({ required: false })
   visualStyle: string;
@@ -84,6 +83,4 @@ VideoSceneSchema.plugin(addIdAfterSave);
 
 VideoSceneSchema.index({ id: 1 }, { unique: true });
 VideoSceneSchema.index({ orgId: 1 });
-VideoSceneSchema.index({ projectId: 1, index: 1 });
-VideoSceneSchema.index({ projectId: 1, status: 1 });
 VideoSceneSchema.index({ 'dialog.content': 'text', imagePrompt: 'text' });

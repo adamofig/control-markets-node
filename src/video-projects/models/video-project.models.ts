@@ -50,8 +50,6 @@ export interface IVideoSceneRef {
 
 export interface IVideoBrief {
   concept?: string;
-  tone?: string;
-  targetAudience?: string;
   targetDurationSec?: number;
   aspectRatio?: '9:16' | '16:9' | '1:1';
   sceneCount?: number;
@@ -66,6 +64,8 @@ export interface IVideoProjectGenerator {
   videoScene?: IVideoSceneRef[];
   sceneIds?: string[];
   agent?: Partial<IAgentCard>;
+  agentCard?: any;
+  imageRefs?: any[];
   task?: Partial<ILlmTask>;
   assets: IAssets;
   type?: string;

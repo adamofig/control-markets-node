@@ -64,8 +64,11 @@ export class VideoGeneratorEntity implements IVideoProjectGenerator {
   // @Prop({ type: [AgentCardReferenceSchema], required: false })
   // agentCards: Partial<IAgentCard>[];
 
-  @Prop({ type: AgentCardReferenceSchema, required: false })
-  agentCard: Partial<IAgentCard>;
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  agentCard: any;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  imageRefs: any;
 
   @Prop({ type: String, required: false })
   type: 'video-project';

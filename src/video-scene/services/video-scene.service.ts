@@ -76,8 +76,8 @@ export class VideoSceneService extends EntityCommunicationService<VideoSceneDocu
       const storageAsset = await this.storageAssetService.save({
         orgId, // Link the asset to the organization
         type: 'video',
-        name: scene.name ? `${scene.name} (Render)` : `Scene #${scene.index} Render`,
-        description: scene.description || `Rendered video for Scene #${scene.index}`,
+        name: scene.name ? `${scene.name} (Render)` : `Scene Render`,
+        description: scene.description || `Rendered video for Scene`,
         storage: {
           url: uploadResult.url,
           path: uploadResult.path,
@@ -139,7 +139,7 @@ export class VideoSceneService extends EntityCommunicationService<VideoSceneDocu
   }
 
   async renderSceneOnly(scene: any): Promise<Buffer> {
-    const sceneInfo = scene?.id || scene?._id || `index:${scene?.index}`;
+    const sceneInfo = scene?.id || scene?._id || `scene:${scene?.name || 'unnamed'}`;
     this.logger.log(`Starting renderSceneOnly (preview/buffer only) for scene: ${sceneInfo}`);
     try {
       this.logger.log(`Calling render microservice at ${this.renderServerUrl}/render for preview`);
