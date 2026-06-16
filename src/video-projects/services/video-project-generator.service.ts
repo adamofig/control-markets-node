@@ -80,20 +80,33 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
    * Updates only the properties that are present in the update object
    * @param id The ID of the entity to update
    * @param partialUpdates Object containing only the properties to update
+   * @param orgId Optional organization ID to scope the update
    * @returns The updated entity
    */
-  async partialUpdateFlattend(id: string, partialUpdates: Partial<IVideoProjectGenerator>): Promise<VideoGeneratorEntity> {
+  async partialUpdateFlattend(
+    id: string,
+    partialUpdates: Partial<IVideoProjectGenerator>,
+    orgId?: string
+  ): Promise<VideoGeneratorEntity> {
     // Convert nested objects to dot notation eg. { "video.captions.remotion": captions.captions }
     // This way you can only remove properties that are present in the update object
     const flattenedUpdates = flattenObject(partialUpdates);
-    return await this.videoGeneratorModel.findByIdAndUpdate(id, { $set: flattenedUpdates }, { new: true }).exec();
+    const query: any = { _id: id };
+    if (orgId) {
+      query.orgId = orgId;
+    }
+    const result = await this.videoGeneratorModel.findOneAndUpdate(query, { $set: flattenedUpdates }, { new: true }).exec();
+    if (!result) {
+      throw new AppException({ error_message: 'Video project not found or access denied', statusCode: 404 });
+    }
+    return result;
   }
 
   async remove(id: string): Promise<void> {
     await this.videoGeneratorModel.findByIdAndDelete(id).exec();
   }
 
-  async addSourceToVideoProject(videoProjectId: string, sourceId: string) {
+  async addSourceToVideoProject(videoProjectId: string, sourceId: string, orgId?: string) {
     // According to hibrid relation strategy, save basic info including id, so i can remove it later
     const videoProject = await this.agentSourceService.findOne(sourceId, { _id: 0, id: 1, name: 1, description: 1, thumbnail: 1 });
     if (!videoProject) {
@@ -101,11 +114,20 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
     }
     console.log(videoProject);
 
+    const query: any = { _id: videoProjectId };
+    if (orgId) {
+      query.orgId = orgId;
+    }
+
     const newSourceReference = { reference: new ObjectId(sourceId), ...videoProject };
-    return this.videoGeneratorModel.findByIdAndUpdate(videoProjectId, { $addToSet: { sources: newSourceReference } }, { new: true });
+    const result = await this.videoGeneratorModel.findOneAndUpdate(query, { $addToSet: { sources: newSourceReference } }, { new: true }).exec();
+    if (!result) {
+      throw new AppException({ error_message: 'Video project not found or access denied', statusCode: 404 });
+    }
+    return result;
   }
 
-  async addAgentCardToVideoProject(videoProjectId: string, agentCardId: string) {
+  async addAgentCardToVideoProject(videoProjectId: string, agentCardId: string, orgId?: string) {
     // According to hibrid relation strategy, save basic info including id, so i can remove it later
     const videoProject = await this.agentCardService.findOne(agentCardId, { _id: 0, id: 1, name: 1, assets: 1 });
     if (!videoProject) {
@@ -113,11 +135,28 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
     }
     console.log(videoProject);
 
+    const query: any = { _id: videoProjectId };
+    if (orgId) {
+      query.orgId = orgId;
+    }
+
     const newAgentCardReference = { reference: new ObjectId(agentCardId), ...videoProject };
-    return this.videoGeneratorModel.findByIdAndUpdate(videoProjectId, { $set: { agent: newAgentCardReference } }, { new: true });
+    const result = await this.videoGeneratorModel.findOneAndUpdate(query, { $set: { agent: newAgentCardReference } }, { new: true }).exec();
+    if (!result) {
+      throw new AppException({ error_message: 'Video project not found or access denied', statusCode: 404 });
+    }
+    return result;
   }
 
-  async removeSourceFromVideoProject(videoProjectId: string, sourceId: string) {
-    return this.videoGeneratorModel.findByIdAndUpdate(videoProjectId, { $pull: { sources: { id: sourceId } } }, { new: true });
+  async removeSourceFromVideoProject(videoProjectId: string, sourceId: string, orgId?: string) {
+    const query: any = { _id: videoProjectId };
+    if (orgId) {
+      query.orgId = orgId;
+    }
+    const result = await this.videoGeneratorModel.findOneAndUpdate(query, { $pull: { sources: { id: sourceId } } }, { new: true }).exec();
+    if (!result) {
+      throw new AppException({ error_message: 'Video project not found or access denied', statusCode: 404 });
+    }
+    return result;
   }
 }

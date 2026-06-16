@@ -57,6 +57,7 @@ export interface IVideoBrief {
 
 export interface IVideoProjectGenerator {
   id: string;
+  orgId?: string;
   name?: string;
   description?: string;
   brief?: IVideoBrief;

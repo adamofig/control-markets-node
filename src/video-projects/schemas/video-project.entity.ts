@@ -43,6 +43,9 @@ const VideoSceneReferenceSchema = new mongoose.Schema(
 
 @Schema({ timestamps: true, collection: 'video_projects' })
 export class VideoGeneratorEntity implements IVideoProjectGenerator {
+  @Prop({ required: false, index: true })
+  orgId: string;
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   brief: IVideoBrief;
 
@@ -97,3 +100,5 @@ export class VideoGeneratorEntity implements IVideoProjectGenerator {
 
 export const VideoGeneratorSchema = SchemaFactory.createForClass(VideoGeneratorEntity);
 VideoGeneratorSchema.plugin(addIdAfterSave);
+
+VideoGeneratorSchema.index({ orgId: 1 });

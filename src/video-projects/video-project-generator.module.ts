@@ -8,6 +8,7 @@ import { AgentSourceEntity, AgentSourceSchema } from 'src/agent-tasks/schemas/ag
 import { AgentsModule } from 'src/agent-tasks/agent-tasks.module';
 import { AgentCardsModule } from '@dataclouder/nest-agent-cards';
 import { NestStorageModule } from '@dataclouder/nest-storage';
+import { NestAuthModule } from '@dataclouder/nest-auth';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { NestStorageModule } from '@dataclouder/nest-storage';
     AgentsModule,
     AgentCardsModule,
     NestStorageModule,
+    NestAuthModule,
   ],
   controllers: [VideoGeneratorController],
   providers: [VideoGeneratorService],
