@@ -25,6 +25,10 @@ export class AgentTaskEntity implements IAgentTask {
   @Prop({ required: false })
   content: string;
 
+  /** Local markdown source path (file://) when the task is synced from an agent spec */
+  @Prop({ required: false })
+  sourceUrl: string;
+
   @Prop({ required: false })
   prompt: string;
 

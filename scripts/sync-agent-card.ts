@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import axios from 'axios';
 
 interface ExtractedLink {
   status?: string;
@@ -111,7 +110,8 @@ function updateFileFrontmatter(filePath: string, taskId: string, orgId: string) 
   console.log(`Updated frontmatter for local task: ${path.basename(filePath)}`);
 }
 
-function updateAgentFrontmatter(filePath: string, updates: Record<string, string>) {
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+function updateAgentFrontmatter(filePath: string, updates: Record<string, any>) {
   if (!fs.existsSync(filePath)) return;
   let content = fs.readFileSync(filePath, 'utf-8');
   const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---/;
@@ -267,11 +267,24 @@ async function main() {
       }
     }
 
-    console.log(`Sending sync request to Control Markets node server...`);
-    const port = process.env.PORT || '8121';
-    const response = await axios.post(`http://localhost:${port}/api/agentic-profile/sync-markdown`, agentData);
+    console.log(`Sending sync request to Control Markets server...`);
+    const baseUrl = process.env.CONTROL_MARKETS_BACKEND_URL || 'https://local-back.control.markets';
+    console.log(`Endpoint: ${baseUrl}/api/agentic-profile/sync-markdown`);
 
-    const result = response.data;
+    const response = await fetch(`${baseUrl}/api/agentic-profile/sync-markdown`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(agentData)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, response: ${errText}`);
+    }
+
+    const result = await response.json();
     if (result.success) {
       console.log(`Successfully synchronized Agent "${agentData.agentName}" with MongoDB.`);
       console.log(`Profile ID: ${result.profileId}`);
@@ -291,7 +304,7 @@ async function main() {
 
       // Perform local file write-backs for newly created/updated tasks
       if (result.tasks && Array.isArray(result.tasks)) {
-        result.tasks.forEach((task: any) => {
+        for (const task of result.tasks) {
           const localPath = urlToPath(task.url);
           if (localPath && fs.existsSync(localPath)) {
             const currentTaskId = getTaskIdFromTaskFile(localPath);
@@ -299,7 +312,7 @@ async function main() {
               updateFileFrontmatter(localPath, task.taskId, task.orgId);
             }
           }
-        });
+        }
       }
 
       console.log('Sync process completed successfully.');
@@ -309,9 +322,6 @@ async function main() {
     }
   } catch (error: any) {
     console.error('Error during synchronization:', error.message);
-    if (error.response && error.response.data) {
-      console.error('Server response:', error.response.data);
-    }
     process.exit(1);
   }
 }

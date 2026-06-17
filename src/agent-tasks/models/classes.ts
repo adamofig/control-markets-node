@@ -59,6 +59,7 @@ export interface ITask {
   name: string;
   description?: string;
   content?: string;
+  sourceUrl?: string;
 
   assignedTo?: IAssignedTo;
   assignedType?: AssignedType;

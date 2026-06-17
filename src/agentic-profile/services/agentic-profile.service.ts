@@ -253,10 +253,13 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
         const taskStatus = link.status || 'pending';
 
+        const fileContent = getLocalFileContent(link.url);
         const taskData: any = {
           orgId,
           name: link.label,
           description: link.description,
+          content: fileContent || link.description,
+          sourceUrl: link.url,
           status: taskStatus,
           assignedType: 'agent',
           assignedTo: {
