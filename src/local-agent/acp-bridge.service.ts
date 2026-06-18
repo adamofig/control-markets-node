@@ -12,6 +12,56 @@ const loadAcpSdk = new Function('return import("@agentclientprotocol/sdk")') as 
 const IDLE_TTL_MS = 15 * 60 * 1000;
 const PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** ACP agents the bridge can spawn. The protocol is agent-agnostic — only the command differs. */
+export type AcpEngine = 'gemini' | 'claude';
+
+interface EngineConfig {
+  /** Env var that overrides the spawn command (executable + args, space-separated). */
+  commandEnv: string;
+  /** Default spawn command if the env var is unset. */
+  defaultCommand: string;
+  /** Whether the CLI accepts `--include-directories` for extra workspace roots (Gemini only). */
+  supportsIncludeDirs: boolean;
+  /** Env vars stripped from the spawned process so the CLI uses personal auth / doesn't crash. */
+  stripEnv: string[];
+  /** Command used to probe availability/version (executable + args, space-separated). */
+  versionCommand: string;
+}
+
+const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
+  gemini: {
+    commandEnv: 'LOCAL_AGENT_GEMINI_COMMAND',
+    defaultCommand: 'gemini --acp',
+    supportsIncludeDirs: true,
+    // With these present (the backend sets them for Vertex AI) gemini switches from personal OAuth
+    // to project-billed Code Assist and fails with 403 IAM_PERMISSION_DENIED.
+    stripEnv: [
+      'GOOGLE_CLOUD_PROJECT',
+      'GOOGLE_CLOUD_PROJECT_ID',
+      'GOOGLE_APPLICATION_CREDENTIALS',
+      'GOOGLE_GENAI_USE_VERTEXAI',
+      'GOOGLE_CLOUD_LOCATION',
+    ],
+    versionCommand: 'gemini --version',
+  },
+  claude: {
+    // The official Zed adapter bridges the Claude Agent SDK to ACP (npx auto-fetches it).
+    commandEnv: 'LOCAL_AGENT_CLAUDE_COMMAND',
+    defaultCommand: 'npx -y @zed-industries/claude-code-acp',
+    supportsIncludeDirs: false,
+    // CLAUDECODE/CLAUDE_CODE_* are set when the backend itself runs under Claude Code; the adapter
+    // then refuses to launch ("cannot be launched inside another Claude Code session").
+    stripEnv: ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT'],
+    versionCommand: 'claude --version',
+  },
+};
+
+/** Splits a "exe arg1 arg2" command string into [executable, ...args] (whitespace-separated). */
+function parseCommand(command: string): [string, string[]] {
+  const [exe, ...args] = command.trim().split(/\s+/);
+  return [exe, args];
+}
+
 interface PendingPermission {
   resolve: (optionId: string | null) => void;
   options: { optionId: string; name: string; kind: string }[];
@@ -19,6 +69,7 @@ interface PendingPermission {
 
 interface AcpSession {
   id: string; // our bridge session id (stable across respawns)
+  engine: AcpEngine; // which ACP agent this session spawned (stable across respawns)
   acpSessionId: string; // CLI-side session id (session/new result)
   process: ChildProcessWithoutNullStreams;
   connection: any; // acp.ClientSideConnection
@@ -61,7 +112,7 @@ class AsyncEventQueue {
 export class AcpBridgeService implements OnModuleDestroy {
   private logger = new Logger(AcpBridgeService.name);
   private sessions = new Map<string, AcpSession>();
-  private geminiVersion: string | null | undefined; // undefined = not probed yet
+  private versions = new Map<AcpEngine, string | null>(); // probed CLI versions; missing key = not probed yet
   private reaper = setInterval(() => this.reapIdleSessions(), 60_000);
 
   constructor(private readonly fsTools: FilesystemToolsService) {}
@@ -76,23 +127,43 @@ export class AcpBridgeService implements OnModuleDestroy {
     return this.fsTools.enabled;
   }
 
-  /** Probes `gemini --version` once and caches the result. */
-  async getAcpStatus(): Promise<{ acpAvailable: boolean; geminiVersion: string | null }> {
-    if (this.geminiVersion === undefined) {
-      this.geminiVersion = await new Promise<string | null>(resolve => {
-        execFile('gemini', ['--version'], { timeout: 10_000, shell: process.platform === 'win32' }, (err, stdout) =>
-          resolve(err ? null : stdout.trim()),
-        );
-      });
+  /** Probes each engine's version command once (cached) and reports per-engine availability. */
+  async getAcpStatus(): Promise<{
+    acpAvailable: boolean;
+    geminiVersion: string | null;
+    engines: Record<AcpEngine, { available: boolean; version: string | null }>;
+  }> {
+    const engines = {} as Record<AcpEngine, { available: boolean; version: string | null }>;
+    for (const engine of Object.keys(ENGINE_CONFIGS) as AcpEngine[]) {
+      const version = await this.probeVersion(engine);
+      engines[engine] = { available: this.enabled && version !== null, version };
     }
-    return { acpAvailable: this.enabled && this.geminiVersion !== null, geminiVersion: this.geminiVersion };
+    // Keep the legacy flat fields for callers that predate the per-engine map.
+    return { acpAvailable: engines.gemini.available, geminiVersion: engines.gemini.version, engines };
+  }
+
+  private async probeVersion(engine: AcpEngine): Promise<string | null> {
+    if (this.versions.has(engine)) return this.versions.get(engine)!;
+    const [exe, args] = parseCommand(ENGINE_CONFIGS[engine].versionCommand);
+    const version = await new Promise<string | null>(resolve => {
+      execFile(exe, args, { timeout: 10_000, shell: process.platform === 'win32' }, (err, stdout) =>
+        resolve(err ? null : stdout.trim()),
+      );
+    });
+    this.versions.set(engine, version);
+    return version;
   }
 
   /**
    * Streams one prompt turn through the Gemini CLI (ACP). Yields the same SSE event union
    * as the built-in harness, plus `session`, `permission-request` and `plan` events.
    */
-  async *stream(message: string, sessionId?: string, profileContext?: string): AsyncGenerator<LocalAgentStreamEvent> {
+  async *stream(
+    message: string,
+    sessionId?: string,
+    profileContext?: string,
+    engine: AcpEngine = 'gemini',
+  ): AsyncGenerator<LocalAgentStreamEvent> {
     if (!this.enabled) {
       yield { type: 'error', error: 'LOCAL_AGENT_MODE is disabled on this server.' };
       return;
@@ -100,9 +171,9 @@ export class AcpBridgeService implements OnModuleDestroy {
 
     let session: AcpSession;
     try {
-      session = await this.getOrCreateSession(sessionId);
+      session = await this.getOrCreateSession(sessionId, engine);
     } catch (error) {
-      yield { type: 'error', error: `Could not start Gemini CLI (ACP): ${error?.message ?? error}` };
+      yield { type: 'error', error: `Could not start ${engine} CLI (ACP): ${error?.message ?? error}` };
       return;
     }
 
@@ -165,34 +236,34 @@ export class AcpBridgeService implements OnModuleDestroy {
     return { ok: true };
   }
 
-  private async getOrCreateSession(sessionId?: string): Promise<AcpSession> {
+  private async getOrCreateSession(sessionId?: string, engine: AcpEngine = 'gemini'): Promise<AcpSession> {
     const existing = sessionId ? this.sessions.get(sessionId) : undefined;
     if (existing && existing.process.exitCode === null) return existing;
+
+    // Respawns must keep the engine the session was created with, regardless of the requested one.
+    const resolvedEngine = existing?.engine ?? engine;
+    const config = ENGINE_CONFIGS[resolvedEngine];
 
     const acp = await loadAcpSdk();
     const roots = this.fsTools.workspaceRoots;
     const cwd = roots[0];
     if (!cwd) throw new Error('No LOCAL_AGENT_WORKSPACE_ROOTS configured.');
 
-    // The backend's Google Cloud vars (Vertex AI service account, project id) must not leak into
-    // the CLI: with them set, gemini switches from personal OAuth to project-billed Code Assist
-    // and fails with 403 IAM_PERMISSION_DENIED on cloudaicompanion.googleapis.com.
+    // Strip env vars that would push the CLI off personal auth or crash it (see EngineConfig.stripEnv).
     const env = { ...process.env };
-    delete env.GOOGLE_CLOUD_PROJECT;
-    delete env.GOOGLE_CLOUD_PROJECT_ID;
-    delete env.GOOGLE_APPLICATION_CREDENTIALS;
-    delete env.GOOGLE_GENAI_USE_VERTEXAI;
-    delete env.GOOGLE_CLOUD_LOCATION;
+    for (const key of config.stripEnv) delete env[key];
 
-    const args = ['--acp'];
-    if (roots.length > 1) {
+    const [exe, baseArgs] = parseCommand(process.env[config.commandEnv] || config.defaultCommand);
+    const args = [...baseArgs];
+    if (config.supportsIncludeDirs && roots.length > 1) {
       args.push('--include-directories', roots.slice(1).join(','));
     }
-    const child = spawn('gemini', args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
-    child.stderr.on('data', (chunk: Buffer) => this.logger.debug(`[gemini --acp] ${chunk.toString().trim()}`));
+    const child = spawn(exe, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+    child.stderr.on('data', (chunk: Buffer) => this.logger.debug(`[${resolvedEngine} --acp] ${chunk.toString().trim()}`));
 
     const session: AcpSession = {
       id: existing?.id ?? sessionId ?? randomUUID(),
+      engine: resolvedEngine,
       acpSessionId: existing?.acpSessionId ?? '',
       process: child,
       connection: null,
@@ -207,8 +278,8 @@ export class AcpBridgeService implements OnModuleDestroy {
     session.connection = new acp.ClientSideConnection(() => this.buildClientHandler(session), stream);
 
     child.on('exit', code => {
-      this.logger.warn(`gemini --acp exited (code ${code}) for session ${session.id}`);
-      session.queue?.push({ type: 'error', error: `Gemini CLI process exited (code ${code}).` });
+      this.logger.warn(`${resolvedEngine} --acp exited (code ${code}) for session ${session.id}`);
+      session.queue?.push({ type: 'error', error: `${resolvedEngine} CLI process exited (code ${code}).` });
       session.queue?.close();
     });
 

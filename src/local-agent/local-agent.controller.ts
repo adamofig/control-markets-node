@@ -5,7 +5,7 @@ import { AppGuard } from '@dataclouder/nest-core';
 import { FastifyReply } from 'fastify';
 import { DecodedToken } from '../common/token.decorator';
 import { LocalAgentChatService, LocalAgentMessage, LocalAgentStreamEvent } from './local-agent-chat.service';
-import { AcpBridgeService } from './acp-bridge.service';
+import { AcpBridgeService, AcpEngine } from './acp-bridge.service';
 
 class LocalAgentChatRequestDto {
   messages: LocalAgentMessage[];
@@ -18,6 +18,7 @@ class AcpStreamRequestDto {
   sessionId?: string;
   agenticProfileId?: string;
   orgId?: string;
+  engine?: AcpEngine;
 }
 
 class AcpPermissionRequestDto {
@@ -70,7 +71,7 @@ export class LocalAgentController {
         .catch(() => undefined);
     }
 
-    const events = this.acpBridge.stream(body.message, body.sessionId, profileContext);
+    const events = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? 'gemini');
     await this.pipeSse(events, res);
   }
 

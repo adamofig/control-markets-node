@@ -53,6 +53,7 @@ export interface IVideoBrief {
   targetDurationSec?: number;
   aspectRatio?: '9:16' | '16:9' | '1:1';
   sceneCount?: number;
+  pace?: 'short' | 'medium' | 'long' | null;
 }
 
 export interface IVideoProjectGenerator {

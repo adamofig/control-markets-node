@@ -2,7 +2,7 @@ import { IAuditable } from '@dataclouder/nest-core';
 import { IStorageAsset } from '@dataclouder/nest-storage';
 
 export interface IAnimationSettings {
-  backgroundEffect: 'ken-burns' | 'pan' | 'none' | 'rapid-zoom' | 'pulse' | 'camera-shake' | 'glitch';
+  backgroundEffect: 'ken-burns' | 'pan' | 'none' | 'rapid-zoom' | 'pulse' | 'camera-shake' | 'glitch' | 'magnifying-glass';
   introEffect: 'fade';
   outroEffect: 'fade';
   introDurationSec: number;
