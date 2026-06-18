@@ -6,7 +6,6 @@ import { AgenticProfileDocument, AgenticProfileEntity } from '../schemas/agentic
 import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { AgentSourcesService } from '../../agent-tasks/services/agent-sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
-import * as fs from 'fs';
 
 @Injectable()
 export class AgenticProfileService extends EntityCommunicationService<AgenticProfileDocument> {
@@ -69,7 +68,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       profile = await this.genericModel.findOne({
         $or: [
           { id: agenticProfileId },
-          { _id: new mongoose.Types.ObjectId(agenticProfileId) }
+          { _id: new mongoose.Types.ObjectId(agenticProfileId as string) }
         ],
         orgId
       }).exec();
@@ -116,26 +115,6 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       };
     }
 
-    // Helper function to read local file contents
-    const getLocalFileContent = (urlStr: string): string => {
-      try {
-        if (urlStr.startsWith('file://')) {
-          let filePath = urlStr.replace('file://', '');
-          // On Windows/Mac, handle format differences
-          if (process.platform === 'win32' && filePath.startsWith('/')) {
-            filePath = filePath.slice(1);
-          }
-          const decodedPath = decodeURIComponent(filePath);
-          if (fs.existsSync(decodedPath)) {
-            return fs.readFileSync(decodedPath, 'utf8');
-          }
-        }
-      } catch (err) {
-        console.error(`Error reading local file ${urlStr}:`, err);
-      }
-      return '';
-    };
-
     // 3. Sync Knowledge Sources (Section 3)
     const sec3 = sections.find((s: any) => s.number === 3);
     const resolvedSources = [];
@@ -148,7 +127,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           query,
         });
 
-        const fileContent = getLocalFileContent(link.url);
+        const fileContent = link.content;
         const sourceData: any = {
           orgId,
           name: link.label,
@@ -199,7 +178,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           query,
         });
 
-        const fileContent = getLocalFileContent(link.url);
+        const fileContent = link.content;
         const skillData: any = {
           orgId,
           name: link.label,
@@ -270,7 +249,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
         const taskStatus = link.status || 'pending';
 
-        const fileContent = getLocalFileContent(link.url);
+        const fileContent = link.content;
         const taskData: any = {
           orgId,
           name: link.label,
@@ -323,6 +302,12 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
     profile.tasks = resolvedTasks;
 
+    // 7. Sync Live Briefing (Section 7) — human-written, stored directly as text
+    const sec7 = sections.find((s: any) => s.number === 7);
+    if (sec7 && sec7.content) {
+      profile.liveBriefing = sec7.content;
+    }
+
     // 6. Sync Memories (Section 6)
     const sec6 = sections.find((s: any) => s.number === 6);
     const resolvedMemories = [];
@@ -334,7 +319,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           query,
         });
 
-        const fileContent = getLocalFileContent(link.url);
+        const fileContent = link.content;
         const memoryData: any = {
           orgId,
           name: link.label,
@@ -523,6 +508,11 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     } else {
       md += `*(No hay tareas vinculadas)*\n\n`;
     }
+
+    md += `## 7. Informe Directo (Live Briefing)\n\n`;
+    md += profile.liveBriefing ? `${profile.liveBriefing}\n\n` : `*(Sin briefing activo — el propietario no ha dejado instrucciones en este período)*\n\n`;
+
+    md += `---\n\n`;
 
     md += `## 6. Memorias - Notas de Sesión y Foco Actual (Memories)\n\n`;
     if (memories && memories.length > 0) {

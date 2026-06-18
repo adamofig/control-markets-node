@@ -49,6 +49,7 @@ export interface IAgenticProfile {
   skills?: IAgenticProfileSkill[];
   tasks?: IAgenticProfileTaskRef[];
   memories?: IAgenticProfileMemory[];
+  liveBriefing?: string;
 
   metadata?: Record<string, any>;
   auditable?: IAuditable;

@@ -7,6 +7,7 @@ interface ExtractedLink {
   url: string;
   description: string;
   taskId?: string;
+  content?: string;
 }
 
 interface ExtractedSection {
@@ -212,6 +213,14 @@ function extractAgentCard(filePath: string): ExtractedAgent {
       sec.contentLines.forEach(line => {
         const parsedLink = parseLineForLink(line);
         if (parsedLink) {
+          const localPath = urlToPath(parsedLink.url);
+          if (localPath && fs.existsSync(localPath)) {
+            try {
+              parsedLink.content = fs.readFileSync(localPath, 'utf-8');
+            } catch (err: any) {
+              console.error(`Warning: Failed to read local file ${localPath}:`, err.message);
+            }
+          }
           links.push(parsedLink);
         }
       });

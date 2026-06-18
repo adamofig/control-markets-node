@@ -41,6 +41,9 @@ export class AgenticProfileEntity implements IAgenticProfile {
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false, default: [] })
   memories?: IAgenticProfileMemory[];
 
+  @Prop({ required: false })
+  liveBriefing?: string;
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false, default: {} })
   metadata?: Record<string, any>;
 
