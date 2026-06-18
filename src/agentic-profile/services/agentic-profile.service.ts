@@ -239,6 +239,23 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
     profile.skills = resolvedSkills;
 
+    // 4b. Prepare skill write-backs for local frontmatter updates
+    const skillWriteBacks = [];
+    if (sec4 && sec4.links) {
+      for (let i = 0; i < sec4.links.length; i++) {
+        const link = sec4.links[i];
+        const skill = resolvedSkills[i];
+        if (skill && skill.id) {
+          skillWriteBacks.push({
+            url: link.url,
+            label: link.label,
+            skillId: skill.id,
+            orgId,
+          });
+        }
+      }
+    }
+
     // 5. Sync Tasks (Section 5)
     const sec5 = sections.find((s: any) => s.number === 5);
     const resolvedTasks = [];
@@ -357,6 +374,23 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
     profile.memories = resolvedMemories;
 
+    // 6b. Prepare memory write-backs for local frontmatter updates
+    const memoryWriteBacks = [];
+    if (sec6 && sec6.links) {
+      for (let i = 0; i < sec6.links.length; i++) {
+        const link = sec6.links[i];
+        const memory = resolvedMemories[i];
+        if (memory && memory.id) {
+          memoryWriteBacks.push({
+            url: link.url,
+            label: link.label,
+            memoryId: memory.id,
+            orgId,
+          });
+        }
+      }
+    }
+
     // Save profile updates
     await profile.save();
 
@@ -365,6 +399,8 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       profileId: profile.id || profile._id?.toString(),
       agentCardId,
       tasks: taskWriteBacks,
+      skills: skillWriteBacks,
+      memories: memoryWriteBacks,
     };
   }
 
