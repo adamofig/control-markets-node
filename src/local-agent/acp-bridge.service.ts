@@ -13,7 +13,7 @@ const IDLE_TTL_MS = 15 * 60 * 1000;
 const PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** ACP agents the bridge can spawn. The protocol is agent-agnostic — only the command differs. */
-export type AcpEngine = 'gemini' | 'claude';
+export type AcpEngine = 'gemini' | 'claude' | 'agy';
 
 interface EngineConfig {
   /** Env var that overrides the spawn command (executable + args, space-separated). */
@@ -53,6 +53,13 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     // then refuses to launch ("cannot be launched inside another Claude Code session").
     stripEnv: ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT'],
     versionCommand: 'claude --version',
+  },
+  agy: {
+    commandEnv: 'LOCAL_AGENT_AGY_COMMAND',
+    defaultCommand: 'agy-acp',
+    supportsIncludeDirs: false,
+    stripEnv: [],
+    versionCommand: 'agy --version',
   },
 };
 
@@ -283,9 +290,14 @@ export class AcpBridgeService implements OnModuleDestroy {
       session.queue?.close();
     });
 
+    const clientCapabilities: any = {};
+    if (resolvedEngine !== 'claude') {
+      clientCapabilities.fs = { readTextFile: true, writeTextFile: true };
+    }
+
     const init = await session.connection.initialize({
       protocolVersion: acp.PROTOCOL_VERSION,
-      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } },
+      clientCapabilities,
     });
     this.logger.log(`ACP initialized (protocol v${init.protocolVersion})`);
 
