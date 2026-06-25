@@ -4,12 +4,12 @@ import { DeckCommanderService } from '../services/deck-commander.service';
 import * as notifier from 'node-notifier';
 import { exec } from 'child_process';
 
-import { EntityController } from '@dataclouder/nest-mongo';
+import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { DeckCommanderDocument } from '../schemas/deck-commander.schema';
 
-@ApiTags('DeckCommander')
-@Controller('api/DeckCommander') // NOT ENDPOINT Father will tell
-export class DeckCommanderController extends EntityController<DeckCommanderDocument> {
+@ApiTags('deck-commander')
+@Controller('api/deck-commander') // NOT ENDPOINT Father will tell
+export class DeckCommanderController extends EntityMongoController<DeckCommanderDocument> {
   constructor(private readonly DeckCommanderService: DeckCommanderService) {
     super(DeckCommanderService);
   }

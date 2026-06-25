@@ -5,9 +5,15 @@ import { DeckCommanderService } from './services/deck-commander.service';
 import { DeckCommanderEntity, DeckCommanderSchema } from './schemas/deck-commander.schema';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { NestStorageModule } from '@dataclouder/nest-storage';
+import { NestAuthModule } from '@dataclouder/nest-auth';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: DeckCommanderEntity.name, schema: DeckCommanderSchema }]), DCMongoDBModule, NestStorageModule],
+  imports: [
+    MongooseModule.forFeature([{ name: DeckCommanderEntity.name, schema: DeckCommanderSchema }]),
+    DCMongoDBModule,
+    NestStorageModule,
+    NestAuthModule,
+  ],
   controllers: [DeckCommanderController],
   providers: [DeckCommanderService],
   exports: [DeckCommanderService],
