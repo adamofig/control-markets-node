@@ -71,36 +71,51 @@ function urlToPath(urlStr: string): string {
   return '';
 }
 
-function getTaskIdFromTaskFile(filePath: string): string | undefined {
-  if (!fs.existsSync(filePath)) return undefined;
+function getTaskMetaFromTaskFile(filePath: string): Record<string, string> {
+  if (!fs.existsSync(filePath)) return {};
   const content = fs.readFileSync(filePath, 'utf-8');
   const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---/;
   const fmMatch = content.match(frontmatterRegex);
+  const meta: Record<string, string> = {};
   if (fmMatch) {
     const fmText = fmMatch[1];
-    let taskId: string | undefined;
     fmText.split(/\r?\n/).forEach(line => {
       const colonIndex = line.indexOf(':');
       if (colonIndex !== -1) {
         const key = line.slice(0, colonIndex).trim();
         const val = line.slice(colonIndex + 1).trim().replace(/^['"]|['"]$/g, '');
-        if (key === 'taskId') {
-          taskId = val;
-        }
+        meta[key] = val;
       }
     });
-    return taskId;
   }
-  return undefined;
+  return meta;
 }
 
-function updateFileFrontmatter(filePath: string, taskId: string, orgId: string) {
+function updateFileFrontmatter(filePath: string, updates: Record<string, any>) {
   if (!fs.existsSync(filePath)) return;
   let content = fs.readFileSync(filePath, 'utf-8');
   const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---/;
   const match = content.match(frontmatterRegex);
 
-  const newFm = `---\ntaskId: "${taskId}"\norgId: "${orgId}"\n---`;
+  const meta: Record<string, string> = {};
+  if (match) {
+    const fmText = match[1];
+    fmText.split(/\r?\n/).forEach(line => {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex !== -1) {
+        const key = line.slice(0, colonIndex).trim();
+        const val = line.slice(colonIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+        meta[key] = val;
+      }
+    });
+  }
+
+  // Merge updates
+  const merged = { ...meta, ...updates };
+  const fmLines = Object.entries(merged)
+    .filter(([_, v]) => v !== undefined && v !== null && v !== 'undefined' && v !== 'null')
+    .map(([k, v]) => `${k}: "${v}"`);
+  const newFm = `---\n${fmLines.join('\n')}\n---`;
 
   if (match) {
     content = content.replace(frontmatterRegex, newFm);
@@ -262,15 +277,18 @@ async function main() {
       process.exit(1);
     }
 
-    // Resolve task IDs from local files for Section 5 (Tasks)
+    // Resolve task IDs and status from local files for Section 5 (Tasks)
     const taskSection = agentData.sections.find(s => s.number === 5);
     if (taskSection && taskSection.links) {
       for (const link of taskSection.links) {
         const localPath = urlToPath(link.url);
         if (localPath) {
-          const taskId = getTaskIdFromTaskFile(localPath);
-          if (taskId) {
-            link.taskId = taskId;
+          const taskMeta = getTaskMetaFromTaskFile(localPath);
+          if (taskMeta.taskId) {
+            link.taskId = taskMeta.taskId;
+          }
+          if (taskMeta.status && taskMeta.status !== 'undefined' && taskMeta.status !== 'null') {
+            link.status = taskMeta.status;
           }
         }
       }
@@ -316,10 +334,11 @@ async function main() {
         for (const task of result.tasks) {
           const localPath = urlToPath(task.url);
           if (localPath && fs.existsSync(localPath)) {
-            const currentTaskId = getTaskIdFromTaskFile(localPath);
-            if (currentTaskId !== task.taskId) {
-              updateFileFrontmatter(localPath, task.taskId, task.orgId);
-            }
+            updateFileFrontmatter(localPath, {
+              taskId: task.taskId,
+              orgId: task.orgId,
+              status: task.status
+            });
           }
         }
       }

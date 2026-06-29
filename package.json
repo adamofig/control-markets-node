@@ -30,7 +30,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.25.0",
     "@ai-sdk/google": "^3.0.58",
-    "@dataclouder/nest-agent-cards": "^0.1.49",
+    "@dataclouder/nest-agent-cards": "^0.1.53",
     "@dataclouder/nest-ai-services-mongodb": "^0.0.9",
     "@dataclouder/nest-ai-services-sdk": "^0.0.7",
     "@dataclouder/nest-auth": "^1.0.0",

@@ -297,6 +297,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           label: link.label,
           taskId: resolvedId,
           orgId,
+          status: taskEntity.status,
         });
       }
     }
