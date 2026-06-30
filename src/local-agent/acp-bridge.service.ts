@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { spawn, execFile, ChildProcessWithoutNullStreams } from 'child_process';
 import { Readable, Writable } from 'stream';
 import { randomUUID } from 'crypto';
+import * as path from 'path';
+import * as fs from 'fs';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { LocalAgentStreamEvent } from './local-agent-chat.service';
 
@@ -272,12 +274,23 @@ export class AcpBridgeService implements OnModuleDestroy {
     const roots = this.fsTools.workspaceRoots;
     const cwd = roots[0];
     if (!cwd) throw new Error('No LOCAL_AGENT_WORKSPACE_ROOTS configured.');
+    // spawn() with a non-existent cwd throws a misleading `spawn <exe> ENOENT` (blames the executable,
+    // not the dir). Validate up front so the error names the real culprit — the workspace root.
+    if (!fs.existsSync(cwd)) {
+      throw new Error(`First LOCAL_AGENT_WORKSPACE_ROOTS path does not exist (used as cwd): ${cwd}`);
+    }
 
     // Strip env vars that would push the CLI off personal auth or crash it (see EngineConfig.stripEnv).
     const env = { ...process.env };
     for (const key of config.stripEnv) delete env[key];
 
     const [exe, baseArgs] = parseCommand(process.env[config.commandEnv] || config.defaultCommand);
+    // If exe is an absolute path (e.g. nvm's npx), prepend its dir to PATH so the CLI's `env node`
+    // shebang resolves — the IDE's PATH often lacks the nvm bin dir, which causes `spawn ... ENOENT`.
+    if (path.isAbsolute(exe)) {
+      const binDir = path.dirname(exe);
+      env.PATH = `${binDir}${path.delimiter}${env.PATH ?? ''}`;
+    }
     const args = [...baseArgs];
     if (config.supportsIncludeDirs && roots.length > 1) {
       args.push('--include-directories', roots.slice(1).join(','));
@@ -285,6 +298,18 @@ export class AcpBridgeService implements OnModuleDestroy {
     
     onProgress?.(`Iniciando subproceso de la CLI (${resolvedEngine})...`);
     const child = spawn(exe, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+    // A spawn failure (e.g. the CLI binary isn't on PATH) emits 'error' asynchronously. Without a
+    // listener Node treats it as an unhandled 'error' event and crashes the whole process, so we
+    // catch it here and surface it through the session stream instead.
+    child.on('error', err => {
+      const hint =
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+          ? ` ('${exe}' not found on PATH — install it or set ${config.commandEnv} to its absolute path)`
+          : '';
+      this.logger.error(`Failed to spawn ${resolvedEngine} --acp${hint}: ${err.message}`);
+      session.queue?.push({ type: 'error', error: `Could not start ${resolvedEngine} CLI: ${err.message}${hint}` });
+      session.queue?.close();
+    });
     child.stderr.on('data', (chunk: Buffer) => this.logger.debug(`[${resolvedEngine} --acp] ${chunk.toString().trim()}`));
 
     const session: AcpSession = {

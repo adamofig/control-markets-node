@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { tool } from 'ai';
 import { z } from 'zod';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import * as fg from 'fast-glob';
 
@@ -19,7 +20,15 @@ export class FilesystemToolsService {
     return (process.env.LOCAL_AGENT_WORKSPACE_ROOTS ?? '')
       .split(',')
       .map(r => r.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .map(r => FilesystemToolsService.expandHome(r));
+  }
+
+  /** Expands a leading `~` and resolves relative paths against the user's home directory. */
+  private static expandHome(p: string): string {
+    if (p === '~') return os.homedir();
+    if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2));
+    return path.isAbsolute(p) ? p : path.join(os.homedir(), p);
   }
 
   /** Resolves a path and ensures it lives inside one of the workspace roots and is not deny-listed. */
