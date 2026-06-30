@@ -21,7 +21,8 @@ export type LocalAgentStreamEvent =
   // ACP (Gemini CLI) engine extras:
   | { type: 'session'; sessionId: string }
   | { type: 'permission-request'; requestId: string; toolName: string; rationale: string; options: { optionId: string; name: string; kind: string }[] }
-  | { type: 'plan'; entries: unknown[] };
+  | { type: 'plan'; entries: unknown[] }
+  | { type: 'status'; message: string };
 
 const MAX_STEPS = 25;
 const CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000;

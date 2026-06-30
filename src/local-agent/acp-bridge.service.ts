@@ -176,47 +176,56 @@ export class AcpBridgeService implements OnModuleDestroy {
       return;
     }
 
-    let session: AcpSession;
-    try {
-      session = await this.getOrCreateSession(sessionId, engine);
-    } catch (error) {
-      yield { type: 'error', error: `Could not start ${engine} CLI (ACP): ${error?.message ?? error}` };
-      return;
-    }
-
-    if (session.queue) {
-      yield { type: 'error', error: 'This session already has a turn in progress.' };
-      return;
-    }
-
-    yield { type: 'session', sessionId: session.id };
-
     const queue = new AsyncEventQueue();
-    session.queue = queue;
-    session.lastUsedAt = Date.now();
+    queue.push({ type: 'status', message: `Arrancando motor agéntico (${engine})...` });
 
-    const prompt: any[] = [];
-    if (profileContext && !session.contextSent) {
-      prompt.push({
-        type: 'resource',
-        resource: { uri: 'context://agentic-profile', mimeType: 'text/markdown', text: profileContext },
-      });
-      session.contextSent = true;
-    }
-    prompt.push({ type: 'text', text: message });
+    const initPromise = (async () => {
+      try {
+        const session = await this.getOrCreateSession(sessionId, engine, (msg) => {
+          queue.push({ type: 'status', message: msg });
+        });
 
-    const turn = session.connection
-      .prompt({ sessionId: session.acpSessionId, prompt })
-      .then((result: any) => queue.push({ type: 'finish', usage: { stopReason: result.stopReason } }))
-      .catch((error: any) => queue.push({ type: 'error', error: String(error?.message ?? error) }))
-      .finally(() => queue.close());
+        if (session.queue) {
+          queue.push({ type: 'error', error: 'Esta sesión ya tiene una solicitud en curso.' });
+          return;
+        }
+
+        session.queue = queue;
+        session.lastUsedAt = Date.now();
+
+        // Emitimos el ID de la sesión al cliente
+        queue.push({ type: 'session', sessionId: session.id });
+        queue.push({ type: 'status', message: 'Conectando con el LLM...' });
+
+        const prompt: any[] = [];
+        if (profileContext && !session.contextSent) {
+          prompt.push({
+            type: 'resource',
+            resource: { uri: 'context://agentic-profile', mimeType: 'text/markdown', text: profileContext },
+          });
+          session.contextSent = true;
+        }
+        prompt.push({ type: 'text', text: message });
+
+        await session.connection
+          .prompt({ sessionId: session.acpSessionId, prompt })
+          .then((result: any) => queue.push({ type: 'finish', usage: { stopReason: result.stopReason } }))
+          .catch((error: any) => queue.push({ type: 'error', error: String(error?.message ?? error) }))
+          .finally(() => {
+            session.queue = null;
+            session.lastUsedAt = Date.now();
+          });
+      } catch (error) {
+        queue.push({ type: 'error', error: `No se pudo iniciar el cliente ${engine} (ACP): ${error?.message ?? error}` });
+      } finally {
+        queue.close();
+      }
+    })();
 
     try {
       yield* queue.drain();
     } finally {
-      await turn.catch(() => undefined);
-      session.queue = null;
-      session.lastUsedAt = Date.now();
+      await initPromise.catch(() => undefined);
     }
   }
 
@@ -243,14 +252,22 @@ export class AcpBridgeService implements OnModuleDestroy {
     return { ok: true };
   }
 
-  private async getOrCreateSession(sessionId?: string, engine: AcpEngine = 'gemini'): Promise<AcpSession> {
+  private async getOrCreateSession(
+    sessionId?: string,
+    engine: AcpEngine = 'gemini',
+    onProgress?: (msg: string) => void,
+  ): Promise<AcpSession> {
     const existing = sessionId ? this.sessions.get(sessionId) : undefined;
-    if (existing && existing.process.exitCode === null) return existing;
+    if (existing && existing.process.exitCode === null) {
+      onProgress?.('Reutilizando sesión activa...');
+      return existing;
+    }
 
     // Respawns must keep the engine the session was created with, regardless of the requested one.
     const resolvedEngine = existing?.engine ?? engine;
     const config = ENGINE_CONFIGS[resolvedEngine];
 
+    onProgress?.('Cargando protocolo ACP...');
     const acp = await loadAcpSdk();
     const roots = this.fsTools.workspaceRoots;
     const cwd = roots[0];
@@ -265,6 +282,8 @@ export class AcpBridgeService implements OnModuleDestroy {
     if (config.supportsIncludeDirs && roots.length > 1) {
       args.push('--include-directories', roots.slice(1).join(','));
     }
+    
+    onProgress?.(`Iniciando subproceso de la CLI (${resolvedEngine})...`);
     const child = spawn(exe, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
     child.stderr.on('data', (chunk: Buffer) => this.logger.debug(`[${resolvedEngine} --acp] ${chunk.toString().trim()}`));
 
@@ -295,6 +314,7 @@ export class AcpBridgeService implements OnModuleDestroy {
       clientCapabilities.fs = { readTextFile: true, writeTextFile: true };
     }
 
+    onProgress?.('Estableciendo conexión y handshake (ACP)...');
     const init = await session.connection.initialize({
       protocolVersion: acp.PROTOCOL_VERSION,
       clientCapabilities,
@@ -302,8 +322,10 @@ export class AcpBridgeService implements OnModuleDestroy {
     this.logger.log(`ACP initialized (protocol v${init.protocolVersion})`);
 
     if (session.acpSessionId && init.agentCapabilities?.loadSession) {
+      onProgress?.(`Restaurando sesión agéntica: ${session.acpSessionId.slice(0, 8)}...`);
       await session.connection.loadSession({ sessionId: session.acpSessionId, cwd, mcpServers: [] });
     } else {
+      onProgress?.('Creando nueva sesión en el motor agéntico...');
       const created = await session.connection.newSession({ cwd, mcpServers: [] });
       session.acpSessionId = created.sessionId;
     }

@@ -60,13 +60,20 @@ function parseLineForLink(line: string): ExtractedLink | null {
   return null;
 }
 
-function urlToPath(urlStr: string): string {
+function urlToPath(urlStr: string, baseDir?: string): string {
   if (urlStr.startsWith('file://')) {
     let filePath = urlStr.replace('file://', '');
     if (process.platform === 'win32' && filePath.startsWith('/')) {
       filePath = filePath.slice(1);
     }
-    return decodeURIComponent(filePath);
+    filePath = decodeURIComponent(filePath);
+    if (!path.isAbsolute(filePath)) {
+      filePath = path.resolve(baseDir || '', filePath);
+    }
+    return filePath;
+  }
+  if (urlStr && !urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+    return path.resolve(baseDir || '', decodeURIComponent(urlStr));
   }
   return '';
 }
@@ -91,6 +98,7 @@ function getTaskMetaFromTaskFile(filePath: string): Record<string, string> {
   return meta;
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 function updateFileFrontmatter(filePath: string, updates: Record<string, any>) {
   if (!fs.existsSync(filePath)) return;
   let content = fs.readFileSync(filePath, 'utf-8');
@@ -123,7 +131,7 @@ function updateFileFrontmatter(filePath: string, updates: Record<string, any>) {
     content = `${newFm}\n\n${content}`;
   }
   fs.writeFileSync(filePath, content, 'utf-8');
-  console.log(`Updated frontmatter for local task: ${path.basename(filePath)}`);
+  console.log(`Updated frontmatter for: ${path.basename(filePath)}`);
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: <explanation>
@@ -166,6 +174,7 @@ function extractAgentCard(filePath: string): ExtractedAgent {
     throw new Error(`File not found: ${absolutePath}`);
   }
 
+  const baseDir = path.dirname(absolutePath);
   const fileContent = fs.readFileSync(absolutePath, 'utf-8');
 
   // 1. Parse YAML Frontmatter
@@ -228,7 +237,7 @@ function extractAgentCard(filePath: string): ExtractedAgent {
       sec.contentLines.forEach(line => {
         const parsedLink = parseLineForLink(line);
         if (parsedLink) {
-          const localPath = urlToPath(parsedLink.url);
+          const localPath = urlToPath(parsedLink.url, baseDir);
           if (localPath && fs.existsSync(localPath)) {
             try {
               parsedLink.content = fs.readFileSync(localPath, 'utf-8');
@@ -277,11 +286,13 @@ async function main() {
       process.exit(1);
     }
 
+    const baseDir = path.dirname(path.resolve(filePath));
+
     // Resolve task IDs and status from local files for Section 5 (Tasks)
     const taskSection = agentData.sections.find(s => s.number === 5);
     if (taskSection && taskSection.links) {
       for (const link of taskSection.links) {
-        const localPath = urlToPath(link.url);
+        const localPath = urlToPath(link.url, baseDir);
         if (localPath) {
           const taskMeta = getTaskMetaFromTaskFile(localPath);
           if (taskMeta.taskId) {
@@ -311,7 +322,7 @@ async function main() {
       throw new Error(`HTTP error! status: ${response.status}, response: ${errText}`);
     }
 
-    const result = await response.json();
+    const result = await response.json() as any;
     if (result.success) {
       console.log(`Successfully synchronized Agent "${agentData.agentName}" with MongoDB.`);
       console.log(`Profile ID: ${result.profileId}`);
@@ -332,12 +343,38 @@ async function main() {
       // Perform local file write-backs for newly created/updated tasks
       if (result.tasks && Array.isArray(result.tasks)) {
         for (const task of result.tasks) {
-          const localPath = urlToPath(task.url);
+          const localPath = urlToPath(task.url, baseDir);
           if (localPath && fs.existsSync(localPath)) {
             updateFileFrontmatter(localPath, {
               taskId: task.taskId,
               orgId: task.orgId,
               status: task.status
+            });
+          }
+        }
+      }
+
+      // Perform local file write-backs for newly created/updated skills
+      if (result.skills && Array.isArray(result.skills)) {
+        for (const skill of result.skills) {
+          const localPath = urlToPath(skill.url, baseDir);
+          if (localPath && fs.existsSync(localPath)) {
+            updateFileFrontmatter(localPath, {
+              skillId: skill.skillId,
+              orgId: skill.orgId
+            });
+          }
+        }
+      }
+
+      // Perform local file write-backs for newly created/updated memories
+      if (result.memories && Array.isArray(result.memories)) {
+        for (const memory of result.memories) {
+          const localPath = urlToPath(memory.url, baseDir);
+          if (localPath && fs.existsSync(localPath)) {
+            updateFileFrontmatter(localPath, {
+              memoryId: memory.memoryId,
+              orgId: memory.orgId
             });
           }
         }
@@ -354,6 +391,13 @@ async function main() {
   }
 }
 
-if (require.main === module) {
+const isMain = typeof require !== 'undefined'
+  ? require.main === module
+  : (process.argv[1] && (
+      process.argv[1].endsWith('sync-agent-card.ts') ||
+      process.argv[1].endsWith('sync-agent-card.js')
+    ));
+
+if (isMain) {
   main();
 }
