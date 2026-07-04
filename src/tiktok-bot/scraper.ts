@@ -13,15 +13,29 @@ export interface ScrapedVideoData {
   userProfile: string | undefined;
 }
 
-function timeToSeconds(timeString: string) {
-  // Extract the part after the "/"
-  const finalPart = timeString.split('/')[1].trim();
+function timeToSeconds(timeString: string): number {
+  if (!timeString || typeof timeString !== 'string') return 0;
 
-  // Split by ":" to get minutes and seconds
-  const [minutes, seconds] = finalPart.split(':').map(Number);
+  // Extract the part after the "/" if it exists (e.g. "0:12 / 0:30")
+  const parts = timeString.split('/');
+  const finalPart = parts.length > 1 ? parts[1].trim() : parts[0].trim();
 
-  // Convert to total seconds
-  return minutes * 60 + seconds;
+  if (!finalPart) return 0;
+
+  // Split by ":" to get minutes and seconds (or hours, minutes, seconds)
+  const timeParts = finalPart.split(':').map(Number);
+  
+  if (timeParts.some(isNaN)) return 0;
+
+  if (timeParts.length === 2) {
+    const [minutes, seconds] = timeParts;
+    return minutes * 60 + seconds;
+  } else if (timeParts.length === 3) {
+    const [hours, minutes, seconds] = timeParts;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  
+  return 0;
 }
 
 export const scrapeVideoData = (html: string): ScrapedVideoData | null => {

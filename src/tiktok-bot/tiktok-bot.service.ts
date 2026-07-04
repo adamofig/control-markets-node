@@ -78,12 +78,15 @@ export class TiktokBotService implements OnModuleInit {
   }
 
   private async runBot(profileName: string) {
-    const userDataDir = path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', profileName);
+    const userDataDir = path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome');
 
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       channel: 'chrome',
-      args: ['--disable-blink-features=AutomationControlled'],
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        `--profile-directory=${profileName}`, // Use the actual profile directory directly
+      ],
     });
 
     const page = await context.newPage();

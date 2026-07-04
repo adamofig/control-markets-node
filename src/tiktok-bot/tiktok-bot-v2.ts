@@ -60,26 +60,30 @@ export const runBot = async (profileName: string) => {
   // - Windows: path.join(os.homedir(), 'AppData', 'Local', 'Google', 'Chrome', 'User Data')
   // - Linux: path.join(os.homedir(), '.config', 'google-chrome')
   // By pointing to a specific profile directory, we avoid conflicts with your main browser session.
-  const userDataDir = path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', profileName);
-
+  const userDataDir = path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome');
+  console.log(`[${profileName}] Iniciando navegador persistent context...`);
   // Launch the browser with a persistent context
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
-    args: ['--disable-blink-features=AutomationControlled'], // Helps to avoid detection
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      `--profile-directory=${profileName}`, // Use the actual profile directory directly
+    ],
   });
 
+  console.log(`[${profileName}] Navegador iniciado. Creando nueva pestaña...`);
   const page = await context.newPage();
 
+  console.log(`[${profileName}] Navegando a TikTok...`);
   // Go to TikTok
-  await page.goto('https://www.tiktok.com/');
+  await page.goto('https://www.tiktok.com/', { waitUntil: 'domcontentloaded' });
 
-  console.log(`[${profileName}] Browser launched. If this is the first run, please log in to TikTok manually.`);
-  console.log(`[${profileName}] Your session will be saved for future runs.`);
-  console.log(`[${profileName}] The bot will start in 4 seconds...`);
+  console.log(`[${profileName}] Navegación completada. Si es la primera vez, inicia sesión manualmente.`);
+  console.log(`[${profileName}] El bot iniciará en 4 segundos...`);
 
   // Add a delay to allow for manual login if needed
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(4000);
 
   // Get and print the HTML of the page
   const pageContent = await page.content();
