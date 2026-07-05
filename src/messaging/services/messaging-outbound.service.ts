@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { randomBytes } from 'crypto';
 import { ChannelIdentityEntity } from '../schemas/channel-identity.schema';
 import { OutboundMessageEntity } from '../schemas/outbound-message.schema';
@@ -70,9 +70,15 @@ export class MessagingOutboundService {
     const linkToken = randomBytes(16).toString('base64url');
     const expiresAt = new Date(Date.now() + LINK_TOKEN_TTL_MS);
 
+    // El hook post-save `addIdAfterSave` no corre en upsert; seteamos `id` explícitamente
+    // al insertar para no violar el índice único `{ id: 1 }` (dejaría `id: null` → E11000).
+    const newId = new Types.ObjectId();
     await this.identityModel.findOneAndUpdate(
       { userId, orgId, channel: ChannelType.Telegram, status: { $ne: 'verified' } },
-      { $set: { userId, orgId, channel: ChannelType.Telegram, status: 'pending', linkToken, linkTokenExpiresAt: expiresAt } },
+      {
+        $set: { userId, orgId, channel: ChannelType.Telegram, status: 'pending', linkToken, linkTokenExpiresAt: expiresAt },
+        $setOnInsert: { _id: newId, id: newId.toString() },
+      },
       { upsert: true, new: true },
     );
 

@@ -44,7 +44,7 @@ export class RecentResourcesService extends EntityCommunicationService<RecentRes
       await this.recentResourceModel.deleteMany({ _id: { $in: idsToDelete } }).exec();
     }
 
-    return upserted as RecentResourceDocument;
+    return upserted as unknown as RecentResourceDocument;
   }
 
   async getRecentForUser(userId: string, limit: number = 5): Promise<IRecentResource[]> {

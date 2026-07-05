@@ -16,21 +16,21 @@ export class MessagingController {
   @ApiOperation({ summary: 'Genera un deep-link t.me para vincular la cuenta Telegram del usuario actual' })
   @UseGuards(ProjectAuthGuard)
   async createTelegramLink(@OrgId() orgId: string, @DecodedToken() token: AppToken): Promise<{ linkUrl: string; expiresAt: Date }> {
-    return this.outboundService.createTelegramLink(token.userId, orgId);
+    return this.outboundService.createTelegramLink(token.uid, orgId);
   }
 
   @Get('identities')
   @ApiOperation({ summary: 'Lista los canales de mensajería vinculados del usuario actual' })
   @UseGuards(ProjectAuthGuard)
   async listIdentities(@OrgId() orgId: string, @DecodedToken() token: AppToken): Promise<ChannelIdentityEntity[]> {
-    return this.outboundService.listIdentities(token.userId, orgId);
+    return this.outboundService.listIdentities(token.uid, orgId);
   }
 
   @Delete('identities/:id')
   @ApiOperation({ summary: 'Desvincula un canal de mensajería del usuario actual' })
   @UseGuards(ProjectAuthGuard)
   async unlinkIdentity(@Param('id') id: string, @OrgId() orgId: string, @DecodedToken() token: AppToken): Promise<{ deleted: boolean }> {
-    return this.outboundService.unlinkIdentity(id, token.userId, orgId);
+    return this.outboundService.unlinkIdentity(id, token.uid, orgId);
   }
 
   @Post('notify')
@@ -41,7 +41,7 @@ export class MessagingController {
     @OrgId() orgId: string,
     @DecodedToken() token: AppToken,
   ): Promise<INotifyResult> {
-    const targetUserId = body.userId ?? token.userId;
+    const targetUserId = body.userId ?? token.uid;
     return this.outboundService.notifyUser(targetUserId, orgId, body.message, { channel: body.channel, source: 'manual' });
   }
 }

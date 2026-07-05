@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      # Minors y patches en un solo PR semanal — seguros por semver
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+      # Familias que conviene actualizar juntas, incluso en majors
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+        update-types:
+          - major
+      dataclouder:
+        patterns:
+          - '@dataclouder/*'
+        update-types:
+          - major
+      ai-sdk:
+        patterns:
+          - ai
+          - '@ai-sdk/*'
+        update-types:
+          - major
+    ignore:
+      # Majors delicados: actualizarlos manualmente leyendo el changelog
+      - dependency-name: mongoose
+        update-types: ['version-update:semver-major']
+      - dependency-name: mongodb
+        update-types: ['version-update:semver-major']
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']

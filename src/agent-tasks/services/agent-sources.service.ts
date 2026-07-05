@@ -20,7 +20,7 @@ export class AgentSourcesService extends EntityCommunicationService<AgentSourceD
   }
 
   async findOne(id: string, projection: any = {}): Promise<AgentSourceDocument> {
-    return this.genericModel.findOne({ id }, projection).lean().exec();
+    return this.genericModel.findOne({ id }, projection).lean().exec() as unknown as Promise<AgentSourceDocument>;
   }
 
   async findManyByIds(ids: string[]): Promise<AgentSourceDocument[]> {
