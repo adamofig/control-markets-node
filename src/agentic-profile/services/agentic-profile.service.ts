@@ -93,6 +93,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         skills: [],
         tasks: [],
         memories: [],
+        explorations: [],
         auditable: {
           createdBy: userEmail,
           updatedBy: userEmail,
@@ -235,13 +236,81 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       }
     }
 
-    // 5. Sync Tasks (Section 5)
+    // 5. Sync Explorations (Section 5)
     const sec5 = sections.find((s: any) => s.number === 5);
+    const resolvedExplorations = [];
+    if (sec5 && sec5.links) {
+      for (const link of sec5.links) {
+        const query = { sourceUrl: link.url, orgId };
+        let explorationEntity = await this.agentSourcesService.executeOperation({
+          action: 'findOne',
+          query,
+        });
+
+        const fileContent = link.content;
+        const explorationData: any = {
+          orgId,
+          name: link.label,
+          description: link.description,
+          sourceUrl: link.url,
+          type: 'document',
+          content: fileContent || link.description,
+          tag: 'exploration', // explorations act as exploration sources
+          status: 'active',
+        };
+
+        if (explorationEntity) {
+          await this.agentSourcesService.executeOperation({
+            action: 'updateOne',
+            query: { id: explorationEntity.id },
+            payload: { $set: explorationData },
+          });
+          explorationEntity = await this.agentSourcesService.executeOperation({
+            action: 'findOne',
+            query: { id: explorationEntity.id },
+          });
+        } else {
+          explorationData.auditable = { createdBy: userEmail, updatedBy: userEmail };
+          explorationEntity = await this.agentSourcesService.executeOperation({
+            action: 'create',
+            payload: explorationData,
+          });
+        }
+
+        resolvedExplorations.push({
+          id: explorationEntity.id || explorationEntity._id?.toString(),
+          name: explorationEntity.name,
+          description: explorationEntity.description,
+          enabled: true,
+        });
+      }
+    }
+    profile.explorations = resolvedExplorations;
+
+    // 5b. Prepare exploration write-backs for local frontmatter updates
+    const explorationWriteBacks = [];
+    if (sec5 && sec5.links) {
+      for (let i = 0; i < sec5.links.length; i++) {
+        const link = sec5.links[i];
+        const exploration = resolvedExplorations[i];
+        if (exploration && exploration.id) {
+          explorationWriteBacks.push({
+            url: link.url,
+            label: link.label,
+            explorationId: exploration.id,
+            orgId,
+          });
+        }
+      }
+    }
+
+    // 6. Sync Tasks (Section 6)
+    const sec6 = sections.find((s: any) => s.number === 6);
     const resolvedTasks = [];
     const taskWriteBacks = []; // Return list of tasks to update local frontmatter
 
-    if (sec5 && sec5.links) {
-      for (const link of sec5.links) {
+    if (sec6 && sec6.links) {
+      for (const link of sec6.links) {
         let taskEntity = null;
         if (link.taskId) {
           taskEntity = await this.agentTasksService.findOne(link.taskId);
@@ -303,17 +372,17 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
     profile.tasks = resolvedTasks;
 
-    // 7. Sync Live Briefing (Section 7) — human-written, stored directly as text
-    const sec7 = sections.find((s: any) => s.number === 7);
-    if (sec7 && sec7.content) {
-      profile.liveBriefing = sec7.content;
+    // 8. Sync Live Briefing (Section 8) — human-written, stored directly as text
+    const sec8 = sections.find((s: any) => s.number === 8);
+    if (sec8 && sec8.content) {
+      profile.liveBriefing = sec8.content;
     }
 
-    // 6. Sync Memories (Section 6)
-    const sec6 = sections.find((s: any) => s.number === 6);
+    // 7. Sync Memories (Section 7)
+    const sec7 = sections.find((s: any) => s.number === 7);
     const resolvedMemories = [];
-    if (sec6 && sec6.links) {
-      for (const link of sec6.links) {
+    if (sec7 && sec7.links) {
+      for (const link of sec7.links) {
         const query = { sourceUrl: link.url, orgId };
         let memoryEntity = await this.agentSourcesService.executeOperation({
           action: 'findOne',
@@ -360,11 +429,11 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
     profile.memories = resolvedMemories;
 
-    // 6b. Prepare memory write-backs for local frontmatter updates
+    // 7b. Prepare memory write-backs for local frontmatter updates
     const memoryWriteBacks = [];
-    if (sec6 && sec6.links) {
-      for (let i = 0; i < sec6.links.length; i++) {
-        const link = sec6.links[i];
+    if (sec7 && sec7.links) {
+      for (let i = 0; i < sec7.links.length; i++) {
+        const link = sec7.links[i];
         const memory = resolvedMemories[i];
         if (memory && memory.id) {
           memoryWriteBacks.push({
@@ -387,6 +456,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       tasks: taskWriteBacks,
       skills: skillWriteBacks,
       memories: memoryWriteBacks,
+      explorations: explorationWriteBacks,
     };
   }
 
@@ -423,9 +493,10 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     const skillIds = (profile.skills || []).map((s: any) => s.id);
     const taskIds = (profile.tasks || []).map((t: any) => t.id);
     const memoryIds = (profile.memories || []).map((m: any) => m.id);
+    const explorationIds = (profile.explorations || []).map((e: any) => e.id);
 
-    // Query Source, Skill, Task, and Memory entities
-    const [sources, skills, tasks, memories] = await Promise.all([
+    // Query Source, Skill, Task, Memory, and Exploration entities
+    const [sources, skills, tasks, memories, explorations] = await Promise.all([
       sourceIds.length > 0
         ? this.agentSourcesService.findManyByIds(sourceIds)
         : Promise.resolve([]),
@@ -440,6 +511,9 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         : Promise.resolve([]),
       memoryIds.length > 0
         ? this.agentSourcesService.findManyByIds(memoryIds)
+        : Promise.resolve([]),
+      explorationIds.length > 0
+        ? this.agentSourcesService.findManyByIds(explorationIds)
         : Promise.resolve([])
     ]);
 
@@ -493,7 +567,21 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       md += `*(No hay skills vinculadas)*\n\n---\n\n`;
     }
 
-    md += `## 5. Tareas (Task)\n\n`;
+    md += `## 5. Exploración (Exploration)\n\n`;
+    if (explorations && explorations.length > 0) {
+      for (const exp of explorations) {
+        md += `### Exploración: ${exp.name || 'Sin título'}\n`;
+        if (exp.description) {
+          md += `> Descripción: ${exp.description}\n\n`;
+        }
+        md += exp.content ? `${exp.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        md += `---\n\n`;
+      }
+    } else {
+      md += `*(No hay exploraciones vinculadas)*\n\n---\n\n`;
+    }
+
+    md += `## 6. Tareas (Task)\n\n`;
     if (tasks && tasks.length > 0) {
       for (const task of tasks) {
         const statusBox = task.status === 'done' ? '[x]' : task.status === 'in_progress' ? '[/]' : '[ ]';
@@ -510,12 +598,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       md += `*(No hay tareas vinculadas)*\n\n`;
     }
 
-    md += `## 7. Informe Directo (Live Briefing)\n\n`;
-    md += profile.liveBriefing ? `${profile.liveBriefing}\n\n` : `*(Sin briefing activo — el propietario no ha dejado instrucciones en este período)*\n\n`;
-
-    md += `---\n\n`;
-
-    md += `## 6. Memorias - Notas de Sesión y Foco Actual (Memories)\n\n`;
+    md += `## 7. Memorias - Notas de Sesión y Foco Actual (Memories)\n\n`;
     if (memories && memories.length > 0) {
       for (const mem of memories) {
         md += `### Memoria: ${mem.name || 'Sin título'}\n`;
@@ -528,6 +611,9 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     } else {
       md += `*(No hay memorias vinculadas)*\n\n`;
     }
+
+    md += `## 8. Informe Directo (Live Briefing)\n\n`;
+    md += profile.liveBriefing ? `${profile.liveBriefing}\n\n` : `*(Sin briefing activo — el propietario no ha dejado instrucciones en este período)*\n\n`;
 
     return md.trim() + '\n';
   }

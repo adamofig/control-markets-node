@@ -34,6 +34,13 @@ export interface IAgenticProfileMemory {
   enabled: boolean;
 }
 
+export interface IAgenticProfileExploration {
+  id: string; // references AgentSourceEntity.id (representing an exploration source)
+  name?: string;
+  description?: string;
+  enabled: boolean;
+}
+
 export interface IAgenticProfile {
   _id?: string;
   id?: string;
@@ -49,6 +56,7 @@ export interface IAgenticProfile {
   skills?: IAgenticProfileSkill[];
   tasks?: IAgenticProfileTaskRef[];
   memories?: IAgenticProfileMemory[];
+  explorations?: IAgenticProfileExploration[];
   liveBriefing?: string;
 
   metadata?: Record<string, any>;

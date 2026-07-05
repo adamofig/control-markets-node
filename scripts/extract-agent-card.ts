@@ -126,8 +126,8 @@ function extractAgentCard(filePath: string): ExtractedAgent {
       content
     };
 
-    // Extract links for sections 3, 4, 5, and 6
-    if ([3, 4, 5, 6].includes(sec.number)) {
+    // Extract links for sections 3, 4, 5, 6, and 7
+    if ([3, 4, 5, 6, 7].includes(sec.number)) {
       const links: ExtractedLink[] = [];
       sec.contentLines.forEach(line => {
         const parsedLink = parseLineForLink(line);

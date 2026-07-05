@@ -232,7 +232,7 @@ function extractAgentCard(filePath: string): ExtractedAgent {
       content
     };
 
-    if ([3, 4, 5, 6].includes(sec.number)) {
+    if ([3, 4, 5, 6, 7].includes(sec.number)) {
       const links: ExtractedLink[] = [];
       sec.contentLines.forEach(line => {
         const parsedLink = parseLineForLink(line);
@@ -288,8 +288,8 @@ async function main() {
 
     const baseDir = path.dirname(path.resolve(filePath));
 
-    // Resolve task IDs and status from local files for Section 5 (Tasks)
-    const taskSection = agentData.sections.find(s => s.number === 5);
+    // Resolve task IDs and status from local files for Section 6 (Tasks)
+    const taskSection = agentData.sections.find(s => s.number === 6);
     if (taskSection && taskSection.links) {
       for (const link of taskSection.links) {
         const localPath = urlToPath(link.url, baseDir);
@@ -375,6 +375,19 @@ async function main() {
             updateFileFrontmatter(localPath, {
               memoryId: memory.memoryId,
               orgId: memory.orgId
+            });
+          }
+        }
+      }
+
+      // Perform local file write-backs for newly created/updated explorations
+      if (result.explorations && Array.isArray(result.explorations)) {
+        for (const exploration of result.explorations) {
+          const localPath = urlToPath(exploration.url, baseDir);
+          if (localPath && fs.existsSync(localPath)) {
+            updateFileFrontmatter(localPath, {
+              explorationId: exploration.explorationId,
+              orgId: exploration.orgId
             });
           }
         }
