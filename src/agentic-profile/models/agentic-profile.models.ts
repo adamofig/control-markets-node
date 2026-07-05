@@ -41,6 +41,15 @@ export interface IAgenticProfileExploration {
   enabled: boolean;
 }
 
+export type AgenticHeartbeatEngine = 'agy' | 'gemini' | 'claude';
+
+export interface IAgenticHeartbeat {
+  enabled: boolean;
+  cronExpression?: string; // e.g. "0 */6 * * *"
+  engine?: AgenticHeartbeatEngine; // ACP engine used to execute the wake-up (default: 'agy')
+  wakePrompt?: string; // custom prompt injected on wake-up; falls back to the default exploration prompt
+}
+
 export interface IAgenticProfile {
   _id?: string;
   id?: string;
@@ -58,6 +67,7 @@ export interface IAgenticProfile {
   memories?: IAgenticProfileMemory[];
   explorations?: IAgenticProfileExploration[];
   liveBriefing?: string;
+  heartbeat?: IAgenticHeartbeat;
 
   metadata?: Record<string, any>;
   auditable?: IAuditable;

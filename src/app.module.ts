@@ -40,11 +40,14 @@ import { BlogEntryModule } from './blog-entry/blog-entry.module';
 import { UniversalModule } from './universal/universal.module';
 import { AgenticProfileModule } from './agentic-profile/agentic-profile.module';
 import { LocalAgentModule } from './local-agent/local-agent.module';
+import { AgenticHeartbeatModule } from './agentic-heartbeat/agentic-heartbeat.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 
 @Module({
   imports: [
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({ load: [envVariables], isGlobal: true }),
     DCMongoDBModule.forRoot(),
     CreativeFlowboardModule,
@@ -90,6 +93,7 @@ import { LocalAgentModule } from './local-agent/local-agent.module';
     UniversalModule,
     AgenticProfileModule,
     LocalAgentModule,
+    AgenticHeartbeatModule,
   ],
   controllers: [AppController],
 })

@@ -10,5 +10,6 @@ import { AcpBridgeService } from './acp-bridge.service';
   imports: [NestAuthModule, AgenticProfileModule],
   controllers: [LocalAgentController],
   providers: [LocalAgentChatService, FilesystemToolsService, AcpBridgeService],
+  exports: [LocalAgentChatService, AcpBridgeService],
 })
 export class LocalAgentModule {}

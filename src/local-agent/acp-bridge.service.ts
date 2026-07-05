@@ -211,7 +211,20 @@ export class AcpBridgeService implements OnModuleDestroy {
 
         await session.connection
           .prompt({ sessionId: session.acpSessionId, prompt })
-          .then((result: any) => queue.push({ type: 'finish', usage: { stopReason: result.stopReason } }))
+          .then((result: any) => {
+            queue.push({
+              type: 'finish',
+              usage: {
+                stopReason: result.stopReason,
+                inputTokens: result.usage?.inputTokens,
+                outputTokens: result.usage?.outputTokens,
+                totalTokens: result.usage?.totalTokens,
+                thoughtTokens: result.usage?.thoughtTokens,
+                cachedReadTokens: result.usage?.cachedReadTokens,
+                cachedWriteTokens: result.usage?.cachedWriteTokens,
+              },
+            });
+          })
           .catch((error: any) => queue.push({ type: 'error', error: String(error?.message ?? error) }))
           .finally(() => {
             session.queue = null;

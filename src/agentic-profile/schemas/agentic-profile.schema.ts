@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
-import { IAgentCardRef, IAgenticProfile, IAgenticProfileSource, IAgenticProfileSkill, IAgenticProfileTaskRef, IAgenticProfileMemory, IAgenticProfileExploration } from '../models/agentic-profile.models';
+import { IAgentCardRef, IAgenticProfile, IAgenticProfileSource, IAgenticProfileSkill, IAgenticProfileTaskRef, IAgenticProfileMemory, IAgenticProfileExploration, IAgenticHeartbeat } from '../models/agentic-profile.models';
 
 export type AgenticProfileDocument = AgenticProfileEntity & Document;
 
@@ -46,6 +46,9 @@ export class AgenticProfileEntity implements IAgenticProfile {
 
   @Prop({ required: false })
   liveBriefing?: string;
+
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  heartbeat?: IAgenticHeartbeat;
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false, default: {} })
   metadata?: Record<string, any>;
