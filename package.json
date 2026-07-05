@@ -99,7 +99,7 @@
     "@swc/core": "^1.15.43",
     "@types/jest": "^29.5.14",
     "@types/node": "^24.13.2",
-    "@types/supertest": "^6.0.3",
+    "@types/supertest": "^7.2.0",
     "@typescript-eslint/eslint-plugin": "^8.62.1",
     "@typescript-eslint/parser": "^8.62.1",
     "eslint": "^9.39.4",
