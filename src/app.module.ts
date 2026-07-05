@@ -41,6 +41,7 @@ import { UniversalModule } from './universal/universal.module';
 import { AgenticProfileModule } from './agentic-profile/agentic-profile.module';
 import { LocalAgentModule } from './local-agent/local-agent.module';
 import { AgenticHeartbeatModule } from './agentic-heartbeat/agentic-heartbeat.module';
+import { MessagingModule } from './messaging/messaging.module';
 import { ScheduleModule } from '@nestjs/schedule';
 
 
@@ -94,6 +95,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     AgenticProfileModule,
     LocalAgentModule,
     AgenticHeartbeatModule,
+    MessagingModule,
   ],
   controllers: [AppController],
 })

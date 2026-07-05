@@ -19,5 +19,6 @@ import { BlogEntryModule } from '../blog-entry/blog-entry.module';
   ],
   controllers: [ChatController],
   providers: [ChatService],
+  exports: [ChatService],
 })
 export class ChatModule {}
