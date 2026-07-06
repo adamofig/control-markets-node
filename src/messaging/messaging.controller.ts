@@ -55,6 +55,18 @@ export class MessagingController {
     return this.outboundService.unsubscribeWebPush(token.uid, orgId, body.token);
   }
 
+  @Post('webpush/broadcast')
+  @ApiOperation({ summary: 'Broadcast web push: scope "org" (dispositivos de la org actual) o "global" (toda la plataforma)' })
+  @UseGuards(ProjectAuthGuard)
+  async broadcastWebPush(
+    @Body() body: { message: string; scope?: 'org' | 'global' },
+    @OrgId() orgId: string,
+    @DecodedToken() token: AppToken,
+  ): Promise<{ delivered: number; failed: number; cleaned: number; totalDevices: number }> {
+    const scope = body.scope ?? 'org';
+    return this.outboundService.broadcastWebPush(body.message, { scope, orgId, source: 'manual', sourceRef: `broadcast-by:${token.uid}` });
+  }
+
   @Post('notify')
   @ApiOperation({ summary: 'Envía una notificación de prueba/manual a un usuario por su canal vinculado' })
   @UseGuards(ProjectAuthGuard)

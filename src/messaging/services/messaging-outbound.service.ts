@@ -4,7 +4,7 @@ import { Model, Types } from 'mongoose';
 import { randomBytes } from 'crypto';
 import { ChannelIdentityEntity } from '../schemas/channel-identity.schema';
 import { OutboundMessageEntity } from '../schemas/outbound-message.schema';
-import { ChannelType, INotifyOptions, INotifyResult } from '../models/messaging.models';
+import { ChannelType, INotifyOptions, INotifyResult, OutboundSource } from '../models/messaging.models';
 import { ChannelGatewayService } from './channel-gateway.service';
 import { TelegramAdapter } from '../adapters/telegram.adapter';
 import { FCM_TOKEN_DEAD_CODE } from '../adapters/webpush.adapter';
@@ -121,6 +121,63 @@ export class MessagingOutboundService {
       return { delivered: false, channel: ChannelType.WebPush, error: lastError ?? 'El usuario no tiene suscripciones web push activas.' };
     }
     return { delivered: true, channel: ChannelType.WebPush, address: `${delivered} dispositivo(s)` };
+  }
+
+  /**
+   * Broadcast Web Push: envía a TODOS los dispositivos suscritos.
+   * - scope 'org'    → solo dispositivos registrados bajo la org indicada (multi-tenant).
+   * - scope 'global' → todos los dispositivos de la plataforma, sin importar la org
+   *   (anuncios de Control Markets). Solo llega a quien activó notificaciones:
+   *   web push es opt-in por dispositivo, no existe envío sin suscripción previa.
+   * Limpia tokens muertos igual que el fan-out por usuario.
+   */
+  async broadcastWebPush(
+    text: string,
+    opts: { scope: 'org' | 'global'; orgId?: string; source?: OutboundSource; sourceRef?: string },
+  ): Promise<{ delivered: number; failed: number; cleaned: number; totalDevices: number }> {
+    const query: Record<string, unknown> = { channel: ChannelType.WebPush, status: 'verified' };
+    if (opts.scope === 'org') {
+      if (!opts.orgId) throw new Error('orgId requerido para broadcast de organización');
+      query.orgId = opts.orgId;
+    }
+    const identities = await this.identityModel.find(query).lean();
+    const adapter = this.gateway.getAdapter(ChannelType.WebPush);
+    if (!adapter) throw new Error('El canal webpush no está habilitado en el servidor.');
+
+    let delivered = 0;
+    let failed = 0;
+    let cleaned = 0;
+
+    for (const identity of identities) {
+      if (!identity.address) continue;
+      const result = await adapter.sendText(identity.address, text);
+      await this.outboundModel.create({
+        orgId: identity.orgId,
+        userId: identity.userId,
+        channel: ChannelType.WebPush,
+        address: identity.address,
+        text,
+        status: result.success ? 'sent' : 'failed',
+        providerMessageId: result.providerMessageId,
+        error: result.error,
+        sentAt: result.success ? new Date() : undefined,
+        source: opts.source ?? 'manual',
+        sourceRef: opts.sourceRef ?? `broadcast:${opts.scope}`,
+      });
+
+      if (result.success) {
+        delivered++;
+      } else {
+        failed++;
+        if (result.error === FCM_TOKEN_DEAD_CODE) {
+          await this.identityModel.deleteOne({ _id: identity._id });
+          cleaned++;
+        }
+      }
+    }
+
+    this.logger.log(`Broadcast webpush (${opts.scope}): ${delivered} entregados, ${failed} fallidos, ${cleaned} tokens muertos limpiados.`);
+    return { delivered, failed, cleaned, totalDevices: identities.length };
   }
 
   /**
