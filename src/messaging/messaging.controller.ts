@@ -33,6 +33,28 @@ export class MessagingController {
     return this.outboundService.unlinkIdentity(id, token.uid, orgId);
   }
 
+  @Post('webpush/subscribe')
+  @ApiOperation({ summary: 'Registra la suscripción web push (token FCM) del dispositivo actual — idempotente por token' })
+  @UseGuards(ProjectAuthGuard)
+  async subscribeWebPush(
+    @Body() body: { token: string; platform?: string; userAgent?: string; standalone?: boolean },
+    @OrgId() orgId: string,
+    @DecodedToken() token: AppToken,
+  ): Promise<{ subscribed: boolean }> {
+    return this.outboundService.subscribeWebPush(token.uid, orgId, body);
+  }
+
+  @Post('webpush/unsubscribe')
+  @ApiOperation({ summary: 'Elimina la suscripción web push del dispositivo actual (por token FCM)' })
+  @UseGuards(ProjectAuthGuard)
+  async unsubscribeWebPush(
+    @Body() body: { token: string },
+    @OrgId() orgId: string,
+    @DecodedToken() token: AppToken,
+  ): Promise<{ deleted: boolean }> {
+    return this.outboundService.unsubscribeWebPush(token.uid, orgId, body.token);
+  }
+
   @Post('notify')
   @ApiOperation({ summary: 'Envía una notificación de prueba/manual a un usuario por su canal vinculado' })
   @UseGuards(ProjectAuthGuard)

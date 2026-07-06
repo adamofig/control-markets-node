@@ -5,6 +5,7 @@ import { ChatModule } from '../chat/chat.module';
 import { UserModule } from '../user/user.module';
 import { MessagingController } from './messaging.controller';
 import { TelegramAdapter } from './adapters/telegram.adapter';
+import { WebPushAdapter } from './adapters/webpush.adapter';
 import { ChannelGatewayService } from './services/channel-gateway.service';
 import { MessagingOutboundService } from './services/messaging-outbound.service';
 import { ChannelIdentityEntity, ChannelIdentitySchema } from './schemas/channel-identity.schema';
@@ -27,7 +28,7 @@ import { OutboundMessageEntity, OutboundMessageSchema } from './schemas/outbound
     ChatModule,
   ],
   controllers: [MessagingController],
-  providers: [TelegramAdapter, ChannelGatewayService, MessagingOutboundService],
+  providers: [TelegramAdapter, WebPushAdapter, ChannelGatewayService, MessagingOutboundService],
   exports: [MessagingOutboundService],
 })
 export class MessagingModule {}

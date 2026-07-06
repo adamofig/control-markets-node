@@ -2,6 +2,7 @@ export enum ChannelType {
   Telegram = 'telegram',
   WhatsApp = 'whatsapp',
   Discord = 'discord',
+  WebPush = 'webpush',
 }
 
 export type IdentityStatus = 'pending' | 'verified' | 'revoked';

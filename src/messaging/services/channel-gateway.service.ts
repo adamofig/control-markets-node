@@ -8,6 +8,7 @@ import { ChannelIdentityEntity } from '../schemas/channel-identity.schema';
 import { ChannelType, IInboundMessage } from '../models/messaging.models';
 import { IChannelAdapter } from '../adapters/channel-adapter.interface';
 import { TelegramAdapter } from '../adapters/telegram.adapter';
+import { WebPushAdapter } from '../adapters/webpush.adapter';
 
 /** Silencio requerido antes de despachar mensajes agrupados de un mismo chat (patrón Hermes). */
 const INBOUND_BUFFER_MS = 5000;
@@ -31,12 +32,14 @@ export class ChannelGatewayService implements OnModuleInit {
   constructor(
     @InjectModel(ChannelIdentityEntity.name) private identityModel: Model<ChannelIdentityEntity>,
     private readonly telegramAdapter: TelegramAdapter,
+    private readonly webPushAdapter: WebPushAdapter,
     private readonly chatService: ChatService,
     private readonly userService: AppUserService,
   ) {}
 
   onModuleInit(): void {
     this.registerAdapter(this.telegramAdapter);
+    this.registerAdapter(this.webPushAdapter);
   }
 
   registerAdapter(adapter: IChannelAdapter): void {
