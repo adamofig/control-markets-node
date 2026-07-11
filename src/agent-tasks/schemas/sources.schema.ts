@@ -1,13 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
-import { CloudStorageData, IAgentSource, IImageSource, IVideoSource, SourceType } from '../models/classes';
+import { CloudStorageData, ISource, IImageSource, IVideoSource, SourceType } from '../models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema } from '@dataclouder/nest-core';
 
-export type AgentSourceDocument = AgentSourceEntity & Document;
+export type SourceDocument = SourceEntity & Document;
 
-@Schema({ collection: 'agent_sources', timestamps: true })
-export class AgentSourceEntity implements IAgentSource {
+@Schema({ collection: 'sources', timestamps: true })
+export class SourceEntity implements ISource {
   @Prop({ required: false })
   orgId?: string;
 
@@ -63,8 +63,8 @@ export class AgentSourceEntity implements IAgentSource {
   relationId: string;
 }
 
-export const AgentSourceSchema = SchemaFactory.createForClass(AgentSourceEntity);
+export const SourceSchema = SchemaFactory.createForClass(SourceEntity);
 
-addIdAfterSave(AgentSourceSchema);
+addIdAfterSave(SourceSchema);
 
-AgentSourceSchema.index({ name: 'text', description: 'text' });
+SourceSchema.index({ name: 'text', description: 'text' });

@@ -13,7 +13,7 @@ import { buildInitialConversation, ChatRole, AgentCardService, IAgentCard, ChatM
 import { AgentTaskEntity, AgentTaskDocument } from '../schemas/agent-task.schema';
 import { AgentTaskType, AssignedType, IAgentTask, IAgentOutcomeJob, ISourceTask, ISubtask, MessageAI, OutputTaks, SubtaskStatus, TaskStatus } from '../models/classes';
 import { AgentOutcomeJobService } from './agent-job.service';
-import { AgentSourcesService } from './agent-sources.service';
+import { SourcesService } from './sources.service';
 import { ChatLLMRequestAdapter, AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
 import { taskPrompt } from '../prompts/task-prompts';
 import { AppException } from '@dataclouder/nest-core';
@@ -29,7 +29,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     // private notionWritesService: NotionWritesService,
     // private notionService: NotionService,
     private agentJobService: AgentOutcomeJobService,
-    private agentSourcesService: AgentSourcesService,
+    private sourcesService: SourcesService,
     private aiServicesClient: AiServicesSdkClient
   ) {
     super(agentTaskModel, mongoService);
@@ -160,7 +160,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     let infoFromSources = null;
 
     if (task?.agentTask?.sources?.length > 0) {
-      const sources = await this.agentSourcesService.findManyByIds(task.agentTask.sources.map(source => source.id));
+      const sources = await this.sourcesService.findManyByIds(task.agentTask.sources.map(source => source.id));
       for (const source of sources) {
         infoFromSources += `\n\n<Text from ${source.name}>\n\n`;
         infoFromSources += source.content;

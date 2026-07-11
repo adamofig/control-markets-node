@@ -4,7 +4,7 @@ import mongoose, { Model } from 'mongoose';
 import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mongo';
 import { AgenticProfileDocument, AgenticProfileEntity } from '../schemas/agentic-profile.schema';
 import { AgentCardService } from '@dataclouder/nest-agent-cards';
-import { AgentSourcesService } from '../../agent-tasks/services/agent-sources.service';
+import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
 
@@ -15,7 +15,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     agenticProfileModel: Model<AgenticProfileDocument>,
     mongoService: MongoService,
     private readonly agentCardService: AgentCardService,
-    private readonly agentSourcesService: AgentSourcesService,
+    private readonly sourcesService: SourcesService,
     private readonly agentTasksService: AgentTasksService,
   ) {
     super(agenticProfileModel, mongoService);
@@ -124,7 +124,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       for (const link of sec3.links) {
         // Query agent_sources by sourceUrl and orgId
         const query = { sourceUrl: link.url, orgId };
-        let sourceEntity = await this.agentSourcesService.executeOperation({
+        let sourceEntity = await this.sourcesService.executeOperation({
           action: 'findOne',
           query,
         });
@@ -141,18 +141,18 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         };
 
         if (sourceEntity) {
-          await this.agentSourcesService.executeOperation({
+          await this.sourcesService.executeOperation({
             action: 'updateOne',
             query: { id: sourceEntity.id },
             payload: { $set: sourceData },
           });
-          sourceEntity = await this.agentSourcesService.executeOperation({
+          sourceEntity = await this.sourcesService.executeOperation({
             action: 'findOne',
             query: { id: sourceEntity.id },
           });
         } else {
           sourceData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          sourceEntity = await this.agentSourcesService.executeOperation({
+          sourceEntity = await this.sourcesService.executeOperation({
             action: 'create',
             payload: sourceData,
           });
@@ -175,7 +175,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     if (sec4 && sec4.links) {
       for (const link of sec4.links) {
         const query = { sourceUrl: link.url, orgId };
-        let skillEntity = await this.agentSourcesService.executeOperation({
+        let skillEntity = await this.sourcesService.executeOperation({
           action: 'findOne',
           query,
         });
@@ -193,18 +193,18 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         };
 
         if (skillEntity) {
-          await this.agentSourcesService.executeOperation({
+          await this.sourcesService.executeOperation({
             action: 'updateOne',
             query: { id: skillEntity.id },
             payload: { $set: skillData },
           });
-          skillEntity = await this.agentSourcesService.executeOperation({
+          skillEntity = await this.sourcesService.executeOperation({
             action: 'findOne',
             query: { id: skillEntity.id },
           });
         } else {
           skillData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          skillEntity = await this.agentSourcesService.executeOperation({
+          skillEntity = await this.sourcesService.executeOperation({
             action: 'create',
             payload: skillData,
           });
@@ -230,7 +230,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           skillWriteBacks.push({
             url: link.url,
             label: link.label,
-            skillId: skill.id,
+            sourceId: skill.id,
             orgId,
           });
         }
@@ -243,7 +243,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     if (sec5 && sec5.links) {
       for (const link of sec5.links) {
         const query = { sourceUrl: link.url, orgId };
-        let explorationEntity = await this.agentSourcesService.executeOperation({
+        let explorationEntity = await this.sourcesService.executeOperation({
           action: 'findOne',
           query,
         });
@@ -261,18 +261,18 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         };
 
         if (explorationEntity) {
-          await this.agentSourcesService.executeOperation({
+          await this.sourcesService.executeOperation({
             action: 'updateOne',
             query: { id: explorationEntity.id },
             payload: { $set: explorationData },
           });
-          explorationEntity = await this.agentSourcesService.executeOperation({
+          explorationEntity = await this.sourcesService.executeOperation({
             action: 'findOne',
             query: { id: explorationEntity.id },
           });
         } else {
           explorationData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          explorationEntity = await this.agentSourcesService.executeOperation({
+          explorationEntity = await this.sourcesService.executeOperation({
             action: 'create',
             payload: explorationData,
           });
@@ -298,7 +298,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           explorationWriteBacks.push({
             url: link.url,
             label: link.label,
-            explorationId: exploration.id,
+            sourceId: exploration.id,
             orgId,
           });
         }
@@ -392,7 +392,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     if (sec7 && sec7.links) {
       for (const link of sec7.links) {
         const query = { sourceUrl: link.url, orgId };
-        let memoryEntity = await this.agentSourcesService.executeOperation({
+        let memoryEntity = await this.sourcesService.executeOperation({
           action: 'findOne',
           query,
         });
@@ -410,18 +410,18 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         };
 
         if (memoryEntity) {
-          await this.agentSourcesService.executeOperation({
+          await this.sourcesService.executeOperation({
             action: 'updateOne',
             query: { id: memoryEntity.id },
             payload: { $set: memoryData },
           });
-          memoryEntity = await this.agentSourcesService.executeOperation({
+          memoryEntity = await this.sourcesService.executeOperation({
             action: 'findOne',
             query: { id: memoryEntity.id },
           });
         } else {
           memoryData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          memoryEntity = await this.agentSourcesService.executeOperation({
+          memoryEntity = await this.sourcesService.executeOperation({
             action: 'create',
             payload: memoryData,
           });
@@ -447,7 +447,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           memoryWriteBacks.push({
             url: link.url,
             label: link.label,
-            memoryId: memory.id,
+            sourceId: memory.id,
             orgId,
           });
         }
@@ -506,10 +506,10 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     // Query Source, Skill, Task, Memory, and Exploration entities
     const [sources, skills, tasks, memories, explorations] = await Promise.all([
       sourceIds.length > 0
-        ? this.agentSourcesService.findManyByIds(sourceIds)
+        ? this.sourcesService.findManyByIds(sourceIds)
         : Promise.resolve([]),
       skillIds.length > 0
-        ? this.agentSourcesService.findManyByIds(skillIds)
+        ? this.sourcesService.findManyByIds(skillIds)
         : Promise.resolve([]),
       taskIds.length > 0
         ? this.agentTasksService.executeOperation({
@@ -518,10 +518,10 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           })
         : Promise.resolve([]),
       memoryIds.length > 0
-        ? this.agentSourcesService.findManyByIds(memoryIds)
+        ? this.sourcesService.findManyByIds(memoryIds)
         : Promise.resolve([]),
       explorationIds.length > 0
-        ? this.agentSourcesService.findManyByIds(explorationIds)
+        ? this.sourcesService.findManyByIds(explorationIds)
         : Promise.resolve([])
     ]);
 

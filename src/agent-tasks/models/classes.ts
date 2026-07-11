@@ -130,7 +130,7 @@ export enum SourceType {
   TIKTOK = 'tiktok',
 }
 
-export interface IAgentSource {
+export interface ISource {
   id: string;
   orgId?: string;
   auditable?: IAuditable;
@@ -150,7 +150,7 @@ export interface IAgentSource {
   tag: string; // What ever tag you want to add usally rule, or context.
 }
 
-export interface IMinimalAgentSource {
+export interface IMinimalSource {
   id: ObjectId;
   name: string;
   description: string;

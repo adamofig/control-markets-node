@@ -3,7 +3,7 @@ import { AppModule } from '../src/app.module';
 import { getModelToken } from '@nestjs/mongoose';
 import mongoose, { Model } from 'mongoose';
 import { AgenticProfileDocument, AgenticProfileEntity } from '../src/agentic-profile/schemas/agentic-profile.schema';
-import { AgentSourceDocument, AgentSourceEntity } from '../src/agent-tasks/schemas/agent-sources.schema';
+import { SourceDocument, SourceEntity } from '../src/agent-tasks/schemas/sources.schema';
 import { AgentTaskDocument, AgentTaskEntity } from '../src/agent-tasks/schemas/agent-task.schema';
 
 async function main() {
@@ -12,7 +12,7 @@ async function main() {
 
   try {
     const profileModel: Model<AgenticProfileDocument> = app.get(getModelToken(AgenticProfileEntity.name));
-    const sourceModel: Model<AgentSourceDocument> = app.get(getModelToken(AgentSourceEntity.name));
+    const sourceModel: Model<SourceDocument> = app.get(getModelToken(SourceEntity.name));
     const taskModel: Model<AgentTaskDocument> = app.get(getModelToken(AgentTaskEntity.name));
 
     console.log('Fetching all agentic profiles...');

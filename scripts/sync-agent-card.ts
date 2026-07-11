@@ -360,7 +360,7 @@ async function main() {
           const localPath = urlToPath(skill.url, baseDir);
           if (localPath && fs.existsSync(localPath)) {
             updateFileFrontmatter(localPath, {
-              skillId: skill.skillId,
+              sourceId: skill.sourceId,
               orgId: skill.orgId
             });
           }
@@ -373,7 +373,7 @@ async function main() {
           const localPath = urlToPath(memory.url, baseDir);
           if (localPath && fs.existsSync(localPath)) {
             updateFileFrontmatter(localPath, {
-              memoryId: memory.memoryId,
+              sourceId: memory.sourceId,
               orgId: memory.orgId
             });
           }
@@ -386,7 +386,7 @@ async function main() {
           const localPath = urlToPath(exploration.url, baseDir);
           if (localPath && fs.existsSync(localPath)) {
             updateFileFrontmatter(localPath, {
-              explorationId: exploration.explorationId,
+              sourceId: exploration.sourceId,
               orgId: exploration.orgId
             });
           }

@@ -10,9 +10,9 @@ import { AgentCardsModule } from '@dataclouder/nest-agent-cards';
 import { AgentJobsController } from './controllers/agent-jobs.controller';
 import { AgentOutcomeJobService } from './services/agent-job.service';
 import { AgentJobEntity, AgentJobSchema } from './schemas/agent-job.schema';
-import { AgentSourceEntity, AgentSourceSchema } from './schemas/agent-sources.schema';
-import { AgentSourcesService } from './services/agent-sources.service';
-import { AgentSourcesController } from './controllers/agent-sources.controller';
+import { SourceEntity, SourceSchema } from './schemas/sources.schema';
+import { SourcesService } from './services/sources.service';
+import { SourcesController } from './controllers/sources.controller';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { NestStorageModule } from '@dataclouder/nest-storage';
 import { AgentDistributionChannelsController } from './controllers/agent-distribution-channels.controller';
@@ -24,7 +24,7 @@ import { NestAuthModule } from '@dataclouder/nest-auth';
   imports: [
     MongooseModule.forFeature([{ name: AgentTaskEntity.name, schema: AgentTaskSchema }]),
     MongooseModule.forFeature([{ name: AgentJobEntity.name, schema: AgentJobSchema }]),
-    MongooseModule.forFeature([{ name: AgentSourceEntity.name, schema: AgentSourceSchema }]),
+    MongooseModule.forFeature([{ name: SourceEntity.name, schema: SourceSchema }]),
     DCMongoDBModule,
     HttpModule,
     AgentCardsModule,
@@ -33,8 +33,8 @@ import { NestAuthModule } from '@dataclouder/nest-auth';
     NestAiServicesSdkModule,
     NestAuthModule,
   ],
-  controllers: [AgentTasksController, AgentJobsController, AgentSourcesController, AgentDistributionChannelsController],
-  providers: [AgentTasksService, AgentOutcomeJobService, AgentSourcesService, AgentDistributionChannelService],
-  exports: [AgentTasksService, AgentOutcomeJobService, AgentSourcesService],
+  controllers: [AgentTasksController, AgentJobsController, SourcesController, AgentDistributionChannelsController],
+  providers: [AgentTasksService, AgentOutcomeJobService, SourcesService, AgentDistributionChannelService],
+  exports: [AgentTasksService, AgentOutcomeJobService, SourcesService],
 })
 export class AgentsModule {}

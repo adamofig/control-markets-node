@@ -1,5 +1,5 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IVideoSource, IImageSource, IAudioSource, IAgentSource, ILlmTask, CloudStorageData } from 'src/agent-tasks/models/classes';
+import { IVideoSource, IImageSource, IAudioSource, ISource, ILlmTask, CloudStorageData } from 'src/agent-tasks/models/classes';
 import mongoose from 'mongoose';
 import { IAgentCard } from '@dataclouder/nest-agent-cards';
 
@@ -71,7 +71,7 @@ export interface IVideoProjectGenerator {
   task?: Partial<ILlmTask>;
   assets: IAssets;
   type?: string;
-  sources?: Partial<IAgentSource>[];
+  sources?: Partial<ISource>[];
   compositionPlan?: { overlays: IOverlayPlan[] };
   dialogs?: IDialog[];
 }

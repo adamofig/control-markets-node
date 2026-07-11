@@ -1,33 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { AgentSourceEntity, AgentSourceDocument } from '../schemas/agent-sources.schema';
-import { IAgentSource } from '../models/classes';
+import { SourceEntity, SourceDocument } from '../schemas/sources.schema';
+import { ISource } from '../models/classes';
 
 import { YouTubeService } from '../../youtube/functions';
 import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mongo';
 import { CloudStorageService } from '@dataclouder/nest-storage';
 
 @Injectable()
-export class AgentSourcesService extends EntityCommunicationService<AgentSourceDocument> {
+export class SourcesService extends EntityCommunicationService<SourceDocument> {
   constructor(
-    @InjectModel(AgentSourceEntity.name)
-    sourceAgentModel: Model<AgentSourceDocument>,
+    @InjectModel(SourceEntity.name)
+    sourceModel: Model<SourceDocument>,
     mongoService: MongoService,
     private cloudStorageService: CloudStorageService
   ) {
-    super(sourceAgentModel, mongoService);
+    super(sourceModel, mongoService);
   }
 
-  async findOne(id: string, projection: any = {}): Promise<AgentSourceDocument> {
-    return this.genericModel.findOne({ id }, projection).lean().exec() as unknown as Promise<AgentSourceDocument>;
+  async findOne(id: string, projection: any = {}): Promise<SourceDocument> {
+    return this.genericModel.findOne({ id }, projection).lean().exec() as unknown as Promise<SourceDocument>;
   }
 
-  async findManyByIds(ids: string[]): Promise<AgentSourceDocument[]> {
+  async findManyByIds(ids: string[]): Promise<SourceDocument[]> {
     return this.genericModel.find({ id: { $in: ids } }).exec();
   }
 
-  async save(source: IAgentSource): Promise<AgentSourceDocument> {
+  async save(source: ISource): Promise<SourceDocument> {
     if (source.id) {
       return this.update(source.id, source);
     } else {
@@ -36,15 +36,15 @@ export class AgentSourcesService extends EntityCommunicationService<AgentSourceD
     }
   }
 
-  async update(id: string, source: IAgentSource): Promise<AgentSourceDocument> {
+  async update(id: string, source: ISource): Promise<SourceDocument> {
     return this.genericModel.findOneAndUpdate({ id }, source, { new: true }).exec();
   }
 
-  async partialUpdate(id: string, partialUpdates: Partial<AgentSourceDocument>): Promise<AgentSourceDocument> {
+  async partialUpdate(id: string, partialUpdates: Partial<SourceDocument>): Promise<SourceDocument> {
     return await this.genericModel.findByIdAndUpdate(id, { $set: partialUpdates }, { new: true }).exec();
   }
 
-  async partialUpdateFlattened(id: string, partialUpdates: Partial<AgentSourceDocument>): Promise<AgentSourceDocument> {
+  async partialUpdateFlattened(id: string, partialUpdates: Partial<SourceDocument>): Promise<SourceDocument> {
     // Convert nested objects to dot notation eg. { "video.captions.remotion": captions.captions }
     const flattenedUpdates = this.flattenObject(partialUpdates);
     return await this.genericModel.findByIdAndUpdate(id, { $set: flattenedUpdates }, { new: true }).exec();
@@ -65,7 +65,7 @@ export class AgentSourcesService extends EntityCommunicationService<AgentSourceD
     return flattened;
   }
 
-  async delete(id: string): Promise<AgentSourceDocument> {
+  async delete(id: string): Promise<SourceDocument> {
     console.log('Deleting source', id);
     const source = await this.genericModel.findOne({ id }).lean().exec();
     console.log('Source', source);

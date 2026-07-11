@@ -5,7 +5,7 @@ import { VideoGeneratorEntity, VideoGeneratorDocument } from '../schemas/video-p
 import { CreateVideoGeneratorDto, IVideoProjectGenerator, UpdateVideoGeneratorDto } from '../models/video-project.models';
 import { FiltersConfig, flattenObject, IQueryResponse, MongoService } from '@dataclouder/nest-mongo';
 import { ObjectId } from 'mongodb';
-import { AgentSourcesService } from '../../agent-tasks/services/agent-sources.service';
+import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { EntityCommunicationService } from '@dataclouder/nest-mongo';
 import { CloudStorageService } from '@dataclouder/nest-storage';
@@ -16,7 +16,7 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
     @InjectModel(VideoGeneratorEntity.name)
     protected videoGeneratorModel: Model<VideoGeneratorDocument>,
     protected mongoService: MongoService,
-    private agentSourceService: AgentSourcesService,
+    private sourceService: SourcesService,
     private agentCardService: AgentCardService,
     protected cloudStorageService: CloudStorageService
   ) {
@@ -63,7 +63,7 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
   //     .findById(id)
   //     .populate({
   //       path: 'sources.reference',
-  //       model: 'AgentSourceEntity',
+  //       model: 'SourceEntity',
   //       select: 'name description content type video thumbnail',
   //     })
   //     .exec();
@@ -108,7 +108,7 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
 
   async addSourceToVideoProject(videoProjectId: string, sourceId: string, orgId?: string) {
     // According to hibrid relation strategy, save basic info including id, so i can remove it later
-    const videoProject = await this.agentSourceService.findOne(sourceId, { _id: 0, id: 1, name: 1, description: 1, thumbnail: 1 });
+    const videoProject = await this.sourceService.findOne(sourceId, { _id: 0, id: 1, name: 1, description: 1, thumbnail: 1 });
     if (!videoProject) {
       throw new AppException({ error_message: 'Source not found', statusCode: 404 });
     }

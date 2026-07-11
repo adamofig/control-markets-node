@@ -1,7 +1,6 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, Query, Patch } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags, ApiProperty } from '@nestjs/swagger';
 import { AgentDistributionChannelService } from '../services/agent-distribution-channel.service';
-import { IAgentSource } from '../models/classes';
 import { AppException } from '@dataclouder/nest-core';
 
 export class IPostToDistributionChannel {

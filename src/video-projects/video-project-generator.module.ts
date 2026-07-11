@@ -4,7 +4,7 @@ import { VideoGeneratorController } from './controllers/video-projects-generator
 import { VideoGeneratorService } from './services/video-project-generator.service';
 import { VideoGeneratorEntity, VideoGeneratorSchema } from './schemas/video-project.entity';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
-import { AgentSourceEntity, AgentSourceSchema } from 'src/agent-tasks/schemas/agent-sources.schema';
+import { SourceEntity, SourceSchema } from 'src/agent-tasks/schemas/sources.schema';
 import { AgentsModule } from 'src/agent-tasks/agent-tasks.module';
 import { AgentCardsModule } from '@dataclouder/nest-agent-cards';
 import { NestStorageModule } from '@dataclouder/nest-storage';
@@ -14,7 +14,7 @@ import { NestAuthModule } from '@dataclouder/nest-auth';
   imports: [
     MongooseModule.forFeature([
       { name: VideoGeneratorEntity.name, schema: VideoGeneratorSchema },
-      { name: AgentSourceEntity.name, schema: AgentSourceSchema },
+      { name: SourceEntity.name, schema: SourceSchema },
     ]),
     DCMongoDBModule,
     AgentsModule,

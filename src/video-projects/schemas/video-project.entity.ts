@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { IAssets, IDialog, IOverlayPlan, IScene, IVideoBrief, IVideoProjectGenerator } from '../models/video-project.models';
 import * as mongoose from 'mongoose';
-import { IAgentSource, IMinimalAgentSource } from 'src/agent-tasks/models/classes';
+import { ISource, IMinimalSource } from 'src/agent-tasks/models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { IAgentCard } from '@dataclouder/nest-agent-cards';
 
@@ -12,7 +12,7 @@ export type VideoGeneratorDocument = VideoGeneratorEntity & Document;
 const SourceReferenceSchema = new mongoose.Schema(
   {
     id: String,
-    reference: { type: mongoose.Schema.Types.ObjectId, ref: 'AgentSourceEntity' },
+    reference: { type: mongoose.Schema.Types.ObjectId, ref: 'SourceEntity' },
     name: String,
     description: String,
     thumbnail: Object,
@@ -59,7 +59,7 @@ export class VideoGeneratorEntity implements IVideoProjectGenerator {
   compositionPlan: { overlays: IOverlayPlan[] };
 
   @Prop({ type: [SourceReferenceSchema], required: false })
-  sources: Partial<IAgentSource>[];
+  sources: Partial<ISource>[];
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   dialogs: IDialog[];

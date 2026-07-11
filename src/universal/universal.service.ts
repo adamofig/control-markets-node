@@ -5,7 +5,7 @@ import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { StorageAssetService } from '@dataclouder/nest-storage';
 import { AgentTasksService } from 'src/agent-tasks/services/agent-tasks.service';
 import { AgentOutcomeJobService } from 'src/agent-tasks/services/agent-job.service';
-import { AgentSourcesService } from 'src/agent-tasks/services/agent-sources.service';
+import { SourcesService } from 'src/agent-tasks/services/sources.service';
 import { BlogEntryService } from 'src/blog-entry/services/blog-entry.service';
 import { CreativeFlowboardService } from 'src/creative-flowboard/services/creative-flowboard.service';
 import { InspirationSourceService } from 'src/inspiration-source/services/inspiration-source.service';
@@ -26,7 +26,7 @@ export class UniversalService {
     organizationService: OrganizationService,
     agentTasksService: AgentTasksService,
     agentJobsService: AgentOutcomeJobService,
-    agentSourcesService: AgentSourcesService,
+    sourcesService: SourcesService,
     agentCardService: AgentCardService,
     socialMediaTrackerService: SocialMediaTrackerService,
     creativeFlowboardService: CreativeFlowboardService,
@@ -41,7 +41,7 @@ export class UniversalService {
     this.registry.set('organization', organizationService);
     this.registry.set('agent-tasks', agentTasksService);
     this.registry.set('agent-jobs', agentJobsService);
-    this.registry.set('agent-sources', agentSourcesService);
+    this.registry.set('sources', sourcesService);
     this.registry.set('agent-cards', agentCardService);
     this.registry.set('social-media-tracker', socialMediaTrackerService);
     this.registry.set('creative-flowboard', creativeFlowboardService);
