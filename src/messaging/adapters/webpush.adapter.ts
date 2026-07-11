@@ -34,7 +34,7 @@ export class WebPushAdapter implements IChannelAdapter {
         notification: { title, body: text },
         data: { url },
         webpush: {
-          notification: { icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' },
+          notification: { icon: '/icons/icon-192.png', badge: '/icons/badge-monochrome.png' },
           fcmOptions: { link: url },
         },
       });

@@ -188,9 +188,32 @@ export class MessagingOutboundService {
   async subscribeWebPush(
     userId: string,
     orgId: string,
-    dto: { token: string; platform?: string; userAgent?: string; standalone?: boolean },
+    dto: {
+      token: string;
+      platform?: string;
+      deviceId?: string;
+      metadata?: Record<string, any>;
+      // Retrocompatibilidad
+      userAgent?: string;
+      standalone?: boolean;
+    },
   ): Promise<{ subscribed: boolean }> {
     if (!dto?.token) throw new Error('token requerido');
+
+    // Mapeo retrocompatible
+    const platform = dto.platform ?? dto.metadata?.platform ?? 'web';
+    const deviceId = dto.deviceId;
+
+    const metadata = dto.metadata ?? {
+      platform,
+      userAgent: dto.userAgent,
+      standalone: dto.standalone,
+    };
+
+    if (dto.userAgent && !metadata.userAgent) {
+      metadata.userAgent = dto.userAgent;
+    }
+
     // El hook post-save `addIdAfterSave` no corre en upsert; seteamos `id` explícitamente (ver §7-bis REBECA.md).
     const newId = new Types.ObjectId();
     await this.identityModel.findOneAndUpdate(
@@ -203,7 +226,8 @@ export class MessagingOutboundService {
           address: dto.token,
           status: 'verified',
           verifiedAt: new Date(),
-          metadata: { platform: dto.platform ?? 'web', userAgent: dto.userAgent, standalone: dto.standalone },
+          deviceId,
+          metadata,
         },
         $setOnInsert: { _id: newId, id: newId.toString() },
       },

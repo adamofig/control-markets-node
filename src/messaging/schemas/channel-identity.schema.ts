@@ -48,6 +48,9 @@ export class ChannelIdentityEntity {
   @Prop({ required: false })
   agenticProfileId?: string;
 
+  @Prop({ required: false })
+  deviceId?: string;
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   metadata?: Record<string, unknown>;
 }

@@ -37,7 +37,15 @@ export class MessagingController {
   @ApiOperation({ summary: 'Registra la suscripción web push (token FCM) del dispositivo actual — idempotente por token' })
   @UseGuards(ProjectAuthGuard)
   async subscribeWebPush(
-    @Body() body: { token: string; platform?: string; userAgent?: string; standalone?: boolean },
+    @Body() body: {
+      token: string;
+      platform?: string;
+      deviceId?: string;
+      metadata?: Record<string, any>;
+      // Retrocompatibilidad
+      userAgent?: string;
+      standalone?: boolean;
+    },
     @OrgId() orgId: string,
     @DecodedToken() token: AppToken,
   ): Promise<{ subscribed: boolean }> {

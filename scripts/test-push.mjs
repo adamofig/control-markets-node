@@ -68,7 +68,7 @@ async function main() {
     notification: { title: 'Control Markets', body: message },
     data: { url: '/page/test-messaging' },
     webpush: {
-      notification: { icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' },
+      notification: { icon: '/icons/icon-192.png', badge: '/icons/badge-monochrome.png' },
       fcmOptions: { link: '/page/test-messaging' },
     },
   });
