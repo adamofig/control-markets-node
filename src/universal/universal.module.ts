@@ -12,6 +12,7 @@ import { BlogEntryModule } from 'src/blog-entry/blog-entry.module';
 import { InspirationSourceModule } from 'src/inspiration-source/inspiration-source.module';
 import { LeadModule } from 'src/lead/lead.module';
 import { StorageAssetOverrideModule } from 'src/storage-asset/storage-asset-override.module';
+import { MessagingModule } from 'src/messaging/messaging.module';
 import { UniversalController } from './universal.controller';
 import { UniversalService } from './universal.service';
 
@@ -30,6 +31,7 @@ import { UniversalService } from './universal.service';
     InspirationSourceModule,
     LeadModule,
     StorageAssetOverrideModule,
+    MessagingModule,
   ],
   controllers: [UniversalController],
   providers: [UniversalService],

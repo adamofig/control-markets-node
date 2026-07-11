@@ -14,6 +14,7 @@ import { OrganizationService } from 'src/organization/services/organization.serv
 import { SocialMediaTrackerService } from 'src/social-media-tracker/services/social-media-tracker.service';
 import { VideoGeneratorService } from 'src/video-projects/services/video-project-generator.service';
 import { VideoSceneService } from 'src/video-scene/services/video-scene.service';
+import { ChannelIdentityService } from 'src/messaging/services/channel-identity.service';
 import { UniversalOperationDto } from './dto/universal-operation.dto';
 
 @Injectable()
@@ -35,6 +36,7 @@ export class UniversalService {
     inspirationSourceService: InspirationSourceService,
     leadService: LeadService,
     storageAssetService: StorageAssetService,
+    channelIdentityService: ChannelIdentityService,
   ) {
     this.registry.set('organization', organizationService);
     this.registry.set('agent-tasks', agentTasksService);
@@ -50,6 +52,7 @@ export class UniversalService {
     this.registry.set('inspiration-source', inspirationSourceService);
     this.registry.set('lead', leadService);
     this.registry.set('storage-asset', storageAssetService);
+    this.registry.set('channel-identity', channelIdentityService);
   }
 
   getRegisteredEntities(): string[] {

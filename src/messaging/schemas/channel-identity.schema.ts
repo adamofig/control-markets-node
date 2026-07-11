@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { ChannelType, IdentityStatus } from '../models/messaging.models';
+import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 
 export type ChannelIdentityDocument = ChannelIdentityEntity & Document;
 
@@ -13,6 +14,9 @@ export type ChannelIdentityDocument = ChannelIdentityEntity & Document;
 export class ChannelIdentityEntity {
   @Prop({ required: false })
   id: string;
+
+  @Prop({ type: AuditDataSchema, required: false, default: {} })
+  auditable: IAuditable;
 
   @Prop({ required: true })
   userId: string;

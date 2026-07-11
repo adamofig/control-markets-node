@@ -10,6 +10,9 @@ import { ChannelGatewayService } from './services/channel-gateway.service';
 import { MessagingOutboundService } from './services/messaging-outbound.service';
 import { ChannelIdentityEntity, ChannelIdentitySchema } from './schemas/channel-identity.schema';
 import { OutboundMessageEntity, OutboundMessageSchema } from './schemas/outbound-message.schema';
+import { ChannelIdentityService } from './services/channel-identity.service';
+import { ChannelIdentityController } from './controllers/channel-identity.controller';
+import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 
 /**
  * Canal de mensajería externa (Telegram hoy; WhatsApp/Discord después).
@@ -26,9 +29,10 @@ import { OutboundMessageEntity, OutboundMessageSchema } from './schemas/outbound
     NestAuthModule,
     UserModule,
     ChatModule,
+    DCMongoDBModule,
   ],
-  controllers: [MessagingController],
-  providers: [TelegramAdapter, WebPushAdapter, ChannelGatewayService, MessagingOutboundService],
-  exports: [MessagingOutboundService],
+  controllers: [MessagingController, ChannelIdentityController],
+  providers: [TelegramAdapter, WebPushAdapter, ChannelGatewayService, MessagingOutboundService, ChannelIdentityService],
+  exports: [MessagingOutboundService, ChannelIdentityService],
 })
 export class MessagingModule {}
