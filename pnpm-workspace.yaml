@@ -6,3 +6,7 @@ allowBuilds:
   '@swc/core': true
   protobufjs: true
   sharp: true
+
+minimumReleaseAgeExclude:
+  - '@dataclouder/*'
+

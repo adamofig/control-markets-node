@@ -1,4 +1,4 @@
-# 04 — How-To
+# 00 — How-To
 
 Task-oriented, step-by-step guides. No theory — just numbered steps to accomplish specific developer tasks.
 
