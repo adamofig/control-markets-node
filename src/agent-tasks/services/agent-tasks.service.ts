@@ -11,7 +11,7 @@ import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mong
 import { buildInitialConversation, ChatRole, AgentCardService, IAgentCard, ChatMessage } from '@dataclouder/nest-agent-cards';
 // local
 import { AgentTaskEntity, AgentTaskDocument } from '../schemas/agent-task.schema';
-import { AgentTaskType, AssignedType, IAgentTask, IAgentOutcomeJob, ISourceTask, MessageAI, OutputTaks } from '../models/classes';
+import { AgentTaskType, AssignedType, IAgentTask, IAgentOutcomeJob, ISourceTask, ISubtask, MessageAI, OutputTaks, SubtaskStatus, TaskStatus } from '../models/classes';
 import { AgentOutcomeJobService } from './agent-job.service';
 import { AgentSourcesService } from './agent-sources.service';
 import { ChatLLMRequestAdapter, AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
@@ -50,6 +50,53 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
       delete createAgentTaskDto.id;
       const createdTask = new this.genericModel(createAgentTaskDto);
       return createdTask.save();
+    }
+  }
+
+  /** Replaces the full subtask list (add/edit/delete/reorder) and recalculates the parent status */
+  async setSubtasks(taskId: string, subtasks: ISubtask[]): Promise<AgentTaskDocument> {
+    const task = await this.genericModel.findById(taskId);
+    if (!task) {
+      throw new AppException({ error_message: 'Task not found', explanation: `No existe la tarea ${taskId}` });
+    }
+    task.subtasks = subtasks || [];
+    this.applyParentStatusRule(task);
+    task.markModified('subtasks');
+    return task.save();
+  }
+
+  /** Updates a single subtask status; completes the parent when all are done, reopens it otherwise */
+  async updateSubtaskStatus(taskId: string, subtaskId: string, status: SubtaskStatus, completedBy?: string): Promise<AgentTaskDocument> {
+    const task = await this.genericModel.findById(taskId);
+    if (!task) {
+      throw new AppException({ error_message: 'Task not found', explanation: `No existe la tarea ${taskId}` });
+    }
+    const subtask = (task.subtasks || []).find(st => st.id === subtaskId);
+    if (!subtask) {
+      throw new AppException({ error_message: 'Subtask not found', explanation: `No existe la subtarea ${subtaskId} en la tarea ${taskId}` });
+    }
+    subtask.status = status;
+    if (status === SubtaskStatus.DONE) {
+      subtask.completedAt = new Date();
+      if (completedBy) subtask.completedBy = completedBy;
+    } else {
+      delete subtask.completedAt;
+      delete subtask.completedBy;
+    }
+    this.applyParentStatusRule(task);
+    task.markModified('subtasks');
+    return task.save();
+  }
+
+  /** All subtasks done → parent done; any pending on a done parent → back to in_progress */
+  private applyParentStatusRule(task: AgentTaskDocument): void {
+    const subtasks = task.subtasks || [];
+    if (!subtasks.length) return;
+    const allDone = subtasks.every(st => st.status === SubtaskStatus.DONE);
+    if (allDone) {
+      task.status = TaskStatus.DONE;
+    } else if (task.status === TaskStatus.DONE) {
+      task.status = TaskStatus.IN_PROGRESS;
     }
   }
 

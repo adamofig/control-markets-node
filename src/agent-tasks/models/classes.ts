@@ -51,6 +51,22 @@ export interface IAssignedUser {
 
 export type IAssignedTo = IAssignedUser | IAgentCardMinimal;
 
+export enum SubtaskStatus {
+  PENDING = 'pending',
+  DONE = 'done',
+}
+
+/** Checklist item inside a task. Order is the array order. */
+export interface ISubtask {
+  id: string;
+  name: string;
+  description?: string;
+  status: SubtaskStatus;
+  completedAt?: Date | string;
+  /** Email of the user or name of the agent that completed it */
+  completedBy?: string;
+}
+
 export interface ITask {
   _id?: string;
   id?: string;
@@ -66,6 +82,7 @@ export interface ITask {
   status?: TaskStatus;
   image?: CloudStorageData;
   taskType?: AgentTaskType | string;
+  subtasks?: ISubtask[];
 
   auditable?: IAuditable;
 }

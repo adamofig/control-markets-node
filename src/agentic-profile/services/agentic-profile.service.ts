@@ -6,6 +6,7 @@ import { AgenticProfileDocument, AgenticProfileEntity } from '../schemas/agentic
 import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { AgentSourcesService } from '../../agent-tasks/services/agent-sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
+import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
 
 @Injectable()
 export class AgenticProfileService extends EntityCommunicationService<AgenticProfileDocument> {
@@ -333,6 +334,13 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
             description: agentTitle,
           },
         };
+
+        // Extract `- [ ]` checkboxes from the task markdown and merge them as structured subtasks.
+        // Platform-completed subtasks keep their done status even if the local file is stale.
+        const parsedSubtasks = parseSubtasksFromMarkdown(fileContent);
+        if (parsedSubtasks.length > 0 || taskEntity?.subtasks?.length) {
+          taskData.subtasks = mergeMarkdownSubtasks(taskEntity?.subtasks || [], parsedSubtasks);
+        }
 
         if (taskEntity) {
           await this.agentTasksService.executeOperation({

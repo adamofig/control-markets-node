@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Tool } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { AgentTasksService } from '../agent-tasks/services/agent-tasks.service';
+import { SubtaskStatus } from '../agent-tasks/models/classes';
 import { AgentOutcomeJobService } from '../agent-tasks/services/agent-job.service';
 import { assignedUserSchema, agentTaskSummarySchema, agentOutcomeJobSummarySchema } from '../agent-tasks/models/task-schemas';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
@@ -106,6 +107,23 @@ Optionally filter by status.`,
     else if (name) query['assignedTo.name'] = name;
     if (status) query['status'] = status;
     const result = await this.agentTasksService.executeOperation({ action: 'find', query });
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+
+  @Tool({
+    name: 'tasks_updateSubtaskStatus',
+    description: `Mark a subtask of an agent task as done or pending. Subtasks are the structured checklist items of a task (synced from the markdown "- [ ]" checkboxes or created in the UI).
+When all subtasks are done the parent task is auto-completed; reopening one moves a done parent back to in_progress.
+Use tasks_operation (findOne with projection { "subtasks": 1 }) to list a task's subtasks and their ids first.`,
+    parameters: z.object({
+      taskId: z.string().describe('The ID of the parent agent task.'),
+      subtaskId: z.string().describe('The ID of the subtask (e.g. "md-a1b2c3d4e5f6" for markdown-synced ones).'),
+      status: z.enum(['pending', 'done']).describe('New status for the subtask.'),
+      completedBy: z.string().optional().describe('Email of the user or name of the agent completing it.'),
+    }),
+  })
+  async updateSubtaskStatus({ taskId, subtaskId, status, completedBy }: { taskId: string; subtaskId: string; status: SubtaskStatus; completedBy?: string }) {
+    const result = await this.agentTasksService.updateSubtaskStatus(taskId, subtaskId, status, completedBy);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
