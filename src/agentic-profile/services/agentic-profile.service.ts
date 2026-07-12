@@ -122,7 +122,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     const resolvedSources = [];
     if (sec3 && sec3.links) {
       for (const link of sec3.links) {
-        // Query agent_sources by sourceUrl and orgId
+        // Query sources by sourceUrl and orgId
         const query = { sourceUrl: link.url, orgId };
         let sourceEntity = await this.sourcesService.executeOperation({
           action: 'findOne',
@@ -626,4 +626,3 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     return md.trim() + '\n';
   }
 }
-

@@ -104,7 +104,7 @@ async function main() {
 
     console.log('\n==================================================');
     console.log(`Synchronization and Repair Complete!`);
-    console.log(`Total agent_sources updated: ${totalSourcesUpdated}`);
+    console.log(`Total sources updated: ${totalSourcesUpdated}`);
     console.log(`Total agent_tasks updated: ${totalTasksUpdated}`);
     console.log('==================================================\n');
 

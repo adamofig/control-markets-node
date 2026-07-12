@@ -7,7 +7,7 @@ export interface IAgentCardRef {
 }
 
 export interface IAgenticProfileSource {
-  id: string; // references AgentSourceEntity.id
+  id: string; // references SourceEntity.id
   name?: string;
   type?: string;
   url?: string;
@@ -15,7 +15,7 @@ export interface IAgenticProfileSource {
 }
 
 export interface IAgenticProfileSkill {
-  id: string; // references AgentSourceEntity.id
+  id: string; // references SourceEntity.id
   name?: string;
   description?: string;
   enabled: boolean;
@@ -28,14 +28,14 @@ export interface IAgenticProfileTaskRef {
 }
 
 export interface IAgenticProfileMemory {
-  id: string; // references AgentSourceEntity.id (representing a memory source)
+  id: string; // references SourceEntity.id (representing a memory source)
   name?: string;
   description?: string;
   enabled: boolean;
 }
 
 export interface IAgenticProfileExploration {
-  id: string; // references AgentSourceEntity.id (representing an exploration source)
+  id: string; // references SourceEntity.id (representing an exploration source)
   name?: string;
   description?: string;
   enabled: boolean;
