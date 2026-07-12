@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { streamText, stepCountIs } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { streamText, isStepCount } from 'ai';
+import { createGoogle } from '@ai-sdk/google';
 import { AppToken } from '@dataclouder/nest-auth';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { FilesystemToolsService } from './filesystem-tools.service';
@@ -29,7 +29,7 @@ const CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class LocalAgentChatService {
-  private google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+  private google = createGoogle({ apiKey: process.env.GEMINI_API_KEY });
   private contextCache = new Map<string, { markdown: string; at: number }>();
 
   constructor(
@@ -56,13 +56,13 @@ export class LocalAgentChatService {
 
     const result = streamText({
       model: this.google(process.env.LOCAL_AGENT_MODEL ?? 'gemini-3.1-flash-lite-preview'),
-      system,
+      instructions: system,
       messages,
-      stopWhen: stepCountIs(MAX_STEPS),
+      stopWhen: isStepCount(MAX_STEPS),
       tools: this.fsTools.buildTools(),
     });
 
-    for await (const part of result.fullStream as AsyncIterable<any>) {
+    for await (const part of result.stream as AsyncIterable<any>) {
       switch (part.type) {
         case 'text-delta':
           yield { type: 'text-delta', text: part.text ?? part.textDelta ?? '' };

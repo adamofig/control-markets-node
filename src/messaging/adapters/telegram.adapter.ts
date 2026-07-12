@@ -45,9 +45,9 @@ export class TelegramAdapter implements IChannelAdapter, OnModuleInit, OnModuleD
       this.logger.warn('TELEGRAM_BOT_TOKEN no configurado — TelegramAdapter deshabilitado.');
       return;
     }
-    this.polling = true;
-    void this.pollLoop();
-    this.logger.log('TelegramAdapter iniciado (long-polling).');
+    // Polling desactivado temporalmente para evitar conflictos con múltiples instancias de backend.
+    this.polling = false;
+    this.logger.warn('TelegramAdapter cargado (polling de Telegram DESACTIVADO temporalmente).');
   }
 
   onModuleDestroy(): void {

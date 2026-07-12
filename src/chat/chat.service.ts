@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { streamText, tool, stepCountIs } from 'ai';
+import { streamText, tool, isStepCount } from 'ai';
 import { z } from 'zod';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createGoogle } from '@ai-sdk/google';
 import { AppToken } from '@dataclouder/nest-auth';
 import { AgentCardService, IAgentCard } from '@dataclouder/nest-agent-cards';
 import { BlogEntryService } from '../blog-entry/services/blog-entry.service';
@@ -12,7 +12,7 @@ import { OrganizationService } from '../organization/services/organization.servi
 
 @Injectable()
 export class ChatService {
-  private google = createGoogleGenerativeAI({
+  private google = createGoogle({
     apiKey: process.env.GEMINI_API_KEY,
   });
 
@@ -162,9 +162,9 @@ export class ChatService {
 
     const result = streamText({
       model: this.google(modelToUse),
-      system,
+      instructions: system,
       messages,
-      stopWhen: stepCountIs(5),
+      stopWhen: isStepCount(5),
       tools,
     });
 

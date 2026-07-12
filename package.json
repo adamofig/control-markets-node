@@ -28,8 +28,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.25.1",
-    "@ai-sdk/google": "^3.0.88",
+    "@agentclientprotocol/sdk": "1.2.1",
+    "@ai-sdk/google": "^4.0.12",
     "@dataclouder/nest-agent-cards": "^0.1.53",
     "@dataclouder/nest-ai-services-mongodb": "^0.0.9",
     "@dataclouder/nest-ai-services-sdk": "^0.0.7",
@@ -64,7 +64,7 @@
     "@stable-canvas/comfyui-client": "^1.5.9",
     "@types/node-notifier": "^8.0.5",
     "@webundsoehne/nest-fastify-file-upload": "^2.3.1",
-    "ai": "^6.0.219",
+    "ai": "^7.0.22",
     "axios": "^1.18.1",
     "cheerio": "^1.2.0",
     "class-transformer": "^0.5.1",
@@ -84,7 +84,6 @@
     "mongodb": "^6.21.0",
     "mongoose": "^8.24.1",
     "node-notifier": "^10.0.1",
-    "ollama-ai-provider": "^1.2.0",
     "passport": "^0.7.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
