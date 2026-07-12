@@ -15,7 +15,13 @@ const IDLE_TTL_MS = 15 * 60 * 1000;
 const PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** ACP agents the bridge can spawn. The protocol is agent-agnostic — only the command differs. */
-export type AcpEngine = 'gemini' | 'claude' | 'agy';
+export type AcpEngine = 'gemini' | 'claude' | 'codex' | 'agy';
+export type CodexReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+
+export interface AcpRuntimeOptions {
+  model?: string;
+  reasoningEffort?: CodexReasoningEffort;
+}
 
 interface EngineConfig {
   /** Env var that overrides the spawn command (executable + args, space-separated). */
@@ -28,6 +34,8 @@ interface EngineConfig {
   stripEnv: string[];
   /** Command used to probe availability/version (executable + args, space-separated). */
   versionCommand: string;
+  /** Optional env var used to force this engine's model independently of the adapter default. */
+  modelEnv?: string;
 }
 
 const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
@@ -37,13 +45,7 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     supportsIncludeDirs: true,
     // With these present (the backend sets them for Vertex AI) gemini switches from personal OAuth
     // to project-billed Code Assist and fails with 403 IAM_PERMISSION_DENIED.
-    stripEnv: [
-      'GOOGLE_CLOUD_PROJECT',
-      'GOOGLE_CLOUD_PROJECT_ID',
-      'GOOGLE_APPLICATION_CREDENTIALS',
-      'GOOGLE_GENAI_USE_VERTEXAI',
-      'GOOGLE_CLOUD_LOCATION',
-    ],
+    stripEnv: ['GOOGLE_CLOUD_PROJECT', 'GOOGLE_CLOUD_PROJECT_ID', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_GENAI_USE_VERTEXAI', 'GOOGLE_CLOUD_LOCATION'],
     versionCommand: 'gemini --version',
   },
   claude: {
@@ -55,6 +57,15 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     // then refuses to launch ("cannot be launched inside another Claude Code session").
     stripEnv: ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT'],
     versionCommand: 'claude --version',
+  },
+  codex: {
+    // The official ACP adapter starts `codex app-server` and translates it to ACP.
+    commandEnv: 'LOCAL_AGENT_CODEX_COMMAND',
+    defaultCommand: 'npx -y @agentclientprotocol/codex-acp@latest',
+    supportsIncludeDirs: false,
+    stripEnv: [],
+    versionCommand: 'codex --version',
+    modelEnv: 'LOCAL_AGENT_CODEX_MODEL',
   },
   agy: {
     commandEnv: 'LOCAL_AGENT_AGY_COMMAND',
@@ -86,6 +97,7 @@ interface AcpSession {
   pendingPermissions: Map<string, PendingPermission>;
   toolNames: Map<string, string>; // toolCallId → title (for tool_call_update mapping)
   contextSent: boolean;
+  runtimeOptions: AcpRuntimeOptions;
   lastUsedAt: number;
 }
 
@@ -155,9 +167,7 @@ export class AcpBridgeService implements OnModuleDestroy {
     if (this.versions.has(engine)) return this.versions.get(engine)!;
     const [exe, args] = parseCommand(ENGINE_CONFIGS[engine].versionCommand);
     const version = await new Promise<string | null>(resolve => {
-      execFile(exe, args, { timeout: 10_000, shell: process.platform === 'win32' }, (err, stdout) =>
-        resolve(err ? null : stdout.trim()),
-      );
+      execFile(exe, args, { timeout: 10_000, shell: process.platform === 'win32' }, (err, stdout) => resolve(err ? null : stdout.trim()));
     });
     this.versions.set(engine, version);
     return version;
@@ -167,12 +177,7 @@ export class AcpBridgeService implements OnModuleDestroy {
    * Streams one prompt turn through the Gemini CLI (ACP). Yields the same SSE event union
    * as the built-in harness, plus `session`, `permission-request` and `plan` events.
    */
-  async *stream(
-    message: string,
-    sessionId?: string,
-    profileContext?: string,
-    engine: AcpEngine = 'gemini',
-  ): AsyncGenerator<LocalAgentStreamEvent> {
+  async *stream(message: string, sessionId?: string, profileContext?: string, engine: AcpEngine = 'gemini', runtimeOptions: AcpRuntimeOptions = {}): AsyncGenerator<LocalAgentStreamEvent> {
     if (!this.enabled) {
       yield { type: 'error', error: 'LOCAL_AGENT_MODE is disabled on this server.' };
       return;
@@ -183,7 +188,7 @@ export class AcpBridgeService implements OnModuleDestroy {
 
     const initPromise = (async () => {
       try {
-        const session = await this.getOrCreateSession(sessionId, engine, (msg) => {
+        const session = await this.getOrCreateSession(sessionId, engine, runtimeOptions, msg => {
           queue.push({ type: 'status', message: msg });
         });
 
@@ -267,11 +272,7 @@ export class AcpBridgeService implements OnModuleDestroy {
     return { ok: true };
   }
 
-  private async getOrCreateSession(
-    sessionId?: string,
-    engine: AcpEngine = 'gemini',
-    onProgress?: (msg: string) => void,
-  ): Promise<AcpSession> {
+  private async getOrCreateSession(sessionId?: string, engine: AcpEngine = 'gemini', runtimeOptions: AcpRuntimeOptions = {}, onProgress?: (msg: string) => void): Promise<AcpSession> {
     const existing = sessionId ? this.sessions.get(sessionId) : undefined;
     if (existing && existing.process.exitCode === null) {
       onProgress?.('Reutilizando sesión activa...');
@@ -297,6 +298,29 @@ export class AcpBridgeService implements OnModuleDestroy {
     const env = { ...process.env };
     for (const key of config.stripEnv) delete env[key];
 
+    if (resolvedEngine === 'codex') {
+      // Force the adapter to use the user's installed CLI. The older Zed adapter embedded its own
+      // Codex runtime, which could lag behind and reject newer subscription models such as Terra.
+      env.CODEX_PATH = process.env.LOCAL_AGENT_CODEX_PATH?.trim() || 'codex';
+      const configuredModel = runtimeOptions.model?.trim() || process.env.LOCAL_AGENT_CODEX_MODEL?.trim();
+      const configuredReasoningEffort = runtimeOptions.reasoningEffort || process.env.LOCAL_AGENT_CODEX_REASONING_EFFORT?.trim();
+      if (configuredModel || configuredReasoningEffort) {
+        let codexConfig: Record<string, unknown> = {};
+        if (process.env.CODEX_CONFIG) {
+          try {
+            codexConfig = JSON.parse(process.env.CODEX_CONFIG);
+          } catch {
+            this.logger.warn('Ignoring invalid CODEX_CONFIG JSON while configuring Codex ACP.');
+          }
+        }
+        env.CODEX_CONFIG = JSON.stringify({
+          ...codexConfig,
+          ...(configuredModel ? { model: configuredModel } : {}),
+          ...(configuredReasoningEffort ? { model_reasoning_effort: configuredReasoningEffort } : {}),
+        });
+      }
+    }
+
     const [exe, baseArgs] = parseCommand(process.env[config.commandEnv] || config.defaultCommand);
     // If exe is an absolute path (e.g. nvm's npx), prepend its dir to PATH so the CLI's `env node`
     // shebang resolves — the IDE's PATH often lacks the nvm bin dir, which causes `spawn ... ENOENT`.
@@ -308,17 +332,14 @@ export class AcpBridgeService implements OnModuleDestroy {
     if (config.supportsIncludeDirs && roots.length > 1) {
       args.push('--include-directories', roots.slice(1).join(','));
     }
-    
+
     onProgress?.(`Iniciando subproceso de la CLI (${resolvedEngine})...`);
     const child = spawn(exe, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
     // A spawn failure (e.g. the CLI binary isn't on PATH) emits 'error' asynchronously. Without a
     // listener Node treats it as an unhandled 'error' event and crashes the whole process, so we
     // catch it here and surface it through the session stream instead.
     child.on('error', err => {
-      const hint =
-        (err as NodeJS.ErrnoException).code === 'ENOENT'
-          ? ` ('${exe}' not found on PATH — install it or set ${config.commandEnv} to its absolute path)`
-          : '';
+      const hint = (err as NodeJS.ErrnoException).code === 'ENOENT' ? ` ('${exe}' not found on PATH — install it or set ${config.commandEnv} to its absolute path)` : '';
       this.logger.error(`Failed to spawn ${resolvedEngine} --acp${hint}: ${err.message}`);
       session.queue?.push({ type: 'error', error: `Could not start ${resolvedEngine} CLI: ${err.message}${hint}` });
       session.queue?.close();
@@ -335,6 +356,7 @@ export class AcpBridgeService implements OnModuleDestroy {
       pendingPermissions: new Map(),
       toolNames: existing?.toolNames ?? new Map(),
       contextSent: existing?.contextSent ?? false,
+      runtimeOptions: existing?.runtimeOptions ?? runtimeOptions,
       lastUsedAt: Date.now(),
     };
 
@@ -348,7 +370,9 @@ export class AcpBridgeService implements OnModuleDestroy {
     });
 
     const clientCapabilities: any = {};
-    if (resolvedEngine !== 'claude') {
+    // Claude and Codex adapters use their own native filesystem/tooling. Advertising ACP fs
+    // would duplicate tools and can make the model choose the wrong implementation.
+    if (resolvedEngine !== 'claude' && resolvedEngine !== 'codex') {
       clientCapabilities.fs = { readTextFile: true, writeTextFile: true };
     }
 

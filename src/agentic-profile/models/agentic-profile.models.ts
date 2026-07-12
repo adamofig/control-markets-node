@@ -41,7 +41,7 @@ export interface IAgenticProfileExploration {
   enabled: boolean;
 }
 
-export type AgenticHeartbeatEngine = 'agy' | 'gemini' | 'claude';
+export type AgenticHeartbeatEngine = 'agy' | 'gemini' | 'claude' | 'codex';
 
 export interface IAgenticHeartbeat {
   enabled: boolean;

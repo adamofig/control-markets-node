@@ -5,7 +5,7 @@ import { AppGuard } from '@dataclouder/nest-core';
 import { FastifyReply } from 'fastify';
 import { DecodedToken } from '../common/token.decorator';
 import { LocalAgentChatService, LocalAgentMessage, LocalAgentStreamEvent } from './local-agent-chat.service';
-import { AcpBridgeService, AcpEngine } from './acp-bridge.service';
+import { AcpBridgeService, AcpEngine, CodexReasoningEffort } from './acp-bridge.service';
 
 class LocalAgentChatRequestDto {
   messages: LocalAgentMessage[];
@@ -19,6 +19,8 @@ class AcpStreamRequestDto {
   agenticProfileId?: string;
   orgId?: string;
   engine?: AcpEngine;
+  model?: string;
+  reasoningEffort?: CodexReasoningEffort;
 }
 
 class AcpPermissionRequestDto {
@@ -34,7 +36,7 @@ class AcpPermissionRequestDto {
 export class LocalAgentController {
   constructor(
     private readonly localAgentChatService: LocalAgentChatService,
-    private readonly acpBridge: AcpBridgeService,
+    private readonly acpBridge: AcpBridgeService
   ) {}
 
   @Get('status')
@@ -66,12 +68,13 @@ export class LocalAgentController {
 
     let profileContext: string | undefined;
     if (body.agenticProfileId && !body.sessionId) {
-      profileContext = await this.localAgentChatService
-        .getProfileContext(body.agenticProfileId, body.orgId ?? token['orgId'])
-        .catch(() => undefined);
+      profileContext = await this.localAgentChatService.getProfileContext(body.agenticProfileId, body.orgId ?? token['orgId']).catch(() => undefined);
     }
 
-    const events = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? 'gemini');
+    const events = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? 'gemini', {
+      model: body.model,
+      reasoningEffort: body.reasoningEffort,
+    });
     await this.pipeSse(events, res);
   }
 
