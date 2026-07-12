@@ -43,6 +43,7 @@ import { LocalAgentModule } from './local-agent/local-agent.module';
 import { AgenticHeartbeatModule } from './agentic-heartbeat/agentic-heartbeat.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AgenticConversationModule } from './agentic-conversation/agentic-conversation.module';
 
 
 @Module({
@@ -96,6 +97,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     LocalAgentModule,
     AgenticHeartbeatModule,
     MessagingModule,
+    AgenticConversationModule,
   ],
   controllers: [AppController],
 })
