@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
 import { FastifyReply } from 'fastify';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
@@ -81,5 +81,42 @@ export class AgenticHeartbeatController {
     @DecodedToken() token?: AppToken,
   ) {
     return this.heartbeatService.getRun(runId, this.resolveOrgId(orgId, token));
+  }
+}
+
+@ApiTags('agentic-heartbeat')
+@Controller('api/agentic-profile/heartbeats')
+export class AgenticHeartbeatGlobalController {
+  constructor(private readonly heartbeatService: AgenticHeartbeatService) {}
+
+  @Get('live-stream')
+  @ApiOperation({ summary: 'Global SSE stream of heartbeat activity for the active organization' })
+  @UseGuards(ProjectAuthGuard)
+  async streamGlobal(
+    @Req() request: any,
+    @Res() res: FastifyReply,
+    @OrgId() orgId?: string,
+    @DecodedToken() token?: AppToken,
+  ) {
+    const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
+    if (!resolvedOrgId) throw new Error('Organization context is required for the global heartbeat stream.');
+    res.raw.setHeader('Content-Type', 'text/event-stream');
+    res.raw.setHeader('Cache-Control', 'no-cache');
+    res.raw.setHeader('Connection', 'keep-alive');
+    // This endpoint writes to the raw Fastify response, so expose CORS here too.
+    const requestOrigin = request.headers?.origin;
+    res.raw.setHeader('Access-Control-Allow-Origin', requestOrigin || '*');
+    res.raw.setHeader('Vary', 'Origin');
+    res.raw.flushHeaders();
+    res.raw.write(': connected\n\n');
+    const abort = new AbortController();
+    request.raw.on('close', () => abort.abort());
+    try {
+      for await (const event of this.heartbeatService.streamGlobalLive(resolvedOrgId, abort.signal)) {
+        res.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
+    } finally {
+      if (!res.raw.writableEnded) res.raw.end();
+    }
   }
 }

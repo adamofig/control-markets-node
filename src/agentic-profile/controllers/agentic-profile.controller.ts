@@ -6,11 +6,15 @@ import { AgenticProfileService } from '../services/agentic-profile.service';
 import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
+import { SchedulerRegistry } from '@nestjs/schedule';
 
 @ApiTags('agentic-profile')
 @Controller('api/agentic-profile')
 export class AgenticProfileController extends EntityMongoController<AgenticProfileDocument> {
-  constructor(private readonly agenticProfileService: AgenticProfileService) {
+  constructor(
+    private readonly agenticProfileService: AgenticProfileService,
+    private readonly schedulerRegistry: SchedulerRegistry,
+  ) {
     super(agenticProfileService);
   }
 
@@ -65,7 +69,18 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
       operationDto.query = { ...operationDto.query, orgId: resolvedOrgId };
     }
 
-    return await this.entityCommunicationService.executeOperation(operationDto);
+    const result = await this.entityCommunicationService.executeOperation(operationDto);
+    if (operationDto.action !== 'find' && operationDto.action !== 'findOne') return result;
+    const withNextRun = (profile: any) => {
+      if (!profile) return profile;
+      const id = profile.id || profile._id?.toString?.();
+      let nextRunAt: string | null = null;
+      if (id && this.schedulerRegistry.doesExist('cron', `agentic-heartbeat:${id}`)) {
+        nextRunAt = this.schedulerRegistry.getCronJob(`agentic-heartbeat:${id}`).nextDate()?.toISO() ?? null;
+      }
+      return { ...(profile.toObject?.() ?? profile), nextRunAt };
+    };
+    return Array.isArray(result) ? result.map(withNextRun) : withNextRun(result);
   }
 
   @Post('sync-markdown')

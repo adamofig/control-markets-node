@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import mongoose, { Model } from 'mongoose';
+import { Subject, filter } from 'rxjs';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { IAgenticHeartbeat, IAgenticProfile } from '../agentic-profile/models/agentic-profile.models';
 import { AcpBridgeService, AcpEngine } from '../local-agent/acp-bridge.service';
@@ -13,10 +14,11 @@ const CRON_PREFIX = 'agentic-heartbeat:';
 const RUN_HARD_TIMEOUT_MS = 15 * 60 * 1000;
 const MAX_OUTPUT_CHARS = 200_000;
 const LIVE_BUFFER_TTL_MS = 5 * 60 * 1000; // keep the live event buffer a while after the run ends (late subscribers)
+const DEFAULT_HEARTBEAT_TIMEZONE = 'America/Mexico_City';
 
 /** Event pushed to live subscribers (SSE) while a heartbeat run is executing. */
 export interface IHeartbeatLiveEvent {
-  type: 'status' | 'text-delta' | 'tool-call' | 'tool-result' | 'permission' | 'error' | 'finish';
+  type: 'status' | 'text-delta' | 'thought-delta' | 'tool-call' | 'tool-result' | 'permission' | 'error' | 'finish';
   at: string; // ISO timestamp
   message?: string; // status / permission / error human-readable text
   text?: string; // text-delta chunk
@@ -28,9 +30,20 @@ export interface IHeartbeatLiveEvent {
 }
 
 interface LiveRunChannel {
+  orgId?: string;
+  profileId: string;
+  profileName?: string;
   events: IHeartbeatLiveEvent[];
   listeners: Set<(event: IHeartbeatLiveEvent) => void>;
   done: boolean;
+}
+
+export interface IGlobalHeartbeatEvent {
+  orgId?: string;
+  profileId: string;
+  profileName?: string;
+  runId: string;
+  event: IHeartbeatLiveEvent;
 }
 
 /**
@@ -54,6 +67,7 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
   private logger = new Logger(AgenticHeartbeatService.name);
   private runningProfiles = new Set<string>();
   private liveRuns = new Map<string, LiveRunChannel>();
+  readonly globalEvents$ = new Subject<IGlobalHeartbeatEvent>();
 
   constructor(
     @InjectModel(AgenticHeartbeatRunEntity.name)
@@ -71,6 +85,19 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
   onModuleDestroy() {
     for (const name of this.schedulerRegistry.getCronJobs().keys()) {
       if (name.startsWith(CRON_PREFIX)) this.schedulerRegistry.deleteCronJob(name);
+    }
+    this.globalEvents$.complete();
+  }
+
+  getNextRunDate(profileId: string): Date | null {
+    const jobName = `${CRON_PREFIX}${profileId}`;
+    try {
+      if (!this.schedulerRegistry.doesExist('cron', jobName)) return null;
+      const nextDate = this.schedulerRegistry.getCronJob(jobName).nextDate();
+      return nextDate?.toJSDate() ?? null;
+    } catch (err) {
+      this.logger.warn(`Could not get next heartbeat date for ${profileId}: ${err?.message ?? err}`);
+      return null;
     }
   }
 
@@ -100,14 +127,21 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     if (!heartbeat?.enabled || !heartbeat.cronExpression) return;
 
     try {
-      const job = new CronJob(heartbeat.cronExpression, () => {
-        this.runHeartbeat(profileId, 'cron', profile.orgId).catch(err =>
-          this.logger.error(`Heartbeat run failed for profile ${profileId}: ${err.message}`),
-        );
-      });
+      const timezone = heartbeat.timezone || DEFAULT_HEARTBEAT_TIMEZONE;
+      const job = new CronJob(
+        heartbeat.cronExpression,
+        () => {
+          this.runHeartbeat(profileId, 'cron', profile.orgId).catch(err =>
+            this.logger.error(`Heartbeat run failed for profile ${profileId}: ${err.message}`),
+          );
+        },
+        null,
+        false,
+        timezone,
+      );
       this.schedulerRegistry.addCronJob(jobName, job);
       job.start();
-      this.logger.log(`Heartbeat scheduled for profile ${profileId} (${profile.name ?? ''}) → "${heartbeat.cronExpression}"`);
+      this.logger.log(`Heartbeat scheduled for profile ${profileId} (${profile.name ?? ''}) → "${heartbeat.cronExpression}" (${timezone})`);
     } catch (err) {
       this.logger.error(`Invalid cron expression "${heartbeat.cronExpression}" for profile ${profileId}: ${err.message}`);
     }
@@ -118,13 +152,14 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     const heartbeat: IAgenticHeartbeat = {
       enabled: !!config.enabled,
       cronExpression: config.cronExpression?.trim() || undefined,
+      timezone: config.timezone?.trim() || DEFAULT_HEARTBEAT_TIMEZONE,
       engine: config.engine || 'agy',
       wakePrompt: config.wakePrompt?.trim() || undefined,
     };
 
     if (heartbeat.enabled && heartbeat.cronExpression) {
       // Validate before persisting so the UI gets an immediate error on a bad expression.
-      new CronJob(heartbeat.cronExpression, () => undefined);
+      new CronJob(heartbeat.cronExpression, () => undefined, null, false, heartbeat.timezone);
     }
 
     const query: any = this.buildIdQuery(profileId, orgId);
@@ -189,10 +224,39 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     }
   }
 
+  async *streamGlobalLive(orgId: string, signal?: AbortSignal): AsyncGenerator<IGlobalHeartbeatEvent> {
+    const queue: IGlobalHeartbeatEvent[] = [];
+    let notify: (() => void) | undefined;
+    const subscription = this.globalEvents$.pipe(filter(item => item.orgId === orgId)).subscribe(item => {
+      queue.push(item);
+      notify?.();
+      notify = undefined;
+    });
+    try {
+      while (!signal?.aborted) {
+        while (queue.length) yield queue.shift()!;
+        await new Promise<void>(resolve => {
+          notify = resolve;
+          signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      }
+    } finally {
+      subscription.unsubscribe();
+    }
+  }
+
   private publishLive(runId: string, event: Omit<IHeartbeatLiveEvent, 'at'>): void {
     const channel = this.liveRuns.get(runId);
     if (!channel) return;
-    channel.events.push({ ...event, at: new Date().toISOString() });
+    const liveEvent = { ...event, at: new Date().toISOString() } as IHeartbeatLiveEvent;
+    channel.events.push(liveEvent);
+    this.globalEvents$.next({
+      orgId: channel.orgId,
+      profileId: channel.profileId,
+      profileName: channel.profileName,
+      runId,
+      event: liveEvent,
+    });
     if (event.type === 'finish') channel.done = true;
     for (const listener of channel.listeners) listener(channel.events[channel.events.length - 1]);
     if (channel.done) setTimeout(() => this.liveRuns.delete(runId), LIVE_BUFFER_TTL_MS).unref?.();
@@ -230,7 +294,14 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
       toolCalls: [],
     });
     const runId = run.id || run._id.toString();
-    this.liveRuns.set(runId, { events: [], listeners: new Set(), done: false });
+    this.liveRuns.set(runId, {
+      orgId: profile.orgId,
+      profileId,
+      profileName: profile.name,
+      events: [],
+      listeners: new Set(),
+      done: false,
+    });
 
     this.runningProfiles.add(profileId);
     const execution = this.executeRun(run, profile, engine, prompt)
@@ -278,6 +349,9 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
         case 'text-delta':
           if (output.length < MAX_OUTPUT_CHARS) output += event.text;
           this.publishLive(runId, { type: 'text-delta', text: event.text });
+          break;
+        case 'reasoning-delta':
+          this.publishLive(runId, { type: 'thought-delta', text: event.text });
           break;
         case 'tool-call':
           toolCalls.push({ toolName: event.toolName, input: this.truncate(event.input) });

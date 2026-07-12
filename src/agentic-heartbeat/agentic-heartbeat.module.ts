@@ -4,7 +4,7 @@ import { NestAuthModule } from '@dataclouder/nest-auth';
 import { AgenticProfileModule } from '../agentic-profile/agentic-profile.module';
 import { LocalAgentModule } from '../local-agent/local-agent.module';
 import { UserModule } from '../user/user.module';
-import { AgenticHeartbeatController } from './agentic-heartbeat.controller';
+import { AgenticHeartbeatController, AgenticHeartbeatGlobalController } from './agentic-heartbeat.controller';
 import { AgenticHeartbeatService } from './agentic-heartbeat.service';
 import { AgenticHeartbeatRunEntity, AgenticHeartbeatRunSchema } from './schemas/agentic-heartbeat-run.schema';
 
@@ -16,7 +16,7 @@ import { AgenticHeartbeatRunEntity, AgenticHeartbeatRunSchema } from './schemas/
     AgenticProfileModule,
     LocalAgentModule,
   ],
-  controllers: [AgenticHeartbeatController],
+  controllers: [AgenticHeartbeatController, AgenticHeartbeatGlobalController],
   providers: [AgenticHeartbeatService],
   exports: [AgenticHeartbeatService],
 })

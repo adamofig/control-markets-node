@@ -46,6 +46,7 @@ export type AgenticHeartbeatEngine = 'agy' | 'gemini' | 'claude' | 'codex';
 export interface IAgenticHeartbeat {
   enabled: boolean;
   cronExpression?: string; // e.g. "0 */6 * * *"
+  timezone?: string; // IANA timezone used by the heartbeat CronJob
   engine?: AgenticHeartbeatEngine; // ACP engine used to execute the wake-up (default: 'agy')
   wakePrompt?: string; // custom prompt injected on wake-up; falls back to the default exploration prompt
 }
