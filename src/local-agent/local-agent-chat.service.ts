@@ -4,6 +4,7 @@ import { createGoogle } from '@ai-sdk/google';
 import { AppToken } from '@dataclouder/nest-auth';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { FilesystemToolsService } from './filesystem-tools.service';
+import { normalizeTokenUsage } from './ai-usage.util';
 
 export interface LocalAgentMessage {
   role: 'user' | 'assistant';
@@ -54,8 +55,9 @@ export class LocalAgentChatService {
     const resolvedOrgId = orgId ?? token['orgId'];
     const system = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId);
 
+    const model = process.env.LOCAL_AGENT_MODEL ?? 'gemini-3.1-flash-lite';
     const result = streamText({
-      model: this.google(process.env.LOCAL_AGENT_MODEL ?? 'gemini-3.1-flash-lite-preview'),
+      model: this.google(model),
       instructions: system,
       messages,
       stopWhen: isStepCount(MAX_STEPS),
@@ -80,7 +82,9 @@ export class LocalAgentChatService {
           yield { type: 'error', error: String(part.error?.message ?? part.error) };
           break;
         case 'finish':
-          yield { type: 'finish', usage: part.totalUsage ?? part.usage };
+          yield { type: 'finish', usage: normalizeTokenUsage(part.totalUsage ?? part.usage, {
+            provider: 'google', model, source: 'vercel-ai-sdk',
+          }) };
           break;
       }
     }

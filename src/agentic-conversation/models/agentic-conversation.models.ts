@@ -2,6 +2,20 @@ import { IAuditable } from '@dataclouder/nest-core';
 
 export type AgenticConversationEngine = 'builtin' | 'acp' | 'claude' | 'codex' | 'agy';
 
+export interface IAgenticTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  reasoningTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
+  estimatedCostUsd?: number;
+  provider?: string;
+  model?: string;
+  source?: 'vercel-ai-sdk' | 'acp';
+  pricingVersion?: string;
+}
+
 export interface IAgenticConversationTool {
   toolName: string;
   input?: unknown;
@@ -26,6 +40,7 @@ export interface IAgenticConversationMessage {
   permissions?: IAgenticConversationPermission[];
   plan?: { content?: string; status?: string }[];
   createdAt?: string;
+  usage?: IAgenticTokenUsage;
 }
 
 export interface IAgenticConversation {
@@ -39,5 +54,6 @@ export interface IAgenticConversation {
   engine?: AgenticConversationEngine;
   acpSessionId?: string;
   messages: IAgenticConversationMessage[];
+  usage?: IAgenticTokenUsage;
   auditable?: IAuditable;
 }

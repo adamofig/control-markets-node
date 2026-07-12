@@ -6,6 +6,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { LocalAgentStreamEvent } from './local-agent-chat.service';
+import { normalizeTokenUsage } from './ai-usage.util';
 
 // @agentclientprotocol/sdk is ESM-only; the project compiles to CommonJS, so a static
 // import would become require() and fail. new Function keeps the dynamic import as-is.
@@ -219,15 +220,11 @@ export class AcpBridgeService implements OnModuleDestroy {
           .then((result: any) => {
             queue.push({
               type: 'finish',
-              usage: {
-                stopReason: result.stopReason,
-                inputTokens: result.usage?.inputTokens,
-                outputTokens: result.usage?.outputTokens,
-                totalTokens: result.usage?.totalTokens,
-                thoughtTokens: result.usage?.thoughtTokens,
-                cachedReadTokens: result.usage?.cachedReadTokens,
-                cachedWriteTokens: result.usage?.cachedWriteTokens,
-              },
+              usage: normalizeTokenUsage(result.usage, {
+                provider: engine === 'gemini' ? 'google' : engine,
+                model: runtimeOptions.model,
+                source: 'acp',
+              }),
             });
           })
           .catch((error: any) => queue.push({ type: 'error', error: String(error?.message ?? error) }))
