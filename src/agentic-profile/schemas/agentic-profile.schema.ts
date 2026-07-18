@@ -47,6 +47,14 @@ export class AgenticProfileEntity implements IAgenticProfile {
   @Prop({ required: false })
   liveBriefing?: string;
 
+  /** Workspace (project) slug this profile belongs to — sets the ACP cwd and the sync fingerprint scope */
+  @Prop({ required: false })
+  workspaceId?: string;
+
+  /** Path of the profile markdown file relative to the workspace root — anchor for local write-backs */
+  @Prop({ required: false })
+  relPath?: string;
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   heartbeat?: IAgenticHeartbeat;
 

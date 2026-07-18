@@ -8,6 +8,15 @@ import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
 import { AgenticContextLevel } from '../models/agentic-profile.models';
+import { buildFingerprint, hashContent } from './sync-hash.util';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { WIKI_PROFILE_CHANGED } from '../../wiki-sync/wiki-sync.events';
+
+interface SyncStats {
+  created: number;
+  updated: number;
+  skipped: number;
+}
 
 @Injectable()
 export class AgenticProfileService extends EntityCommunicationService<AgenticProfileDocument> {
@@ -18,12 +27,112 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     private readonly agentCardService: AgentCardService,
     private readonly sourcesService: SourcesService,
     private readonly agentTasksService: AgentTasksService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     super(agenticProfileModel, mongoService);
   }
 
+  /**
+   * Updates ONLY the Section 8 live briefing (owner-written text) of a profile and notifies
+   * the wiki write-back so the change mirrors into the local `.md` (Section 8) when running locally.
+   * Scoped by orgId for multi-tenant safety; returns the persisted value.
+   */
+  async updateLiveBriefing(id: string, liveBriefing: string, orgId?: string): Promise<{ liveBriefing: string }> {
+    const query: any = { id };
+    if (orgId) query.orgId = orgId;
+    const value = liveBriefing ?? '';
+    await this.genericModel.updateOne(query, { $set: { liveBriefing: value } }).exec();
+    this.eventEmitter.emit(WIKI_PROFILE_CHANGED, { id });
+    return { liveBriefing: value };
+  }
+
+  /**
+   * Upserts a source-like entity (knowledge, skill, exploration or memory) from a profile link.
+   * Delta-sync contract: a link may arrive WITHOUT `content` when the CLI matched its local
+   * hash against the sync manifest — in that case the stored entity is reused untouched.
+   * When content is present, the write is skipped if the stored contentHash already matches.
+   */
+  private async upsertSourceFromLink(
+    link: any,
+    kind: 'knowledge' | 'skill' | 'exploration' | 'memory',
+    tag: string | undefined,
+    orgId: string,
+    userEmail: string,
+    stats: SyncStats,
+    workspaceId?: string,
+  ): Promise<any> {
+    const query = { sourceUrl: link.url, orgId };
+    let entity = await this.sourcesService.executeOperation({ action: 'findOne', query });
+
+    const hasContent = link.content !== undefined && link.content !== null;
+    const fingerprint = workspaceId && link.relPath ? buildFingerprint(workspaceId, link.relPath) : undefined;
+    const contractFields: any = fingerprint ? { fingerprint, workspaceId, relPath: link.relPath, kind } : { kind };
+
+    if (entity && !hasContent) {
+      // CLI skipped the file body because the manifest hash matched. Backfill the
+      // fingerprint contract fields if they are new/changed — content stays untouched.
+      if (fingerprint && entity.fingerprint !== fingerprint) {
+        await this.sourcesService.executeOperation({
+          action: 'updateOne',
+          query: { id: entity.id },
+          payload: { $set: contractFields },
+        });
+      }
+      stats.skipped++;
+      return entity;
+    }
+
+    const contentHash = hashContent(hasContent ? link.content : link.description || '');
+    if (
+      entity &&
+      entity.contentHash === contentHash &&
+      entity.name === link.label &&
+      entity.description === link.description &&
+      (!fingerprint || entity.fingerprint === fingerprint)
+    ) {
+      stats.skipped++;
+      return entity;
+    }
+
+    const sourceData: any = {
+      orgId,
+      name: link.label,
+      description: link.description,
+      sourceUrl: link.url,
+      type: 'document',
+      content: hasContent ? link.content : link.description,
+      status: 'active',
+      contentHash,
+      ...contractFields,
+    };
+    if (tag) {
+      sourceData.tag = tag;
+    }
+
+    if (entity) {
+      await this.sourcesService.executeOperation({
+        action: 'updateOne',
+        query: { id: entity.id },
+        payload: { $set: sourceData },
+      });
+      entity = await this.sourcesService.executeOperation({
+        action: 'findOne',
+        query: { id: entity.id },
+      });
+      stats.updated++;
+    } else {
+      sourceData.auditable = { createdBy: userEmail, updatedBy: userEmail };
+      entity = await this.sourcesService.executeOperation({
+        action: 'create',
+        payload: sourceData,
+      });
+      stats.created++;
+    }
+    return entity;
+  }
+
   async syncFromMarkdown(payload: any, orgId: string, userEmail: string): Promise<any> {
-    const { agentCardId, agenticProfileId, agentName, agentTitle, agentDescription, agentDomain, sections } = payload;
+    const { agentCardId, agenticProfileId, agentName, agentTitle, agentDescription, agentDomain, sections, workspaceId, profileRelPath } = payload;
 
     if (!agentCardId) {
       throw new Error('agentCardId is required in the frontmatter YAML');
@@ -35,34 +144,44 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       throw new Error(`AgentCard with ID ${agentCardId} not found in database`);
     }
 
+    const stats: SyncStats = { created: 0, updated: 0, skipped: 0 };
+
     // Find section 1 content
     const sec1 = sections.find((s: any) => s.number === 1);
     const instructions = sec1 ? sec1.content : '';
 
-    const cardUpdates: any = {};
-    if (agentCard.characterCard) {
-      cardUpdates.characterCard = {
-        ...agentCard.characterCard,
-        data: {
-          ...(agentCard.characterCard.data || {}),
-          name: agentName,
-          instructions,
-        },
-      };
-    } else {
-      cardUpdates.characterCard = {
-        data: {
-          name: agentName,
-          instructions,
-        },
-      };
-    }
+    // Skip the agent card write when identity/instructions did not change (delta sync)
+    const currentInstructions = agentCard.characterCard?.data?.instructions || '';
+    const currentCardName = agentCard.characterCard?.data?.name || '';
+    if (currentInstructions !== instructions || currentCardName !== agentName) {
+      const cardUpdates: any = {};
+      if (agentCard.characterCard) {
+        cardUpdates.characterCard = {
+          ...agentCard.characterCard,
+          data: {
+            ...(agentCard.characterCard.data || {}),
+            name: agentName,
+            instructions,
+          },
+        };
+      } else {
+        cardUpdates.characterCard = {
+          data: {
+            name: agentName,
+            instructions,
+          },
+        };
+      }
 
-    await this.agentCardService.executeOperation({
-      action: 'updateOne',
-      query: { id: agentCardId },
-      payload: { $set: cardUpdates },
-    });
+      await this.agentCardService.executeOperation({
+        action: 'updateOne',
+        query: { id: agentCardId },
+        payload: { $set: cardUpdates },
+      });
+      stats.updated++;
+    } else {
+      stats.skipped++;
+    }
 
     // 2. Find or create AgenticProfile
     let profile = null;
@@ -117,47 +236,19 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         updatedBy: userEmail,
       };
     }
+    if (workspaceId) {
+      profile.workspaceId = workspaceId;
+    }
+    if (profileRelPath) {
+      profile.relPath = profileRelPath; // anchor for local write-backs (Section 6 checkboxes, new task files)
+    }
 
     // 3. Sync Knowledge Sources (Section 3)
     const sec3 = sections.find((s: any) => s.number === 3);
     const resolvedSources = [];
     if (sec3 && sec3.links) {
       for (const link of sec3.links) {
-        // Query sources by sourceUrl and orgId
-        const query = { sourceUrl: link.url, orgId };
-        let sourceEntity = await this.sourcesService.executeOperation({
-          action: 'findOne',
-          query,
-        });
-
-        const fileContent = link.content;
-        const sourceData: any = {
-          orgId,
-          name: link.label,
-          description: link.description,
-          sourceUrl: link.url,
-          type: 'document',
-          content: fileContent || link.description,
-          status: 'active',
-        };
-
-        if (sourceEntity) {
-          await this.sourcesService.executeOperation({
-            action: 'updateOne',
-            query: { id: sourceEntity.id },
-            payload: { $set: sourceData },
-          });
-          sourceEntity = await this.sourcesService.executeOperation({
-            action: 'findOne',
-            query: { id: sourceEntity.id },
-          });
-        } else {
-          sourceData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          sourceEntity = await this.sourcesService.executeOperation({
-            action: 'create',
-            payload: sourceData,
-          });
-        }
+        const sourceEntity = await this.upsertSourceFromLink(link, 'knowledge', undefined, orgId, userEmail, stats, workspaceId);
 
         resolvedSources.push({
           id: sourceEntity.id || sourceEntity._id?.toString(),
@@ -175,41 +266,8 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     const resolvedSkills = [];
     if (sec4 && sec4.links) {
       for (const link of sec4.links) {
-        const query = { sourceUrl: link.url, orgId };
-        let skillEntity = await this.sourcesService.executeOperation({
-          action: 'findOne',
-          query,
-        });
-
-        const fileContent = link.content;
-        const skillData: any = {
-          orgId,
-          name: link.label,
-          description: link.description,
-          sourceUrl: link.url,
-          type: 'document',
-          content: fileContent || link.description,
-          tag: 'rule', // skills act as rules
-          status: 'active',
-        };
-
-        if (skillEntity) {
-          await this.sourcesService.executeOperation({
-            action: 'updateOne',
-            query: { id: skillEntity.id },
-            payload: { $set: skillData },
-          });
-          skillEntity = await this.sourcesService.executeOperation({
-            action: 'findOne',
-            query: { id: skillEntity.id },
-          });
-        } else {
-          skillData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          skillEntity = await this.sourcesService.executeOperation({
-            action: 'create',
-            payload: skillData,
-          });
-        }
+        // skills act as rules
+        const skillEntity = await this.upsertSourceFromLink(link, 'skill', 'rule', orgId, userEmail, stats, workspaceId);
 
         resolvedSkills.push({
           id: skillEntity.id || skillEntity._id?.toString(),
@@ -243,41 +301,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     const resolvedExplorations = [];
     if (sec5 && sec5.links) {
       for (const link of sec5.links) {
-        const query = { sourceUrl: link.url, orgId };
-        let explorationEntity = await this.sourcesService.executeOperation({
-          action: 'findOne',
-          query,
-        });
-
-        const fileContent = link.content;
-        const explorationData: any = {
-          orgId,
-          name: link.label,
-          description: link.description,
-          sourceUrl: link.url,
-          type: 'document',
-          content: fileContent || link.description,
-          tag: 'exploration', // explorations act as exploration sources
-          status: 'active',
-        };
-
-        if (explorationEntity) {
-          await this.sourcesService.executeOperation({
-            action: 'updateOne',
-            query: { id: explorationEntity.id },
-            payload: { $set: explorationData },
-          });
-          explorationEntity = await this.sourcesService.executeOperation({
-            action: 'findOne',
-            query: { id: explorationEntity.id },
-          });
-        } else {
-          explorationData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          explorationEntity = await this.sourcesService.executeOperation({
-            action: 'create',
-            payload: explorationData,
-          });
-        }
+        const explorationEntity = await this.upsertSourceFromLink(link, 'exploration', 'exploration', orgId, userEmail, stats, workspaceId);
 
         resolvedExplorations.push({
           id: explorationEntity.id || explorationEntity._id?.toString(),
@@ -319,46 +343,86 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         }
 
         const taskStatus = link.status || 'pending';
+        const hasContent = link.content !== undefined && link.content !== null;
+        const taskFingerprint = workspaceId && link.relPath ? buildFingerprint(workspaceId, link.relPath) : undefined;
+        const taskContractFields: any = taskFingerprint ? { fingerprint: taskFingerprint, workspaceId, relPath: link.relPath } : {};
 
-        const fileContent = link.content;
-        const taskData: any = {
-          orgId,
-          name: link.label,
-          description: link.description,
-          content: fileContent || link.description,
-          sourceUrl: link.url,
-          status: taskStatus,
-          assignedType: 'agent',
-          assignedTo: {
-            id: agentCardId,
-            name: agentName,
-            description: agentTitle,
-          },
-        };
-
-        // Extract `- [ ]` checkboxes from the task markdown and merge them as structured subtasks.
-        // Platform-completed subtasks keep their done status even if the local file is stale.
-        const parsedSubtasks = parseSubtasksFromMarkdown(fileContent);
-        if (parsedSubtasks.length > 0 || taskEntity?.subtasks?.length) {
-          taskData.subtasks = mergeMarkdownSubtasks(taskEntity?.subtasks || [], parsedSubtasks);
-        }
-
-        if (taskEntity) {
-          await this.agentTasksService.executeOperation({
-            action: 'updateOne',
-            query: { id: link.taskId },
-            payload: { $set: taskData },
-          });
-          taskEntity = await this.agentTasksService.executeOperation({
-            action: 'findOne',
-            query: { id: link.taskId },
-          });
+        if (taskEntity && !hasContent) {
+          // Delta sync: content unchanged per manifest. Status still flows from the local
+          // checkbox/frontmatter, so apply it alone when it differs.
+          const fingerprintChanged = taskFingerprint && taskEntity.fingerprint !== taskFingerprint;
+          if (taskStatus !== taskEntity.status || fingerprintChanged) {
+            await this.agentTasksService.executeOperation({
+              action: 'updateOne',
+              query: { id: link.taskId },
+              payload: { $set: { status: taskStatus, ...taskContractFields } },
+            });
+            taskEntity = await this.agentTasksService.executeOperation({
+              action: 'findOne',
+              query: { id: link.taskId },
+            });
+            stats.updated++;
+          } else {
+            stats.skipped++;
+          }
         } else {
-          taskData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          taskEntity = await this.agentTasksService.executeOperation({
-            action: 'create',
-            payload: taskData,
-          });
+          const fileContent = link.content;
+          const contentHash = hashContent(hasContent ? fileContent : link.description || '');
+
+          if (
+            taskEntity &&
+            taskEntity.contentHash === contentHash &&
+            taskEntity.status === taskStatus &&
+            taskEntity.name === link.label &&
+            taskEntity.description === link.description &&
+            (!taskFingerprint || taskEntity.fingerprint === taskFingerprint)
+          ) {
+            stats.skipped++;
+          } else {
+            const taskData: any = {
+              orgId,
+              name: link.label,
+              description: link.description,
+              content: fileContent || link.description,
+              sourceUrl: link.url,
+              status: taskStatus,
+              contentHash,
+              ...taskContractFields,
+              assignedType: 'agent',
+              assignedTo: {
+                id: agentCardId,
+                name: agentName,
+                description: agentTitle,
+              },
+            };
+
+            // Extract `- [ ]` checkboxes from the task markdown and merge them as structured subtasks.
+            // Platform-completed subtasks keep their done status even if the local file is stale.
+            const parsedSubtasks = parseSubtasksFromMarkdown(fileContent);
+            if (parsedSubtasks.length > 0 || taskEntity?.subtasks?.length) {
+              taskData.subtasks = mergeMarkdownSubtasks(taskEntity?.subtasks || [], parsedSubtasks);
+            }
+
+            if (taskEntity) {
+              await this.agentTasksService.executeOperation({
+                action: 'updateOne',
+                query: { id: link.taskId },
+                payload: { $set: taskData },
+              });
+              taskEntity = await this.agentTasksService.executeOperation({
+                action: 'findOne',
+                query: { id: link.taskId },
+              });
+              stats.updated++;
+            } else {
+              taskData.auditable = { createdBy: userEmail, updatedBy: userEmail };
+              taskEntity = await this.agentTasksService.executeOperation({
+                action: 'create',
+                payload: taskData,
+              });
+              stats.created++;
+            }
+          }
         }
 
         const resolvedId = taskEntity.id || taskEntity._id?.toString();
@@ -392,41 +456,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     const resolvedMemories = [];
     if (sec7 && sec7.links) {
       for (const link of sec7.links) {
-        const query = { sourceUrl: link.url, orgId };
-        let memoryEntity = await this.sourcesService.executeOperation({
-          action: 'findOne',
-          query,
-        });
-
-        const fileContent = link.content;
-        const memoryData: any = {
-          orgId,
-          name: link.label,
-          description: link.description,
-          sourceUrl: link.url,
-          type: 'document',
-          content: fileContent || link.description,
-          tag: 'memory', // memories act as memory sources
-          status: 'active',
-        };
-
-        if (memoryEntity) {
-          await this.sourcesService.executeOperation({
-            action: 'updateOne',
-            query: { id: memoryEntity.id },
-            payload: { $set: memoryData },
-          });
-          memoryEntity = await this.sourcesService.executeOperation({
-            action: 'findOne',
-            query: { id: memoryEntity.id },
-          });
-        } else {
-          memoryData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-          memoryEntity = await this.sourcesService.executeOperation({
-            action: 'create',
-            payload: memoryData,
-          });
-        }
+        const memoryEntity = await this.upsertSourceFromLink(link, 'memory', 'memory', orgId, userEmail, stats, workspaceId);
 
         resolvedMemories.push({
           id: memoryEntity.id || memoryEntity._id?.toString(),
@@ -466,6 +496,59 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       skills: skillWriteBacks,
       memories: memoryWriteBacks,
       explorations: explorationWriteBacks,
+      stats,
+    };
+  }
+
+  /**
+   * Sync manifest for the delta push: maps every synced file of a profile (by its sourceUrl,
+   * the relative path as written in the profile markdown) to its stored contentHash so the CLI
+   * can send only the files whose local hash differs.
+   */
+  async getSyncManifest(profileId: string, orgId?: string): Promise<any> {
+    const query: any = {
+      $or: [
+        { id: profileId },
+        { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null }
+      ].filter(q => q._id !== null)
+    };
+    if (orgId) {
+      query.orgId = orgId;
+    }
+    const profile = await this.genericModel.findOne(query).exec();
+    if (!profile) {
+      throw new Error(`AgenticProfile with ID ${profileId} not found`);
+    }
+
+    const sourceIds = [
+      ...(profile.sources || []),
+      ...(profile.skills || []),
+      ...(profile.explorations || []),
+      ...(profile.memories || []),
+    ].map((s: any) => s.id).filter(Boolean);
+    const taskIds = (profile.tasks || []).map((t: any) => t.id).filter(Boolean);
+
+    const [sources, tasks] = await Promise.all([
+      sourceIds.length > 0 ? this.sourcesService.findManyByIds(sourceIds) : Promise.resolve([]),
+      taskIds.length > 0
+        ? this.agentTasksService.executeOperation({ action: 'find', query: { id: { $in: taskIds }, orgId: profile.orgId } })
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      profileId: profile.id || profile._id?.toString(),
+      sources: (sources || []).map((s: any) => ({
+        url: s.sourceUrl,
+        sourceId: s.id || s._id?.toString(),
+        kind: s.kind || null,
+        contentHash: s.contentHash || null,
+      })),
+      tasks: (tasks || []).map((t: any) => ({
+        url: t.sourceUrl,
+        taskId: t.id || t._id?.toString(),
+        status: t.status,
+        contentHash: t.contentHash || null,
+      })),
     };
   }
 

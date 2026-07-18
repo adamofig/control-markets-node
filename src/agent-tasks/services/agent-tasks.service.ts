@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
@@ -17,6 +18,7 @@ import { SourcesService } from './sources.service';
 import { ChatLLMRequestAdapter, AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
 import { taskPrompt } from '../prompts/task-prompts';
 import { AppException } from '@dataclouder/nest-core';
+import { emitWikiChangeForOperation, WIKI_TASK_CHANGED } from '../../wiki-sync/wiki-sync.events';
 
 @Injectable()
 export class AgentTasksService extends EntityCommunicationService<AgentTaskDocument> {
@@ -30,9 +32,27 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     // private notionService: NotionService,
     private agentJobService: AgentOutcomeJobService,
     private sourcesService: SourcesService,
-    private aiServicesClient: AiServicesSdkClient
+    private aiServicesClient: AiServicesSdkClient,
+    private eventEmitter: EventEmitter2
   ) {
     super(agentTaskModel, mongoService);
+  }
+
+  /** Every generic write (UI CRUD, sync, heartbeat tools) flows through here — notify the wiki write-back */
+  async executeOperation(operation: any): Promise<any> {
+    const result = await super.executeOperation(operation);
+    emitWikiChangeForOperation(this.eventEmitter, WIKI_TASK_CHANGED, operation, result);
+    return result;
+  }
+
+  /** Sync-contract fields written by the wiki write-back itself — deliberately does NOT emit events */
+  async updateSyncContract(id: string, fields: Partial<AgentTaskEntity>): Promise<void> {
+    await this.genericModel.updateOne({ _id: id }, { $set: fields }).exec();
+  }
+
+  private emitChanged(task: any): void {
+    const id = task?.id || task?._id?.toString();
+    if (id) this.eventEmitter.emit(WIKI_TASK_CHANGED, { id });
   }
 
   async save(createAgentTaskDto: IAgentTask) {
@@ -44,12 +64,16 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
       createAgentTaskDto.agentCard = { id: createAgentTaskDto.agentCard.id, assets, name, description };
     }
     if (id) {
-      return this.update(id, createAgentTaskDto);
+      const updated = await this.update(id, createAgentTaskDto);
+      this.emitChanged(updated || { id });
+      return updated;
     } else {
       delete createAgentTaskDto._id;
       delete createAgentTaskDto.id;
       const createdTask = new this.genericModel(createAgentTaskDto);
-      return createdTask.save();
+      const saved = await createdTask.save();
+      this.emitChanged(saved);
+      return saved;
     }
   }
 
@@ -62,7 +86,9 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     task.subtasks = subtasks || [];
     this.applyParentStatusRule(task);
     task.markModified('subtasks');
-    return task.save();
+    const saved = await task.save();
+    this.emitChanged(saved);
+    return saved;
   }
 
   /** Updates a single subtask status; completes the parent when all are done, reopens it otherwise */
@@ -85,7 +111,9 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     }
     this.applyParentStatusRule(task);
     task.markModified('subtasks');
-    return task.save();
+    const saved = await task.save();
+    this.emitChanged(saved);
+    return saved;
   }
 
   /** All subtasks done → parent done; any pending on a done parent → back to in_progress */

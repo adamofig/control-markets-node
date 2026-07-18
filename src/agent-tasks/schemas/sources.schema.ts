@@ -61,6 +61,26 @@ export class SourceEntity implements ISource {
 
   @Prop({ required: false })
   relationId: string;
+
+  /** sha256 of the normalized markdown content — state key of the universal sync contract */
+  @Prop({ required: false })
+  contentHash?: string;
+
+  /** sha256(workspaceId + ':' + relPath) — location-identity key of the sync contract */
+  @Prop({ required: false })
+  fingerprint?: string;
+
+  /** Workspace (project) slug this source belongs to, e.g. 'control-markets' */
+  @Prop({ required: false })
+  workspaceId?: string;
+
+  /** Path relative to the workspace root (posix separators) */
+  @Prop({ required: false })
+  relPath?: string;
+
+  /** Sync contract kind: knowledge | skill | exploration | memory */
+  @Prop({ required: false })
+  kind?: string;
 }
 
 export const SourceSchema = SchemaFactory.createForClass(SourceEntity);
@@ -68,3 +88,4 @@ export const SourceSchema = SchemaFactory.createForClass(SourceEntity);
 addIdAfterSave(SourceSchema);
 
 SourceSchema.index({ name: 'text', description: 'text' });
+SourceSchema.index({ orgId: 1, fingerprint: 1 }, { sparse: true });

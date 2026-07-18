@@ -22,6 +22,10 @@ export type CodexReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high
 export interface AcpRuntimeOptions {
   model?: string;
   reasoningEffort?: CodexReasoningEffort;
+  /** Working directory for the spawned CLI session — the agent's workspace root
+   * (resolved from the profile's workspaceId via ~/.control-markets/workspaces.json).
+   * Falls back to the first LOCAL_AGENT_WORKSPACE_ROOTS when absent. */
+  cwd?: string;
 }
 
 interface EngineConfig {
@@ -283,12 +287,14 @@ export class AcpBridgeService implements OnModuleDestroy {
     onProgress?.('Cargando protocolo ACP...');
     const acp = await loadAcpSdk();
     const roots = this.fsTools.workspaceRoots;
-    const cwd = roots[0];
+    // A profile bound to a workspace runs in that workspace's root; otherwise fall back
+    // to the first configured global root (legacy behavior).
+    const cwd = runtimeOptions.cwd || roots[0];
     if (!cwd) throw new Error('No LOCAL_AGENT_WORKSPACE_ROOTS configured.');
     // spawn() with a non-existent cwd throws a misleading `spawn <exe> ENOENT` (blames the executable,
     // not the dir). Validate up front so the error names the real culprit — the workspace root.
     if (!fs.existsSync(cwd)) {
-      throw new Error(`First LOCAL_AGENT_WORKSPACE_ROOTS path does not exist (used as cwd): ${cwd}`);
+      throw new Error(`Workspace root used as cwd does not exist: ${cwd}`);
     }
 
     // Strip env vars that would push the CLI off personal auth or crash it (see EngineConfig.stripEnv).

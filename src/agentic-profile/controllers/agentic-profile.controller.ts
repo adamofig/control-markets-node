@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Post, Body, UseGuards, Get, Param, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Post, Body, UseGuards, Get, Param, Query, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { AgenticProfileDocument } from '../schemas/agentic-profile.schema';
@@ -93,6 +93,36 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
     const orgId = payload.orgId;
     const userEmail = payload.userEmail || 'adamo.figuero@gmail.com';
     return this.agenticProfileService.syncFromMarkdown(payload, orgId, userEmail);
+  }
+
+  @Get(':id/sync-manifest')
+  @ApiOperation({
+    summary: 'Sync manifest for the markdown delta push (public, same trust level as sync-markdown)',
+    description: 'Returns sourceUrl → contentHash for every source/task of the profile so the CLI only sends changed files.',
+  })
+  @ApiResponse({ status: 200, description: 'Returns the manifest of synced files and their content hashes.' })
+  async getSyncManifest(
+    @Param('id') id: string,
+    @Query('orgId') orgId?: string,
+  ): Promise<any> {
+    return this.agenticProfileService.getSyncManifest(id, orgId);
+  }
+
+  @Put(':id/live-briefing')
+  @ApiOperation({
+    summary: 'Update the Section 8 live briefing (owner note) of an agentic profile',
+    description: 'Persists the owner-written briefing and mirrors it into the local .md (Section 8) when write-back is enabled.',
+  })
+  @ApiResponse({ status: 200, description: 'Live briefing saved.' })
+  @UseGuards(ProjectAuthGuard)
+  async updateLiveBriefing(
+    @Param('id') id: string,
+    @Body() body: { liveBriefing: string },
+    @OrgId() orgId?: string,
+    @DecodedToken() token?: AppToken,
+  ): Promise<{ liveBriefing: string }> {
+    const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
+    return this.agenticProfileService.updateLiveBriefing(id, body?.liveBriefing ?? '', resolvedOrgId);
   }
 
   @Get(':id/full-context')

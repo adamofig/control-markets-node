@@ -67,6 +67,22 @@ export class AgentTaskEntity implements IAgentTask {
 
   @Prop({ type: AuditDataSchema, required: false, default: {} })
   auditable: IAuditable;
+
+  /** sha256 of the normalized markdown content — state key of the universal sync contract */
+  @Prop({ required: false })
+  contentHash?: string;
+
+  /** sha256(workspaceId + ':' + relPath) — location-identity key of the sync contract */
+  @Prop({ required: false })
+  fingerprint?: string;
+
+  /** Workspace (project) slug this task belongs to, e.g. 'control-markets' */
+  @Prop({ required: false })
+  workspaceId?: string;
+
+  /** Path relative to the workspace root (posix separators) */
+  @Prop({ required: false })
+  relPath?: string;
 }
 
 export const AgentTaskSchema = SchemaFactory.createForClass(AgentTaskEntity);
@@ -74,3 +90,4 @@ export const AgentTaskSchema = SchemaFactory.createForClass(AgentTaskEntity);
 addIdAfterSave(AgentTaskSchema);
 
 AgentTaskSchema.index({ name: 'text', description: 'text' });
+AgentTaskSchema.index({ orgId: 1, fingerprint: 1 }, { sparse: true });

@@ -6,6 +6,8 @@ import { FastifyReply } from 'fastify';
 import { DecodedToken } from '../common/token.decorator';
 import { LocalAgentChatService, LocalAgentMessage, LocalAgentStreamEvent } from './local-agent-chat.service';
 import { AcpBridgeService, AcpEngine, CodexReasoningEffort } from './acp-bridge.service';
+import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
+import { WorkspaceService } from '../workspaces/services/workspace.service';
 
 class LocalAgentChatRequestDto {
   messages: LocalAgentMessage[];
@@ -36,7 +38,9 @@ class AcpPermissionRequestDto {
 export class LocalAgentController {
   constructor(
     private readonly localAgentChatService: LocalAgentChatService,
-    private readonly acpBridge: AcpBridgeService
+    private readonly acpBridge: AcpBridgeService,
+    private readonly agenticProfileService: AgenticProfileService,
+    private readonly workspaceService: WorkspaceService,
   ) {}
 
   @Get('status')
@@ -71,9 +75,19 @@ export class LocalAgentController {
       profileContext = await this.localAgentChatService.getProfileContext(body.agenticProfileId, body.orgId ?? token['orgId']).catch(() => undefined);
     }
 
+    // A profile bound to a workspace chats from that workspace's root on this host
+    let cwd: string | undefined;
+    if (body.agenticProfileId) {
+      const profile = await this.agenticProfileService
+        .executeOperation({ action: 'findOne', query: { id: body.agenticProfileId } })
+        .catch(() => null);
+      cwd = this.workspaceService.resolveRootForHost(profile?.workspaceId) ?? undefined;
+    }
+
     const acpEvents = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? 'gemini', {
       model: body.model,
       reasoningEffort: body.reasoningEffort,
+      cwd,
     });
     const events = profileContext
       ? this.withContextSnapshot(profileContext, acpEvents)

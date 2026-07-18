@@ -8,6 +8,7 @@ import { AgenticProfileService } from '../agentic-profile/services/agentic-profi
 import { IAgenticHeartbeat, IAgenticProfile } from '../agentic-profile/models/agentic-profile.models';
 import { AcpBridgeService, AcpEngine } from '../local-agent/acp-bridge.service';
 import { LocalAgentChatService } from '../local-agent/local-agent-chat.service';
+import { WorkspaceService } from '../workspaces/services/workspace.service';
 import { AgenticHeartbeatRunDocument, AgenticHeartbeatRunEntity, HeartbeatRunTrigger, IHeartbeatToolCall } from './schemas/agentic-heartbeat-run.schema';
 
 const CRON_PREFIX = 'agentic-heartbeat:';
@@ -76,6 +77,7 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     private readonly agenticProfileService: AgenticProfileService,
     private readonly acpBridge: AcpBridgeService,
     private readonly localAgentChatService: LocalAgentChatService,
+    private readonly workspaceService: WorkspaceService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -338,7 +340,13 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     let runUsage: any = undefined;
     const deadline = Date.now() + RUN_HARD_TIMEOUT_MS;
 
-    for await (const event of this.acpBridge.stream(prompt, undefined, context, engine)) {
+    // A profile bound to a workspace wakes up in that workspace's root on this host
+    const workspaceCwd = this.workspaceService.resolveRootForHost((profile as any).workspaceId) ?? undefined;
+    if (workspaceCwd) {
+      this.publishLive(runId, { type: 'status', message: `Workspace: ${(profile as any).workspaceId} (${workspaceCwd})` });
+    }
+
+    for await (const event of this.acpBridge.stream(prompt, undefined, context, engine, { cwd: workspaceCwd })) {
       if (Date.now() > deadline) {
         error = `Heartbeat abortado: superó el límite de ${RUN_HARD_TIMEOUT_MS / 60000} minutos.`;
         if (sessionId) await this.acpBridge.cancel(sessionId).catch(() => undefined);

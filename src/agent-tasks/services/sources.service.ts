@@ -7,6 +7,8 @@ import { ISource } from '../models/classes';
 import { YouTubeService } from '../../youtube/functions';
 import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mongo';
 import { CloudStorageService } from '@dataclouder/nest-storage';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { emitWikiChangeForOperation, WIKI_SOURCE_CHANGED } from '../../wiki-sync/wiki-sync.events';
 
 @Injectable()
 export class SourcesService extends EntityCommunicationService<SourceDocument> {
@@ -14,9 +16,27 @@ export class SourcesService extends EntityCommunicationService<SourceDocument> {
     @InjectModel(SourceEntity.name)
     sourceModel: Model<SourceDocument>,
     mongoService: MongoService,
-    private cloudStorageService: CloudStorageService
+    private cloudStorageService: CloudStorageService,
+    private eventEmitter: EventEmitter2
   ) {
     super(sourceModel, mongoService);
+  }
+
+  /** Every generic write (UI CRUD, sync) flows through here — notify the wiki write-back */
+  async executeOperation(operation: any): Promise<any> {
+    const result = await super.executeOperation(operation);
+    emitWikiChangeForOperation(this.eventEmitter, WIKI_SOURCE_CHANGED, operation, result);
+    return result;
+  }
+
+  /** Sync-contract fields written by the wiki write-back itself — deliberately does NOT emit events */
+  async updateSyncContract(id: string, fields: Partial<SourceEntity>): Promise<void> {
+    await this.genericModel.updateOne({ id }, { $set: fields }).exec();
+  }
+
+  private emitChanged(source: any): void {
+    const id = source?.id || source?._id?.toString();
+    if (id) this.eventEmitter.emit(WIKI_SOURCE_CHANGED, { id });
   }
 
   async findOne(id: string, projection: any = {}): Promise<SourceDocument> {
@@ -32,22 +52,30 @@ export class SourcesService extends EntityCommunicationService<SourceDocument> {
       return this.update(source.id, source);
     } else {
       const sourceEntity = new this.genericModel(source);
-      return sourceEntity.save();
+      const saved = await sourceEntity.save();
+      this.emitChanged(saved);
+      return saved;
     }
   }
 
   async update(id: string, source: ISource): Promise<SourceDocument> {
-    return this.genericModel.findOneAndUpdate({ id }, source, { new: true }).exec();
+    const updated = await this.genericModel.findOneAndUpdate({ id }, source, { new: true }).exec();
+    this.emitChanged(updated || { id });
+    return updated;
   }
 
   async partialUpdate(id: string, partialUpdates: Partial<SourceDocument>): Promise<SourceDocument> {
-    return await this.genericModel.findByIdAndUpdate(id, { $set: partialUpdates }, { new: true }).exec();
+    const updated = await this.genericModel.findByIdAndUpdate(id, { $set: partialUpdates }, { new: true }).exec();
+    this.emitChanged(updated || { id });
+    return updated;
   }
 
   async partialUpdateFlattened(id: string, partialUpdates: Partial<SourceDocument>): Promise<SourceDocument> {
     // Convert nested objects to dot notation eg. { "video.captions.remotion": captions.captions }
     const flattenedUpdates = this.flattenObject(partialUpdates);
-    return await this.genericModel.findByIdAndUpdate(id, { $set: flattenedUpdates }, { new: true }).exec();
+    const updated = await this.genericModel.findByIdAndUpdate(id, { $set: flattenedUpdates }, { new: true }).exec();
+    this.emitChanged(updated || { id });
+    return updated;
   }
 
   private flattenObject(obj: any, prefix = ''): any {
