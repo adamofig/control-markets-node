@@ -43,6 +43,14 @@ export interface IAgenticConversationMessage {
   usage?: IAgenticTokenUsage;
 }
 
+export interface IAgenticConversationInjectedContext {
+  level: 'basic' | 'medium' | 'full';
+  content: string;
+  characters: number;
+  estimatedTokens: number;
+  capturedAt: string;
+}
+
 export interface IAgenticConversation {
   _id?: string;
   id?: string;
@@ -55,5 +63,6 @@ export interface IAgenticConversation {
   acpSessionId?: string;
   messages: IAgenticConversationMessage[];
   usage?: IAgenticTokenUsage;
+  injectedContext?: IAgenticConversationInjectedContext;
   auditable?: IAuditable;
 }

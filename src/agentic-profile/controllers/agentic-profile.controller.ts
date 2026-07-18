@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Param } from '@nestjs/common';
+import { BadRequestException, Controller, Post, Body, UseGuards, Get, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { AgenticProfileDocument } from '../schemas/agentic-profile.schema';
@@ -7,6 +7,7 @@ import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
 import { SchedulerRegistry } from '@nestjs/schedule';
+import { AgenticContextLevel } from '../models/agentic-profile.models';
 
 @ApiTags('agentic-profile')
 @Controller('api/agentic-profile')
@@ -102,11 +103,15 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
   @UseGuards(ProjectAuthGuard)
   async getFullContext(
     @Param('id') id: string,
+    @Query('level') level: AgenticContextLevel | undefined,
     @OrgId() orgId?: string,
     @DecodedToken() token?: AppToken,
   ): Promise<{ fullContextMarkdown: string }> {
+    if (level && !['basic', 'medium', 'full'].includes(level)) {
+      throw new BadRequestException('level must be one of: basic, medium, full');
+    }
     const resolvedOrgId = orgId || token?.userId || (token as any).id || (token as any).uid;
-    const fullContextMarkdown = await this.agenticProfileService.composeFullContext(id, resolvedOrgId);
+    const fullContextMarkdown = await this.agenticProfileService.composeFullContext(id, resolvedOrgId, level);
     return { fullContextMarkdown };
   }
 }

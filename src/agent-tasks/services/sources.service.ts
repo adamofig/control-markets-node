@@ -23,8 +23,8 @@ export class SourcesService extends EntityCommunicationService<SourceDocument> {
     return this.genericModel.findOne({ id }, projection).lean().exec() as unknown as Promise<SourceDocument>;
   }
 
-  async findManyByIds(ids: string[]): Promise<SourceDocument[]> {
-    return this.genericModel.find({ id: { $in: ids } }).exec();
+  async findManyByIds(ids: string[], orgId?: string): Promise<SourceDocument[]> {
+    return this.genericModel.find({ id: { $in: ids }, ...(orgId ? { orgId } : {}) }).exec();
   }
 
   async save(source: ISource): Promise<SourceDocument> {

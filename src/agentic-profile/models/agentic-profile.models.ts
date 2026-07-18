@@ -42,6 +42,7 @@ export interface IAgenticProfileExploration {
 }
 
 export type AgenticHeartbeatEngine = 'agy' | 'gemini' | 'claude' | 'codex';
+export type AgenticContextLevel = 'basic' | 'medium' | 'full';
 
 export interface IAgenticHeartbeat {
   enabled: boolean;
@@ -69,6 +70,7 @@ export interface IAgenticProfile {
   explorations?: IAgenticProfileExploration[];
   liveBriefing?: string;
   heartbeat?: IAgenticHeartbeat;
+  contextLevel?: AgenticContextLevel;
 
   metadata?: Record<string, any>;
   auditable?: IAuditable;

@@ -7,6 +7,7 @@ import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
+import { AgenticContextLevel } from '../models/agentic-profile.models';
 
 @Injectable()
 export class AgenticProfileService extends EntityCommunicationService<AgenticProfileDocument> {
@@ -468,7 +469,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     };
   }
 
-  async composeFullContext(profileId: string, orgId?: string): Promise<string> {
+  async composeFullContext(profileId: string, orgId?: string, levelOverride?: AgenticContextLevel): Promise<string> {
     const query: any = {
       $or: [
         { id: profileId },
@@ -482,6 +483,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     if (!profile) {
       throw new Error(`AgenticProfile with ID ${profileId} not found`);
     }
+    const level: AgenticContextLevel = levelOverride ?? profile.contextLevel ?? 'basic';
 
     // Fetch AgentCard instructions
     let instructions = '';
@@ -498,30 +500,30 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
     // Get arrays of IDs
     const sourceIds = (profile.sources || []).map((s: any) => s.id);
-    const skillIds = (profile.skills || []).map((s: any) => s.id);
+    const skillIds = (profile.skills || []).filter((s: any) => s.enabled !== false).map((s: any) => s.id);
     const taskIds = (profile.tasks || []).map((t: any) => t.id);
-    const memoryIds = (profile.memories || []).map((m: any) => m.id);
-    const explorationIds = (profile.explorations || []).map((e: any) => e.id);
+    const memoryIds = (profile.memories || []).filter((m: any) => m.enabled !== false).map((m: any) => m.id);
+    const explorationIds = (profile.explorations || []).filter((e: any) => e.enabled !== false).map((e: any) => e.id);
 
     // Query Source, Skill, Task, Memory, and Exploration entities
     const [sources, skills, tasks, memories, explorations] = await Promise.all([
       sourceIds.length > 0
-        ? this.sourcesService.findManyByIds(sourceIds)
+        ? this.sourcesService.findManyByIds(sourceIds, orgId)
         : Promise.resolve([]),
       skillIds.length > 0
-        ? this.sourcesService.findManyByIds(skillIds)
+        ? this.sourcesService.findManyByIds(skillIds, orgId)
         : Promise.resolve([]),
       taskIds.length > 0
         ? this.agentTasksService.executeOperation({
-            action: 'find',
-            query: { id: { $in: taskIds } }
+          action: 'find',
+            query: { id: { $in: taskIds }, ...(orgId ? { orgId } : {}) }
           })
         : Promise.resolve([]),
       memoryIds.length > 0
-        ? this.sourcesService.findManyByIds(memoryIds)
+        ? this.sourcesService.findManyByIds(memoryIds, orgId)
         : Promise.resolve([]),
       explorationIds.length > 0
-        ? this.sourcesService.findManyByIds(explorationIds)
+        ? this.sourcesService.findManyByIds(explorationIds, orgId)
         : Promise.resolve([])
     ]);
 
@@ -533,6 +535,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     md += `title: "${profile.title || ''}"\n`;
     md += `description: "${profile.description || ''}"\n`;
     md += `agenticProfileId: "${profile.id || profile._id?.toString() || ''}"\n`;
+    md += `contextLevel: "${level}"\n`;
     md += `---\n\n`;
 
     md += `# ${agentName} — ${profile.title || ''}\n\n`;
@@ -554,7 +557,11 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         if (src.description) {
           md += `> Descripción: ${src.description}\n\n`;
         }
-        md += src.content ? `${src.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        md += `- ID: \`${src.id || src._id?.toString() || ''}\`\n`;
+        if (src.sourceUrl) md += `- Ruta/URL: ${src.sourceUrl}\n`;
+        md += `\n`;
+        if (level === 'full') md += src.content ? `${src.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        else md += `> Contenido disponible bajo demanda con \`getProfileSource\` usando el ID anterior.\n\n`;
         md += `---\n\n`;
       }
     } else {
@@ -568,7 +575,11 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         if (sk.description) {
           md += `> Descripción: ${sk.description}\n\n`;
         }
-        md += sk.content ? `${sk.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        md += `- ID: \`${sk.id || sk._id?.toString() || ''}\`\n`;
+        if (sk.sourceUrl) md += `- Ruta/URL: ${sk.sourceUrl}\n`;
+        md += `\n`;
+        if (level === 'full') md += sk.content ? `${sk.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        else md += `> Contenido disponible bajo demanda con \`getProfileSource\`.\n\n`;
         md += `---\n\n`;
       }
     } else {
@@ -582,7 +593,11 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         if (exp.description) {
           md += `> Descripción: ${exp.description}\n\n`;
         }
-        md += exp.content ? `${exp.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        md += `- ID: \`${exp.id || exp._id?.toString() || ''}\`\n`;
+        if (exp.sourceUrl) md += `- Ruta/URL: ${exp.sourceUrl}\n`;
+        md += `\n`;
+        if (level === 'full') md += exp.content ? `${exp.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        else md += `> Contenido disponible bajo demanda con \`getProfileSource\`.\n\n`;
         md += `---\n\n`;
       }
     } else {
@@ -590,39 +605,78 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
 
     md += `## 6. Tareas (Task)\n\n`;
-    if (tasks && tasks.length > 0) {
-      for (const task of tasks) {
+    const visibleTasks = level === 'basic' ? [] : level === 'medium'
+      ? (tasks || []).filter((task: any) => task.status !== 'done')
+      : (tasks || []);
+    if (visibleTasks.length > 0) {
+      for (const task of visibleTasks) {
         const statusBox = task.status === 'done' ? '[x]' : task.status === 'in_progress' ? '[/]' : '[ ]';
         md += `- ${statusBox} **${task.name || 'Tarea sin título'}** (ID: \`${task.id || task._id?.toString() || ''}\`, Status: \`${task.status || 'pending'}\`)\n`;
         if (task.description) {
           md += `  *Descripción:* ${task.description}\n`;
         }
-        if (task.content) {
+        if (level === 'full' && task.content) {
           md += `\n  \`\`\`markdown\n${task.content.split('\n').map((line: string) => `  ${line}`).join('\n')}\n  \`\`\`\n`;
         }
         md += `\n`;
       }
     } else {
-      md += `*(No hay tareas vinculadas)*\n\n`;
+      md += level === 'basic'
+        ? `*(Omitidas en nivel BASIC; disponibles desde el perfil.)*\n\n`
+        : `*(No hay tareas pendientes vinculadas)*\n\n`;
     }
 
     md += `## 7. Memorias - Notas de Sesión y Foco Actual (Memories)\n\n`;
-    if (memories && memories.length > 0) {
+    if (level !== 'basic' && memories && memories.length > 0) {
       for (const mem of memories) {
         md += `### Memoria: ${mem.name || 'Sin título'}\n`;
         if (mem.description) {
           md += `> Descripción: ${mem.description}\n\n`;
         }
-        md += mem.content ? `${mem.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        md += `- ID: \`${mem.id || mem._id?.toString() || ''}\`\n\n`;
+        if (level === 'full') md += mem.content ? `${mem.content}\n\n` : `*(Contenido vacío)*\n\n`;
+        else md += `> Contenido disponible bajo demanda con \`getProfileSource\`.\n\n`;
         md += `---\n\n`;
       }
     } else {
-      md += `*(No hay memorias vinculadas)*\n\n`;
+      md += level === 'basic'
+        ? `*(Omitidas en nivel BASIC.)*\n\n`
+        : `*(No hay memorias vinculadas)*\n\n`;
     }
 
     md += `## 8. Informe Directo (Live Briefing)\n\n`;
     md += profile.liveBriefing ? `${profile.liveBriefing}\n\n` : `*(Sin briefing activo — el propietario no ha dejado instrucciones en este período)*\n\n`;
 
     return md.trim() + '\n';
+  }
+
+  async getLinkedContextResource(profileId: string, sourceId: string, orgId?: string): Promise<{ id: string; name?: string; description?: string; sourceUrl?: string; content?: string }> {
+    const profileQuery: any = {
+      $or: [
+        { id: profileId },
+        { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null },
+      ].filter(item => item._id !== null),
+      ...(orgId ? { orgId } : {}),
+    };
+    const profile = await this.genericModel.findOne(profileQuery).lean().exec();
+    if (!profile) throw new Error(`AgenticProfile with ID ${profileId} not found`);
+
+    const linkedIds = [
+      ...(profile.sources || []),
+      ...(profile.skills || []),
+      ...(profile.memories || []),
+      ...(profile.explorations || []),
+    ].map((item: any) => item.id);
+    if (!linkedIds.includes(sourceId)) throw new Error(`Source ${sourceId} is not linked to profile ${profileId}`);
+
+    const [source] = await this.sourcesService.findManyByIds([sourceId], orgId);
+    if (!source) throw new Error(`Source ${sourceId} not found`);
+    return {
+      id: source.id,
+      name: source.name,
+      description: source.description,
+      sourceUrl: source.sourceUrl,
+      content: source.content,
+    };
   }
 }

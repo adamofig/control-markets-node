@@ -71,10 +71,13 @@ export class LocalAgentController {
       profileContext = await this.localAgentChatService.getProfileContext(body.agenticProfileId, body.orgId ?? token['orgId']).catch(() => undefined);
     }
 
-    const events = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? 'gemini', {
+    const acpEvents = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? 'gemini', {
       model: body.model,
       reasoningEffort: body.reasoningEffort,
     });
+    const events = profileContext
+      ? this.withContextSnapshot(profileContext, acpEvents)
+      : acpEvents;
     await this.pipeSse(events, res);
   }
 
@@ -102,5 +105,13 @@ export class LocalAgentController {
     } finally {
       res.raw.end();
     }
+  }
+
+  private async *withContextSnapshot(
+    context: string,
+    events: AsyncGenerator<LocalAgentStreamEvent>,
+  ): AsyncGenerator<LocalAgentStreamEvent> {
+    yield { type: 'context-snapshot', context: this.localAgentChatService.createContextSnapshot(context) };
+    yield* events;
   }
 }

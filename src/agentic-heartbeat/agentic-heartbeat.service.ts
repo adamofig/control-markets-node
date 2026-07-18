@@ -319,7 +319,10 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     this.logger.log(`${tag} Wake-up via ${engine} [${run.trigger}] — run ${runId}`);
     this.publishLive(runId, { type: 'status', message: `Despertando via ${engine} (${run.trigger})...` });
 
-    const context = await this.localAgentChatService.getProfileContext(profileId, profile.orgId).catch(err => {
+    // Heartbeats need operational state. Keep an explicit FULL profile; otherwise
+    // promote chat-oriented BASIC profiles to MEDIUM for autonomous execution.
+    const heartbeatContextLevel = profile.contextLevel === 'full' ? 'full' : 'medium';
+    const context = await this.localAgentChatService.getProfileContext(profileId, profile.orgId, heartbeatContextLevel).catch(err => {
       this.logger.warn(`Could not compose full-context for ${profileId}: ${err.message}`);
       return undefined;
     });
