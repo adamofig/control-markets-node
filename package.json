@@ -28,6 +28,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.59.0",
     "@agentclientprotocol/sdk": "1.2.1",
     "@ai-sdk/google": "^4.0.12",
     "@dataclouder/nest-agent-cards": "^0.1.53",

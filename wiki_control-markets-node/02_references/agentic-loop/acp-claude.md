@@ -30,7 +30,7 @@ El protocolo es el mismo; solo cambia el comando que se lanza y su config
 | Engine | Comando por defecto | Override (env) | Auth / notas |
 | :--- | :--- | :--- | :--- |
 | `gemini` | `gemini --acp` | `LOCAL_AGENT_GEMINI_COMMAND` | Usa OAuth personal. Se le **quitan** las env de Vertex (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`, etc.) porque si están presentes Gemini cambia a Code Assist facturado y falla con `403 IAM_PERMISSION_DENIED`. Soporta `--include-directories`. |
-| `claude` | `npx -y @zed-industries/claude-code-acp` | `LOCAL_AGENT_CLAUDE_COMMAND` | Adaptador oficial de Zed que puentea el Claude Agent SDK a ACP (npx lo auto-descarga). Se le **quitan** `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_SSE_PORT` — si no, el adaptador se niega a arrancar "dentro de otra sesión de Claude Code". No soporta `--include-directories`. |
+| `claude` | `npx -y @agentclientprotocol/claude-agent-acp@0.59.0` | `LOCAL_AGENT_CLAUDE_COMMAND` | Adaptador oficial ACP para Claude Agent SDK, fijado en 0.59.0. Se le **quitan** `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_SSE_PORT` — si no, el adaptador se niega a arrancar "dentro de otra sesión de Claude Code". No soporta `--include-directories`. |
 
 ---
 
@@ -44,7 +44,7 @@ LOCAL_AGENT_WORKSPACE_ROOTS=~/Documents/GitHub/control-markets,~/Documents/Adamo
 
 # Overrides de comando — usar la RUTA ABSOLUTA del ejecutable si el server se
 # lanza desde un IDE cuyo PATH no incluye nvm (ver "Errores comunes").
-LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/npx -y @zed-industries/claude-code-acp
+LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/npx -y @agentclientprotocol/claude-agent-acp@0.59.0
 # LOCAL_AGENT_GEMINI_COMMAND=gemini --acp
 ```
 
@@ -66,10 +66,10 @@ que el bridge lanza como subproceso. Hay dos formas de proveerlo:
 
 ```bash
 # Requisito de setup (una vez):
-npm i -g @zed-industries/claude-code-acp
+npm i -g @agentclientprotocol/claude-agent-acp@0.59.0
 
 # .env — apuntar directo a node + el entry instalado (sin npx, sin descarga):
-LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/node /Users/<user>/.nvm/versions/node/<ver>/lib/node_modules/@zed-industries/claude-code-acp/dist/index.js
+LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/node /Users/<user>/.nvm/versions/node/<ver>/lib/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js
 ```
 
 Ventajas frente a `npx`:
@@ -84,7 +84,7 @@ Ventajas frente a `npx`:
 #### Opción B — `npx -y` (lo que tenemos hoy, default del bridge)
 
 ```bash
-LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/npx -y @zed-industries/claude-code-acp
+LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/npx -y @agentclientprotocol/claude-agent-acp@0.59.0
 ```
 
 `npx -y` auto-descarga el adaptador a su caché la primera vez. Ventaja: **cero
@@ -204,7 +204,7 @@ Límites de lectura: `MAX_READ_BYTES = 100k`, `MAX_READ_LINES = 2000`.
 
 ### `Error: spawn npx ENOENT` (tumbaba todo el server)
 
-**Causa**: el motor `claude` lanza `npx -y @zed-industries/claude-code-acp`. Si
+**Causa**: el motor `claude` lanza `npx -y @agentclientprotocol/claude-agent-acp@0.59.0`. Si
 el server se arranca desde un IDE (p. ej. Antigravity) cuyo `PATH` no incluye el
 bin de nvm, `npx` no se encuentra → ENOENT. `spawn` emite un evento `'error'`
 asíncrono; **sin** un listener `'error'`, Node lo trata como excepción no
@@ -218,7 +218,7 @@ ruta absoluta.
 **Solución (config)**: poner la ruta absoluta del ejecutable en
 `LOCAL_AGENT_CLAUDE_COMMAND` (o `LOCAL_AGENT_GEMINI_COMMAND`):
 ```bash
-LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/npx -y @zed-industries/claude-code-acp
+LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/npx -y @agentclientprotocol/claude-agent-acp@0.59.0
 ```
 
 ### `403 IAM_PERMISSION_DENIED` con Gemini
@@ -259,9 +259,9 @@ el bin de nvm, el shebang no encuentra `node`. El bridge ya antepone la carpeta
 del ejecutable al `PATH` del hijo cuando `exe` es ruta absoluta. Alternativa más
 robusta: apuntar directo a `node` + el entry instalado, sin `npx` ni descarga:
 ```bash
-LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/node /Users/<user>/.nvm/versions/node/<ver>/lib/node_modules/@zed-industries/claude-code-acp/dist/index.js
+LOCAL_AGENT_CLAUDE_COMMAND=/Users/<user>/.nvm/versions/node/<ver>/bin/node /Users/<user>/.nvm/versions/node/<ver>/lib/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js
 ```
-(requiere `npm i -g @zed-industries/claude-code-acp` con ese mismo node.)
+(requiere `npm i -g @agentclientprotocol/claude-agent-acp@0.59.0` con ese mismo Node.)
 
 ---
 

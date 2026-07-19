@@ -54,14 +54,16 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     versionCommand: 'gemini --version',
   },
   claude: {
-    // The official Zed adapter bridges the Claude Agent SDK to ACP (npx auto-fetches it).
+    // Official ACP adapter for the Claude Agent SDK. Pin the version so local-agent behavior
+    // cannot change underneath a running deployment when npm's latest tag advances.
     commandEnv: 'LOCAL_AGENT_CLAUDE_COMMAND',
-    defaultCommand: 'npx -y @zed-industries/claude-code-acp',
+    defaultCommand: 'npx -y @agentclientprotocol/claude-agent-acp@0.59.0',
     supportsIncludeDirs: false,
     // CLAUDECODE/CLAUDE_CODE_* are set when the backend itself runs under Claude Code; the adapter
     // then refuses to launch ("cannot be launched inside another Claude Code session").
     stripEnv: ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT'],
-    versionCommand: 'claude --version',
+    versionCommand: 'npx -y @agentclientprotocol/claude-agent-acp@0.59.0 --cli --version',
+    modelEnv: 'LOCAL_AGENT_CLAUDE_MODEL',
   },
   codex: {
     // The official ACP adapter starts `codex app-server` and translates it to ACP.
@@ -103,6 +105,8 @@ interface AcpSession {
   toolNames: Map<string, string>; // toolCallId → title (for tool_call_update mapping)
   contextSent: boolean;
   runtimeOptions: AcpRuntimeOptions;
+  /** Exact USD cost reported by Claude's `usage_update` notifications for the active turn. */
+  turnCostUsd?: number;
   lastUsedAt: number;
 }
 
@@ -204,6 +208,7 @@ export class AcpBridgeService implements OnModuleDestroy {
 
         session.queue = queue;
         session.lastUsedAt = Date.now();
+        session.turnCostUsd = undefined;
 
         // Emitimos el ID de la sesión al cliente
         queue.push({ type: 'session', sessionId: session.id });
@@ -222,13 +227,20 @@ export class AcpBridgeService implements OnModuleDestroy {
         await session.connection
           .prompt({ sessionId: session.acpSessionId, prompt })
           .then((result: any) => {
+            const usage = normalizeTokenUsage(result.usage, {
+              provider: engine === 'gemini' ? 'google' : engine === 'claude' ? 'anthropic' : engine,
+              model: runtimeOptions.model,
+              source: 'acp',
+            });
+            if (usage && session.turnCostUsd != null) {
+              // Unlike table-based estimates, this is the adapter's exact Claude Agent SDK
+              // `total_cost_usd`. Keep the established field name for API/UI compatibility.
+              usage.estimatedCostUsd = session.turnCostUsd;
+              usage.pricingVersion = 'reported-by-claude-agent-sdk';
+            }
             queue.push({
               type: 'finish',
-              usage: normalizeTokenUsage(result.usage, {
-                provider: engine === 'gemini' ? 'google' : engine,
-                model: runtimeOptions.model,
-                source: 'acp',
-              }),
+              usage,
             });
           })
           .catch((error: any) => queue.push({ type: 'error', error: String(error?.message ?? error) }))
@@ -301,6 +313,14 @@ export class AcpBridgeService implements OnModuleDestroy {
     const env = { ...process.env };
     for (const key of config.stripEnv) delete env[key];
 
+    if (resolvedEngine === 'claude') {
+      // The Zed adapter wraps the Claude Agent SDK, which honors ANTHROPIC_MODEL
+      // (aliases like 'sonnet'/'opus'/'haiku' or full model ids). The env is fixed at
+      // spawn time, so changing model requires a new session — the frontend resets it.
+      const claudeModel = runtimeOptions.model?.trim() || process.env.LOCAL_AGENT_CLAUDE_MODEL?.trim();
+      if (claudeModel) env.ANTHROPIC_MODEL = claudeModel;
+    }
+
     if (resolvedEngine === 'codex') {
       // Force the adapter to use the user's installed CLI. The older Zed adapter embedded its own
       // Codex runtime, which could lag behind and reject newer subscription models such as Terra.
@@ -360,6 +380,7 @@ export class AcpBridgeService implements OnModuleDestroy {
       toolNames: existing?.toolNames ?? new Map(),
       contextSent: existing?.contextSent ?? false,
       runtimeOptions: existing?.runtimeOptions ?? runtimeOptions,
+      turnCostUsd: undefined,
       lastUsedAt: Date.now(),
     };
 
@@ -386,17 +407,56 @@ export class AcpBridgeService implements OnModuleDestroy {
     });
     this.logger.log(`ACP initialized (protocol v${init.protocolVersion})`);
 
+    let configOptions: any[] | undefined;
     if (session.acpSessionId && init.agentCapabilities?.loadSession) {
       onProgress?.(`Restaurando sesión agéntica: ${session.acpSessionId.slice(0, 8)}...`);
-      await session.connection.loadSession({ sessionId: session.acpSessionId, cwd, mcpServers: [] });
+      const loaded = await session.connection.loadSession({ sessionId: session.acpSessionId, cwd, mcpServers: [] });
+      configOptions = loaded?.configOptions;
     } else {
       onProgress?.('Creando nueva sesión en el motor agéntico...');
       const created = await session.connection.newSession({ cwd, mcpServers: [] });
       session.acpSessionId = created.sessionId;
+      configOptions = created?.configOptions;
+    }
+
+    if (resolvedEngine === 'claude') {
+      await this.applySessionModel(session, configOptions, session.runtimeOptions.model, onProgress);
     }
 
     this.sessions.set(session.id, session);
     return session;
+  }
+
+  /**
+   * Selects the session model through the standard ACP session config option. The current
+   * claude-agent-acp adapter advertises models as `configOptions[id=model]` and rejects values
+   * outside that list, so resolve aliases/names before sending `session/set_config_option`.
+   */
+  private async applySessionModel(session: AcpSession, configOptions: any[] | undefined, requestedModel?: string, onProgress?: (msg: string) => void): Promise<void> {
+    const desired = requestedModel?.trim() || process.env.LOCAL_AGENT_CLAUDE_MODEL?.trim();
+    if (!desired) return;
+    const norm = (value: unknown) => String(value ?? '').toLowerCase();
+    const modelOption = configOptions?.find(option => option?.id === 'model');
+    const available: { value: string; name?: string }[] = (modelOption?.options ?? []).flatMap((option: any) => (Array.isArray(option?.options) ? option.options : [option]));
+    const match = available.find(model => norm(model.value) === norm(desired)) ?? available.find(model => norm(model.value).includes(norm(desired)) || norm(model.name).includes(norm(desired)));
+    if (!modelOption || !match) {
+      this.logger.warn(
+        `ACP session ${session.id}: model '${desired}' is not advertised by the adapter ` + `(available: ${available.map(model => model.value).join(', ') || 'none'}); keeping its default.`
+      );
+      return;
+    }
+    if (modelOption.currentValue === match.value) return;
+    try {
+      onProgress?.(`Seleccionando modelo: ${match.value}...`);
+      await session.connection.setSessionConfigOption({
+        sessionId: session.acpSessionId,
+        configId: 'model',
+        value: match.value,
+      });
+      this.logger.log(`ACP session ${session.id}: model set to ${match.value}`);
+    } catch (error) {
+      this.logger.warn(`ACP session ${session.id}: could not set model '${desired}': ${error?.message ?? error}`);
+    }
   }
 
   /** Implements the ACP `Client` interface: streaming updates, permissions and sandboxed fs. */
@@ -459,6 +519,17 @@ export class AcpBridgeService implements OnModuleDestroy {
       }
       case 'plan':
         return { type: 'plan', entries: update.entries ?? [] };
+      case 'usage_update': {
+        // Claude sends the exact SDK cost here before resolving session/prompt. Autonomous
+        // background activity carries an origin marker and is intentionally not attributed to
+        // the user's active turn, whose token totals come from PromptResponse.usage.
+        const amount = Number(update.cost?.amount);
+        const origin = update._meta?.['_claude/origin'];
+        if (!origin && update.cost?.currency === 'USD' && Number.isFinite(amount)) {
+          session.turnCostUsd = (session.turnCostUsd ?? 0) + amount;
+        }
+        return null;
+      }
       default:
         return null;
     }
