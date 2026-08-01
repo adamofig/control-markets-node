@@ -1,4 +1,4 @@
-import { Injectable, ExecutionContext } from '@nestjs/common';
+import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard, FirebaseService } from '@dataclouder/nest-auth';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -42,6 +42,10 @@ export class ProjectAuthGuard extends AuthGuard {
         request.orgId = user.defaultOrgId;
         return true;
       }
+    }
+
+    if (!token) {
+      throw new UnauthorizedException('Authentication token is required');
     }
 
     return super.canActivate(context);

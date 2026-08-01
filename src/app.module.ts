@@ -46,7 +46,7 @@ import { AgenticHeartbeatModule } from './agentic-heartbeat/agentic-heartbeat.mo
 import { MessagingModule } from './messaging/messaging.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AgenticConversationModule } from './agentic-conversation/agentic-conversation.module';
-
+import { InboxModule } from './inbox/inbox.module';
 
 @Module({
   imports: [
@@ -102,6 +102,7 @@ import { AgenticConversationModule } from './agentic-conversation/agentic-conver
     AgenticHeartbeatModule,
     MessagingModule,
     AgenticConversationModule,
+    InboxModule,
   ],
   controllers: [AppController],
 })

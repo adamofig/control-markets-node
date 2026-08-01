@@ -1,11 +1,9 @@
 import { AppException, IAppException } from '@dataclouder/nest-core';
-import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus, Logger } from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { FastifyRequest } from 'fastify';
 
 @Catch()
 export class AllExceptionsHandler implements ExceptionFilter {
-  private readonly logger = new Logger('AllExceptionsHandler');
-
   catch(exception: Error | any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<any>();
@@ -25,28 +23,24 @@ export class AllExceptionsHandler implements ExceptionFilter {
     if (exception instanceof AppException) {
       status = exception.statusCode ?? status;
       response.status(status).send(exception.toJSON());
+    } else if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      const exceptionResponse = exception.getResponse();
+      response.status(status).send(typeof exceptionResponse === 'string' ? { statusCode: status, message: exceptionResponse } : exceptionResponse);
     } else if (exception?.errInfo?.details) {
       const error: IAppException = {
         error_message: 'Error de base de datos',
-        exception: exception,
         path: request.url,
         explanation: 'probablemente un dato no cumple las validaciones',
       };
       response.status(status).send(error);
     } else {
-      // For unhandled exceptions, don't send the full stack back to the client unless in debug mode
-      const errorResponse: any = {
+      const errorResponse = {
         err: 'Error de sistema no controlado',
         path: request.url,
-        exception: exception?.toString(),
       };
-
-      if (isDebug) {
-        errorResponse.stack = exception?.stack;
-      }
 
       response.status(status).send(errorResponse);
     }
   }
 }
-
