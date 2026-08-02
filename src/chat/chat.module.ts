@@ -8,6 +8,10 @@ import { CreativeFlowboardModule } from '../creative-flowboard/creative-flowboar
 import { AgentsModule } from '../agent-tasks/agent-tasks.module';
 import { BlogEntryModule } from '../blog-entry/blog-entry.module';
 import { KeyBalancerModule } from '../key-balancer/key-balancer.module';
+import { InboxModule } from '../inbox/inbox.module';
+import { UiCapabilityRegistryService } from './context/ui-capability-registry.service';
+import { UiContextPromptComposerService } from './context/ui-context-prompt-composer.service';
+import { UiContextSanitizerService } from './context/ui-context-sanitizer.service';
 
 @Module({
   imports: [
@@ -18,9 +22,10 @@ import { KeyBalancerModule } from '../key-balancer/key-balancer.module';
     AgentCardsModule,
     BlogEntryModule,
     KeyBalancerModule,
+    InboxModule,
   ],
   controllers: [ChatController],
-  providers: [ChatService],
+  providers: [ChatService, UiContextSanitizerService, UiContextPromptComposerService, UiCapabilityRegistryService],
   exports: [ChatService],
 })
 export class ChatModule {}

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { FlowBoardEntity, CreativeFlowboardDocument } from '../schemas/creative-flowboard.schema';
@@ -151,6 +151,16 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     const result = await this.creativeFlowboardModel.findById(flowId);
     this.flowEventsService.emit(flowId, { event: 'SYNC_CANVAS', payload: result });
     return result;
+  }
+
+  public async moveNodesForOrganization(
+    flowId: string,
+    orgId: string,
+    positions: { nodeId: string; x: number; y: number }[],
+  ): Promise<CreativeFlowboardDocument> {
+    const flow = await this.creativeFlowboardModel.findOne({ $or: [{ _id: flowId }, { id: flowId }], orgId }).select({ _id: 1 }).lean().exec();
+    if (!flow) throw new NotFoundException('Flow was not found in the current organization');
+    return this.moveNodes(flowId, positions);
   }
 
   public async addNodes(body: AddNodesDto) {

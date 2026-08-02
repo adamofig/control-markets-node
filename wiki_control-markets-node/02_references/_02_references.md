@@ -16,6 +16,7 @@ Source-of-truth technical documentation. Describes exactly how each module works
 - [resources-semantic-layer.md](resources-semantic-layer.md) — Semantic layer for resource modeling across the platform.
 - [storage-files-full-metadata.md](storage-files-full-metadata.md) — Full metadata spec for uploaded and generated files in storage assets.
 - [inbox-agent-pat-delegation.md](inbox-agent-pat-delegation.md) — Implemented REST contract for PAT-authorized agent messages, identity resolution, provenance, configuration, migration, and security limits.
+- [chat-ui-context.md](chat-ui-context.md) — Versioned UI-context contract for global chat, including tenant resolution, validation/redaction, prompt composition, capability intersection and SSE acknowledgement.
 
 ## Sub-folders
 

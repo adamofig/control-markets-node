@@ -45,6 +45,6 @@ import { InboxTaskAutomationService } from './services/inbox-task-automation.ser
     InboxMessageService,
     InboxTaskAutomationService,
   ],
-  exports: [InboxConversationService, InboxMembershipService, InboxMessageService, InboxAgentIdentityService, InboxAgentMessageService],
+  exports: [InboxConversationService, InboxMembershipService, InboxMessageService, InboxIdentityService, InboxAgentIdentityService, InboxAgentMessageService],
 })
 export class InboxModule {}

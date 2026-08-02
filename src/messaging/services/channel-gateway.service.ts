@@ -116,10 +116,14 @@ export class ChannelGatewayService implements OnModuleInit {
     } as unknown as AppToken;
 
     const agentCardId = await this.resolveAgentCardId(identity);
-    const stream = await this.chatService.streamChat([{ role: 'user', content: text }], token, identity.orgId, agentCardId);
+    const execution = await this.chatService.streamChat(
+      { messages: [{ role: 'user', content: text }], agentCardId },
+      token,
+      identity.orgId,
+    );
 
     let output = '';
-    for await (const delta of stream) output += delta;
+    for await (const delta of execution.textStream) output += delta;
 
     if (output.trim()) await this.reply(message, output);
   }
