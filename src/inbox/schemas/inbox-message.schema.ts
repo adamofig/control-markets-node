@@ -6,6 +6,7 @@ import {
   IInboxAgentExecutionSnapshot,
   IInboxMessage,
   IInboxMessageOrigin,
+  IInboxMessageProvenance,
   InboxMessagePart,
   INBOX_AGENT_EXECUTION_STATUSES,
   INBOX_AGENT_MODES,
@@ -15,6 +16,8 @@ import {
   INBOX_MESSAGE_ROLES,
   INBOX_MESSAGE_STATUSES,
   INBOX_ORIGIN_CHANNELS,
+  INBOX_PROVENANCE_AUTH_TYPES,
+  INBOX_PROVENANCE_SOURCES,
   INBOX_TEXT_FORMATS,
   InboxAgentExecutionStatus,
   InboxAgentMode,
@@ -24,6 +27,8 @@ import {
   InboxMessageRole,
   InboxMessageStatus,
   InboxOriginChannel,
+  InboxProvenanceAuthType,
+  InboxProvenanceSource,
   InboxTextFormat,
 } from '../models/inbox.models';
 
@@ -100,6 +105,19 @@ export class InboxMessageOriginEntity implements IInboxMessageOrigin {
 
 const InboxMessageOriginSchema = SchemaFactory.createForClass(InboxMessageOriginEntity);
 
+@Schema({ _id: false })
+export class InboxMessageProvenanceEntity implements IInboxMessageProvenance {
+  @Prop({ type: String, required: true, enum: INBOX_PROVENANCE_AUTH_TYPES }) authType: InboxProvenanceAuthType;
+  @Prop({ type: String }) authenticatedUserId?: string;
+  @Prop({ type: String, required: true }) agenticProfileId: string;
+  @Prop({ type: String, required: true }) agentCardId: string;
+  @Prop({ type: String, required: true, enum: INBOX_PROVENANCE_SOURCES }) source: InboxProvenanceSource;
+  @Prop({ type: String, maxlength: 256 }) executionId?: string;
+  @Prop({ type: String, maxlength: 64 }) engine?: string;
+}
+
+const InboxMessageProvenanceSchema = SchemaFactory.createForClass(InboxMessageProvenanceEntity);
+
 export type InboxMessageDocument = HydratedDocument<InboxMessageEntity>;
 
 @Schema({ collection: 'inbox_messages', timestamps: true })
@@ -118,6 +136,7 @@ export class InboxMessageEntity implements IInboxMessage {
   @Prop({ type: String }) groupId?: string;
   @Prop({ type: InboxAgentExecutionSnapshotSchema }) agentExecution?: IInboxAgentExecutionSnapshot;
   @Prop({ type: InboxMessageOriginSchema, default: { channel: 'internal' } }) origin?: IInboxMessageOrigin;
+  @Prop({ type: InboxMessageProvenanceSchema }) provenance?: IInboxMessageProvenance;
   @Prop({ type: Date }) editedAt?: Date;
   @Prop({ type: Date }) deletedAt?: Date;
   @Prop({ type: AuditDataSchema, default: {} }) auditable?: IAuditable;

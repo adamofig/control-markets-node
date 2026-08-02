@@ -42,7 +42,7 @@ describe('AgenticProfileService context levels', () => {
     const agentCardService = {
       findById: jest.fn().mockResolvedValue({ characterCard: { data: { name: 'Borges', instructions: 'IDENTITY_RULES' } } }),
     };
-    return new AgenticProfileService(model as any, {} as any, agentCardService as any, sourcesService as any, agentTasksService as any);
+    return new AgenticProfileService(model as any, {} as any, agentCardService as any, sourcesService as any, agentTasksService as any, {} as any);
   }
 
   it('BASIC includes identity and resource indexes but omits heavy content and tasks', async () => {

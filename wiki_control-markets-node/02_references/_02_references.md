@@ -15,6 +15,7 @@ Source-of-truth technical documentation. Describes exactly how each module works
 - [docker-config.md](docker-config.md) — Docker configuration and deployment setup for the Node backend.
 - [resources-semantic-layer.md](resources-semantic-layer.md) — Semantic layer for resource modeling across the platform.
 - [storage-files-full-metadata.md](storage-files-full-metadata.md) — Full metadata spec for uploaded and generated files in storage assets.
+- [inbox-agent-pat-delegation.md](inbox-agent-pat-delegation.md) — Implemented REST contract for PAT-authorized agent messages, identity resolution, provenance, configuration, migration, and security limits.
 
 ## Sub-folders
 

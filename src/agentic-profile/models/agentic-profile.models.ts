@@ -52,6 +52,15 @@ export interface IAgenticHeartbeat {
   wakePrompt?: string; // custom prompt injected on wake-up; falls back to the default exploration prompt
 }
 
+export interface IAgenticProfilePatDelegation {
+  enabled: boolean;
+  allowedUserIds: string[];
+}
+
+export interface IAgenticProfileDelegation {
+  pat: IAgenticProfilePatDelegation;
+}
+
 export interface IAgenticProfile {
   _id?: string;
   id?: string;
@@ -71,6 +80,7 @@ export interface IAgenticProfile {
   liveBriefing?: string;
   heartbeat?: IAgenticHeartbeat;
   contextLevel?: AgenticContextLevel;
+  delegation?: IAgenticProfileDelegation;
 
   metadata?: Record<string, any>;
   auditable?: IAuditable;

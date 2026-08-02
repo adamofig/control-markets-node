@@ -34,6 +34,13 @@ describe('Control Inbox schemas', () => {
       senderParticipantId: 'participant-1',
       role: 'user',
       parts: [{ type: 'text', text: 'Hello', format: 'plain' }],
+      provenance: {
+        authType: 'pat_delegation',
+        authenticatedUserId: 'user-1',
+        agenticProfileId: 'profile-1',
+        agentCardId: 'card-1',
+        source: 'local',
+      },
     });
 
     expect(conversation.validateSync()).toBeUndefined();
@@ -50,6 +57,13 @@ describe('Control Inbox schemas', () => {
     expect(message.kind).toBe('message');
     expect(message.status).toBe('sent');
     expect(message.origin).toMatchObject({ channel: 'internal' });
+    expect(message.provenance).toMatchObject({
+      authType: 'pat_delegation',
+      authenticatedUserId: 'user-1',
+      agenticProfileId: 'profile-1',
+      agentCardId: 'card-1',
+      source: 'local',
+    });
   });
 
   it('rejects invalid enum values at runtime', () => {

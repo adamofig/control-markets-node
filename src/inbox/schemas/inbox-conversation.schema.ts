@@ -33,6 +33,7 @@ export class InboxParticipantSnapshotEntity implements IInboxParticipantSnapshot
   @Prop({ type: String, required: true }) refId: string;
   @Prop({ type: String, required: true }) displayName: string;
   @Prop({ type: String }) avatarAssetId?: string;
+  @Prop({ type: String }) avatarUrl?: string;
 }
 
 const InboxParticipantSnapshotSchema = SchemaFactory.createForClass(InboxParticipantSnapshotEntity);

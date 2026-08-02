@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SendInboxMessageDto } from '../dto/inbox.dto';
-import { InboxMessagePart } from '../models/inbox.models';
+import { IInboxMessageOrigin, IInboxMessageProvenance, InboxMessagePart } from '../models/inbox.models';
 import { InboxConversationDocument, InboxConversationEntity } from '../schemas/inbox-conversation.schema';
 import { InboxMembershipDocument, InboxMembershipEntity } from '../schemas/inbox-membership.schema';
 import { InboxMessageDocument, InboxMessageEntity } from '../schemas/inbox-message.schema';
@@ -52,9 +52,15 @@ export class InboxMessageService {
     };
   }
 
-  async send(orgId: string, conversationId: string, actorRefId: string, dto: SendInboxMessageDto): Promise<{ message: Record<string, any>; agentResponseExpected: boolean }> {
+  async send(
+    orgId: string,
+    conversationId: string,
+    actorRefId: string,
+    dto: SendInboxMessageDto,
+    context: { origin?: IInboxMessageOrigin; provenance?: IInboxMessageProvenance } = {}
+  ): Promise<{ message: Record<string, any>; agentResponseExpected: boolean }> {
     const membership = await this.assertMembership(orgId, conversationId, actorRefId);
-    this.validateMessage(dto);
+    this.validate(dto);
 
     const existing = await this.messageModel.findOne({ orgId, conversationId, clientMessageId: dto.clientMessageId }).lean().exec();
     if (existing) return { message: this.normalize(existing), agentResponseExpected: false };
@@ -62,10 +68,12 @@ export class InboxMessageService {
     const conversation = await this.conversationModel.findOneAndUpdate({ orgId, id: conversationId, status: 'open' }, { $inc: { lastMessageSequence: 1 } }, { new: true }).exec();
     if (!conversation) throw new ConflictException('Conversation is closed or unavailable');
 
-    const messageId = new Types.ObjectId().toHexString();
+    const _id = new Types.ObjectId();
+    const messageId = _id.toHexString();
     let message: InboxMessageDocument;
     try {
       message = await new this.messageModel({
+        _id,
         id: messageId,
         orgId,
         conversationId,
@@ -78,7 +86,8 @@ export class InboxMessageService {
         parts: dto.parts,
         replyToMessageId: dto.replyToMessageId,
         groupId: dto.groupId,
-        origin: { channel: 'internal' },
+        origin: context.origin || { channel: 'internal' },
+        provenance: context.provenance,
       }).save();
     } catch (error) {
       if ((error as any)?.code !== 11000) throw error;
@@ -112,7 +121,7 @@ export class InboxMessageService {
 
     const recipients = await this.conversations.recipientRefIds(orgId, conversationId);
     this.events.emit('inbox.message.created', orgId, conversationId, normalized, recipients);
-    return { message: normalized, agentResponseExpected: conversation.type === 'agent' };
+    return { message: normalized, agentResponseExpected: conversation.type === 'agent' && membership.memberType === 'user' };
   }
 
   private async assertMembership(orgId: string, conversationId: string, memberRefId: string): Promise<any> {
@@ -126,7 +135,7 @@ export class InboxMessageService {
     return membership;
   }
 
-  private validateMessage(dto: SendInboxMessageDto): void {
+  validate(dto: SendInboxMessageDto): void {
     if (!dto?.clientMessageId?.trim() || dto.clientMessageId.length > 128) {
       throw new BadRequestException('clientMessageId must contain between 1 and 128 characters');
     }

@@ -1,4 +1,4 @@
-import { InboxMessagePart } from '../models/inbox.models';
+import { InboxMessagePart, InboxProvenanceSource } from '../models/inbox.models';
 
 export interface CreateDirectConversationDto {
   userId: string;
@@ -14,6 +14,19 @@ export interface SendInboxMessageDto {
   parts: InboxMessagePart[];
   replyToMessageId?: string;
   groupId?: string;
+}
+
+export interface SendAgentInboxMessageDto {
+  targetUserId: string;
+  clientMessageId: string;
+  parts: InboxMessagePart[];
+  replyToMessageId?: string;
+  groupId?: string;
+  source?: {
+    type?: InboxProvenanceSource;
+    executionId?: string;
+    engine?: string;
+  };
 }
 
 export interface MarkInboxReadDto {

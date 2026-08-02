@@ -42,6 +42,19 @@ export class InboxConversationService {
     return this.getOrCreate(orgId, 'task', title, unique, `task:${taskId}`, actor.refId, [{ type: 'task', entityId: taskId, relation: 'primary' }]);
   }
 
+  async getOrCreateAgent(orgId: string, agent: IInboxParticipantSnapshot, targetUser: IInboxParticipantSnapshot, agentContext: IInboxAgentContext): Promise<InboxConversationListItem> {
+    if (agent.type !== 'agent_card' || targetUser.type !== 'user') {
+      throw new BadRequestException('An agent conversation requires one Agent Card and one user');
+    }
+    if (!agentContext.agentCardId || !agentContext.agenticProfileId || agentContext.agentCardId !== agent.refId) {
+      throw new BadRequestException('Agent conversation context does not match its participant');
+    }
+
+    const participants = this.uniqueParticipants([agent, targetUser]);
+    const dedupeKey = `agent:${agent.refId}:user:${targetUser.refId}`;
+    return this.getOrCreate(orgId, 'agent', undefined, participants, dedupeKey, agent.refId, undefined, agentContext);
+  }
+
   async listForMember(orgId: string, memberRefId: string, options: { limit?: number; filter?: string; search?: string } = {}): Promise<{ items: InboxConversationListItem[] }> {
     const limit = Math.min(Math.max(Number(options.limit) || 30, 1), 100);
     const membershipQuery: Record<string, any> = { orgId, memberRefId, leftAt: { $exists: false } };
@@ -129,8 +142,10 @@ export class InboxConversationService {
     contexts?: IInboxContextReference[],
     agentContext?: IInboxAgentContext
   ): Promise<InboxConversationListItem> {
-    const conversationId = new Types.ObjectId().toHexString();
+    const _id = new Types.ObjectId();
+    const conversationId = _id.toHexString();
     const conversation = await new this.conversationModel({
+      _id,
       id: conversationId,
       orgId,
       type,

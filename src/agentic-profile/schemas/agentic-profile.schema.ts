@@ -2,9 +2,39 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
-import { AgenticContextLevel, IAgentCardRef, IAgenticProfile, IAgenticProfileSource, IAgenticProfileSkill, IAgenticProfileTaskRef, IAgenticProfileMemory, IAgenticProfileExploration, IAgenticHeartbeat } from '../models/agentic-profile.models';
+import {
+  AgenticContextLevel,
+  IAgentCardRef,
+  IAgenticHeartbeat,
+  IAgenticProfile,
+  IAgenticProfileDelegation,
+  IAgenticProfileExploration,
+  IAgenticProfileMemory,
+  IAgenticProfileSource,
+  IAgenticProfileSkill,
+  IAgenticProfileTaskRef,
+} from '../models/agentic-profile.models';
 
 export type AgenticProfileDocument = AgenticProfileEntity & Document;
+
+@Schema({ _id: false })
+export class AgenticProfilePatDelegationEntity {
+  @Prop({ type: Boolean, required: true, default: false })
+  enabled: boolean;
+
+  @Prop({ type: [String], required: true, default: [] })
+  allowedUserIds: string[];
+}
+
+const AgenticProfilePatDelegationSchema = SchemaFactory.createForClass(AgenticProfilePatDelegationEntity);
+
+@Schema({ _id: false })
+export class AgenticProfileDelegationEntity implements IAgenticProfileDelegation {
+  @Prop({ type: AgenticProfilePatDelegationSchema, required: true, default: () => ({ enabled: false, allowedUserIds: [] }) })
+  pat: AgenticProfilePatDelegationEntity;
+}
+
+const AgenticProfileDelegationSchema = SchemaFactory.createForClass(AgenticProfileDelegationEntity);
 
 @Schema({ collection: 'agentic_profiles', timestamps: true })
 export class AgenticProfileEntity implements IAgenticProfile {
@@ -61,6 +91,9 @@ export class AgenticProfileEntity implements IAgenticProfile {
   @Prop({ type: String, enum: ['basic', 'medium', 'full'], default: 'basic' })
   contextLevel?: AgenticContextLevel;
 
+  @Prop({ type: AgenticProfileDelegationSchema, required: false, default: () => ({ pat: { enabled: false, allowedUserIds: [] } }) })
+  delegation?: IAgenticProfileDelegation;
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false, default: {} })
   metadata?: Record<string, any>;
 
@@ -74,5 +107,14 @@ addIdAfterSave(AgenticProfileSchema);
 
 AgenticProfileSchema.index({ id: 1 }, { unique: true });
 AgenticProfileSchema.index({ orgId: 1 });
-AgenticProfileSchema.index({ 'agentCard.id': 1 });
+AgenticProfileSchema.index(
+  { orgId: 1, 'agentCard.id': 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      orgId: { $type: 'string' },
+      'agentCard.id': { $type: 'string' },
+    },
+  }
+);
 AgenticProfileSchema.index({ name: 'text', description: 'text', title: 'text', domain: 'text' });

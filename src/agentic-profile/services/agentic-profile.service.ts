@@ -27,9 +27,15 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     private readonly agentCardService: AgentCardService,
     private readonly sourcesService: SourcesService,
     private readonly agentTasksService: AgentTasksService,
-    private readonly eventEmitter: EventEmitter2,
+    private readonly eventEmitter: EventEmitter2
   ) {
     super(agenticProfileModel, mongoService);
+  }
+
+  async findByIdForOrganization(profileId: string, orgId: string): Promise<AgenticProfileDocument | null> {
+    const identityClauses: any[] = [{ id: profileId }];
+    if (mongoose.Types.ObjectId.isValid(profileId)) identityClauses.push({ _id: new mongoose.Types.ObjectId(profileId) });
+    return this.genericModel.findOne({ orgId, $or: identityClauses }).exec();
   }
 
   /**
@@ -59,7 +65,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     orgId: string,
     userEmail: string,
     stats: SyncStats,
-    workspaceId?: string,
+    workspaceId?: string
   ): Promise<any> {
     const query = { sourceUrl: link.url, orgId };
     let entity = await this.sourcesService.executeOperation({ action: 'findOne', query });
@@ -83,13 +89,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
 
     const contentHash = hashContent(hasContent ? link.content : link.description || '');
-    if (
-      entity &&
-      entity.contentHash === contentHash &&
-      entity.name === link.label &&
-      entity.description === link.description &&
-      (!fingerprint || entity.fingerprint === fingerprint)
-    ) {
+    if (entity && entity.contentHash === contentHash && entity.name === link.label && entity.description === link.description && (!fingerprint || entity.fingerprint === fingerprint)) {
       stats.skipped++;
       return entity;
     }
@@ -186,13 +186,12 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     // 2. Find or create AgenticProfile
     let profile = null;
     if (agenticProfileId && mongoose.Types.ObjectId.isValid(agenticProfileId)) {
-      profile = await this.genericModel.findOne({
-        $or: [
-          { id: agenticProfileId },
-          { _id: new mongoose.Types.ObjectId(agenticProfileId as string) }
-        ],
-        orgId
-      }).exec();
+      profile = await this.genericModel
+        .findOne({
+          $or: [{ id: agenticProfileId }, { _id: new mongoose.Types.ObjectId(agenticProfileId as string) }],
+          orgId,
+        })
+        .exec();
     }
     if (!profile) {
       profile = await this.genericModel.findOne({ 'agentCard.id': agentCardId, orgId }).exec();
@@ -507,10 +506,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
    */
   async getSyncManifest(profileId: string, orgId?: string): Promise<any> {
     const query: any = {
-      $or: [
-        { id: profileId },
-        { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null }
-      ].filter(q => q._id !== null)
+      $or: [{ id: profileId }, { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null }].filter(q => q._id !== null),
     };
     if (orgId) {
       query.orgId = orgId;
@@ -520,19 +516,12 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       throw new Error(`AgenticProfile with ID ${profileId} not found`);
     }
 
-    const sourceIds = [
-      ...(profile.sources || []),
-      ...(profile.skills || []),
-      ...(profile.explorations || []),
-      ...(profile.memories || []),
-    ].map((s: any) => s.id).filter(Boolean);
+    const sourceIds = [...(profile.sources || []), ...(profile.skills || []), ...(profile.explorations || []), ...(profile.memories || [])].map((s: any) => s.id).filter(Boolean);
     const taskIds = (profile.tasks || []).map((t: any) => t.id).filter(Boolean);
 
     const [sources, tasks] = await Promise.all([
       sourceIds.length > 0 ? this.sourcesService.findManyByIds(sourceIds) : Promise.resolve([]),
-      taskIds.length > 0
-        ? this.agentTasksService.executeOperation({ action: 'find', query: { id: { $in: taskIds }, orgId: profile.orgId } })
-        : Promise.resolve([]),
+      taskIds.length > 0 ? this.agentTasksService.executeOperation({ action: 'find', query: { id: { $in: taskIds }, orgId: profile.orgId } }) : Promise.resolve([]),
     ]);
 
     return {
@@ -554,10 +543,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
   async composeFullContext(profileId: string, orgId?: string, levelOverride?: AgenticContextLevel): Promise<string> {
     const query: any = {
-      $or: [
-        { id: profileId },
-        { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null }
-      ].filter(q => q._id !== null)
+      $or: [{ id: profileId }, { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null }].filter(q => q._id !== null),
     };
     if (orgId) {
       query.orgId = orgId;
@@ -590,24 +576,16 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
     // Query Source, Skill, Task, Memory, and Exploration entities
     const [sources, skills, tasks, memories, explorations] = await Promise.all([
-      sourceIds.length > 0
-        ? this.sourcesService.findManyByIds(sourceIds, orgId)
-        : Promise.resolve([]),
-      skillIds.length > 0
-        ? this.sourcesService.findManyByIds(skillIds, orgId)
-        : Promise.resolve([]),
+      sourceIds.length > 0 ? this.sourcesService.findManyByIds(sourceIds, orgId) : Promise.resolve([]),
+      skillIds.length > 0 ? this.sourcesService.findManyByIds(skillIds, orgId) : Promise.resolve([]),
       taskIds.length > 0
         ? this.agentTasksService.executeOperation({
-          action: 'find',
-            query: { id: { $in: taskIds }, ...(orgId ? { orgId } : {}) }
+            action: 'find',
+            query: { id: { $in: taskIds }, ...(orgId ? { orgId } : {}) },
           })
         : Promise.resolve([]),
-      memoryIds.length > 0
-        ? this.sourcesService.findManyByIds(memoryIds, orgId)
-        : Promise.resolve([]),
-      explorationIds.length > 0
-        ? this.sourcesService.findManyByIds(explorationIds, orgId)
-        : Promise.resolve([])
+      memoryIds.length > 0 ? this.sourcesService.findManyByIds(memoryIds, orgId) : Promise.resolve([]),
+      explorationIds.length > 0 ? this.sourcesService.findManyByIds(explorationIds, orgId) : Promise.resolve([]),
     ]);
 
     // Build Markdown Output
@@ -688,9 +666,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
 
     md += `## 6. Tareas (Task)\n\n`;
-    const visibleTasks = level === 'basic' ? [] : level === 'medium'
-      ? (tasks || []).filter((task: any) => task.status !== 'done')
-      : (tasks || []);
+    const visibleTasks = level === 'basic' ? [] : level === 'medium' ? (tasks || []).filter((task: any) => task.status !== 'done') : tasks || [];
     if (visibleTasks.length > 0) {
       for (const task of visibleTasks) {
         const statusBox = task.status === 'done' ? '[x]' : task.status === 'in_progress' ? '[/]' : '[ ]';
@@ -699,14 +675,15 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           md += `  *Descripción:* ${task.description}\n`;
         }
         if (level === 'full' && task.content) {
-          md += `\n  \`\`\`markdown\n${task.content.split('\n').map((line: string) => `  ${line}`).join('\n')}\n  \`\`\`\n`;
+          md += `\n  \`\`\`markdown\n${task.content
+            .split('\n')
+            .map((line: string) => `  ${line}`)
+            .join('\n')}\n  \`\`\`\n`;
         }
         md += `\n`;
       }
     } else {
-      md += level === 'basic'
-        ? `*(Omitidas en nivel BASIC; disponibles desde el perfil.)*\n\n`
-        : `*(No hay tareas pendientes vinculadas)*\n\n`;
+      md += level === 'basic' ? `*(Omitidas en nivel BASIC; disponibles desde el perfil.)*\n\n` : `*(No hay tareas pendientes vinculadas)*\n\n`;
     }
 
     md += `## 7. Memorias - Notas de Sesión y Foco Actual (Memories)\n\n`;
@@ -722,9 +699,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         md += `---\n\n`;
       }
     } else {
-      md += level === 'basic'
-        ? `*(Omitidas en nivel BASIC.)*\n\n`
-        : `*(No hay memorias vinculadas)*\n\n`;
+      md += level === 'basic' ? `*(Omitidas en nivel BASIC.)*\n\n` : `*(No hay memorias vinculadas)*\n\n`;
     }
 
     md += `## 8. Informe Directo (Live Briefing)\n\n`;
@@ -735,21 +710,13 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
   async getLinkedContextResource(profileId: string, sourceId: string, orgId?: string): Promise<{ id: string; name?: string; description?: string; sourceUrl?: string; content?: string }> {
     const profileQuery: any = {
-      $or: [
-        { id: profileId },
-        { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null },
-      ].filter(item => item._id !== null),
+      $or: [{ id: profileId }, { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null }].filter(item => item._id !== null),
       ...(orgId ? { orgId } : {}),
     };
     const profile = await this.genericModel.findOne(profileQuery).lean().exec();
     if (!profile) throw new Error(`AgenticProfile with ID ${profileId} not found`);
 
-    const linkedIds = [
-      ...(profile.sources || []),
-      ...(profile.skills || []),
-      ...(profile.memories || []),
-      ...(profile.explorations || []),
-    ].map((item: any) => item.id);
+    const linkedIds = [...(profile.sources || []), ...(profile.skills || []), ...(profile.memories || []), ...(profile.explorations || [])].map((item: any) => item.id);
     if (!linkedIds.includes(sourceId)) throw new Error(`Source ${sourceId} is not linked to profile ${profileId}`);
 
     const [source] = await this.sourcesService.findManyByIds([sourceId], orgId);

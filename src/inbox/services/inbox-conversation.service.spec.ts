@@ -45,4 +45,43 @@ describe('InboxConversationService', () => {
     expect(result.conversation.dedupeKey).toBe('direct:user-a:user-b');
     expect(events.emit).toHaveBeenCalledWith('inbox.conversation.created', 'org-1', expect.any(String), expect.any(Object), ['user-a', 'user-b']);
   });
+
+  it('creates a dedicated agent thread from the linked card and target user', async () => {
+    const agent = { participantId: 'agent:card-1', type: 'agent_card' as const, refId: 'card-1', displayName: 'Borges' };
+    const target = { participantId: 'user:user-1', type: 'user' as const, refId: 'user-1', displayName: 'Ada' };
+    const agentContext = { agentMode: 'agentic' as const, agentCardId: 'card-1', agenticProfileId: 'profile-1' };
+    let savedConversation: any;
+    const conversationModel: any = jest.fn().mockImplementation((value: any) => ({
+      ...value,
+      save: jest.fn().mockImplementation(async function (this: any) {
+        savedConversation = this;
+        return this;
+      }),
+    }));
+    conversationModel.findOne = jest
+      .fn()
+      .mockReturnValueOnce(leanResult(null))
+      .mockImplementation(() => leanResult(savedConversation));
+    const membershipModel = {
+      updateOne: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({ acknowledged: true }) }),
+      findOne: jest.fn().mockReturnValue(
+        leanResult({
+          id: 'membership-agent',
+          conversationId: 'conversation-1',
+          participantId: agent.participantId,
+          memberRefId: agent.refId,
+          role: 'owner',
+        })
+      ),
+    };
+    const service = new InboxConversationService(conversationModel, membershipModel as any, { emit: jest.fn() } as any);
+
+    const result = await service.getOrCreateAgent('org-1', agent, target, agentContext);
+
+    expect(savedConversation.type).toBe('agent');
+    expect(savedConversation.dedupeKey).toBe('agent:card-1:user:user-1');
+    expect(savedConversation.agentContext).toEqual(agentContext);
+    expect(savedConversation.participants).toEqual([agent, target]);
+    expect(result.conversation.dedupeKey).toBe('agent:card-1:user:user-1');
+  });
 });

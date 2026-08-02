@@ -52,12 +52,19 @@ export type InboxAgentExecutionStatus = (typeof INBOX_AGENT_EXECUTION_STATUSES)[
 export const INBOX_ORIGIN_CHANNELS = ['internal', 'telegram', 'whatsapp', 'slack', 'system'] as const;
 export type InboxOriginChannel = (typeof INBOX_ORIGIN_CHANNELS)[number];
 
+export const INBOX_PROVENANCE_AUTH_TYPES = ['pat_delegation', 'internal_runtime', 'agent_runtime_token'] as const;
+export type InboxProvenanceAuthType = (typeof INBOX_PROVENANCE_AUTH_TYPES)[number];
+
+export const INBOX_PROVENANCE_SOURCES = ['rest', 'mcp', 'heartbeat', 'task_automation', 'local'] as const;
+export type InboxProvenanceSource = (typeof INBOX_PROVENANCE_SOURCES)[number];
+
 export interface IInboxParticipantSnapshot {
   participantId: string;
   type: InboxParticipantType;
   refId: string;
   displayName: string;
   avatarAssetId?: string;
+  avatarUrl?: string;
 }
 
 export interface IInboxContextReference {
@@ -182,6 +189,16 @@ export interface IInboxMessageOrigin {
   providerMessageId?: string;
 }
 
+export interface IInboxMessageProvenance {
+  authType: InboxProvenanceAuthType;
+  authenticatedUserId?: string;
+  agenticProfileId: string;
+  agentCardId: string;
+  source: InboxProvenanceSource;
+  executionId?: string;
+  engine?: string;
+}
+
 export interface IInboxMessage {
   _id?: string;
   id?: string;
@@ -198,6 +215,7 @@ export interface IInboxMessage {
   groupId?: string;
   agentExecution?: IInboxAgentExecutionSnapshot;
   origin?: IInboxMessageOrigin;
+  provenance?: IInboxMessageProvenance;
   createdAt?: Date;
   updatedAt?: Date;
   editedAt?: Date;
