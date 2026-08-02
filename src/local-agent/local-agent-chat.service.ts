@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { streamText, isStepCount, tool } from 'ai';
 import { z } from 'zod';
 import { createGoogle } from '@ai-sdk/google';
@@ -8,6 +8,7 @@ import { FilesystemToolsService } from './filesystem-tools.service';
 import { normalizeTokenUsage } from './ai-usage.util';
 import { AgenticContextLevel } from '../agentic-profile/models/agentic-profile.models';
 import { createInjectedContextSnapshot, InjectedContextSnapshot } from './context-snapshot.util';
+import { KeyBalancerService } from '../key-balancer/key-balancer.service';
 
 export interface LocalAgentMessage {
   role: 'user' | 'assistant';
@@ -34,12 +35,13 @@ const CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class LocalAgentChatService {
-  private google = createGoogle({ apiKey: process.env.GEMINI_API_KEY });
+  private readonly logger = new Logger(LocalAgentChatService.name);
   private contextCache = new Map<string, { markdown: string; at: number }>();
 
   constructor(
     private readonly agenticProfileService: AgenticProfileService,
     private readonly fsTools: FilesystemToolsService,
+    private readonly keyBalancerService: KeyBalancerService,
   ) {}
 
   getStatus() {
@@ -60,11 +62,19 @@ export class LocalAgentChatService {
     const { system, profileContext } = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId);
     if (profileContext) yield { type: 'context-snapshot', context: this.createContextSnapshot(profileContext) };
 
-    const model = process.env.LOCAL_AGENT_MODEL ?? 'gemini-3.1-flash-lite';
+    const model = process.env.LOCAL_AGENT_MODEL ?? 'gemini-3.5-flash-lite';
+    const { googleProvider, balancedKey } = await this.keyBalancerService.createGoogleProvider(model, token);
+    const keyName = balancedKey?.name || balancedKey?.id || (balancedKey?.key ? 'balanced-key' : 'env-fallback-key');
+    
+    this.logger.log(`🔑 LocalAgentChatStream using key '${keyName}' (type: ${balancedKey?.keyType || 'default'}) for model '${model}'`);
+
+
+    const conversationMessages = messages.filter((m: any) => m.role !== 'system') as any;
+
     const result = streamText({
-      model: this.google(model),
+      model: googleProvider(model),
       instructions: system,
-      messages,
+      messages: conversationMessages,
       stopWhen: isStepCount(MAX_STEPS),
       tools: {
         ...this.fsTools.buildTools(),
@@ -97,9 +107,19 @@ export class LocalAgentChatService {
           yield { type: 'tool-result', toolName: part.toolName, output: part.output ?? part.result };
           break;
         case 'error':
+          if (balancedKey?.key) {
+            this.keyBalancerService.recordFailedRequest('google', balancedKey.key, model, String(part.error?.message ?? part.error)).catch(() => {});
+          }
           yield { type: 'error', error: String(part.error?.message ?? part.error) };
           break;
         case 'finish':
+          if (balancedKey?.id) {
+            const usageObj = part.totalUsage ?? part.usage;
+            const totalTokens = usageObj?.totalTokens;
+            if (totalTokens) {
+              this.keyBalancerService.updateUsage(balancedKey.id, totalTokens).catch(() => {});
+            }
+          }
           yield { type: 'finish', usage: normalizeTokenUsage(part.totalUsage ?? part.usage, {
             provider: 'google', model, source: 'vercel-ai-sdk',
           }) };

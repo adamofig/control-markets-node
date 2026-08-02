@@ -7,6 +7,7 @@ import { OrganizationModule } from '../organization/organization.module';
 import { CreativeFlowboardModule } from '../creative-flowboard/creative-flowboard.module';
 import { AgentsModule } from '../agent-tasks/agent-tasks.module';
 import { BlogEntryModule } from '../blog-entry/blog-entry.module';
+import { KeyBalancerModule } from '../key-balancer/key-balancer.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { BlogEntryModule } from '../blog-entry/blog-entry.module';
     AgentsModule,
     AgentCardsModule,
     BlogEntryModule,
+    KeyBalancerModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],

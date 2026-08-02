@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { streamText, tool, isStepCount } from 'ai';
 import { z } from 'zod';
 import { createGoogle } from '@ai-sdk/google';
@@ -9,12 +9,11 @@ import { CreativeFlowboardService } from '../creative-flowboard/services/creativ
 import { AgentTasksService } from '../agent-tasks/services/agent-tasks.service';
 import { AssignedType } from '../agent-tasks/models/classes';
 import { OrganizationService } from '../organization/services/organization.service';
+import { KeyBalancerService } from '../key-balancer/key-balancer.service';
 
 @Injectable()
 export class ChatService {
-  private google = createGoogle({
-    apiKey: process.env.GEMINI_API_KEY,
-  });
+  private readonly logger = new Logger(ChatService.name);
 
   constructor(
     private readonly organizationService: OrganizationService,
@@ -22,6 +21,7 @@ export class ChatService {
     private readonly agentTasksService: AgentTasksService,
     private readonly agentCardService: AgentCardService,
     private readonly blogEntryService: BlogEntryService,
+    private readonly keyBalancerService: KeyBalancerService,
   ) {}
 
   async streamChat(
@@ -43,7 +43,14 @@ export class ChatService {
 
     const system = this.buildSystemPrompt(token, resolvedOrgId, agentCard);
     const toolsEnabled = !agentCard || agentCard.agenticConfig?.enabled;
-    const modelToUse = agentCard?.agenticConfig?.reasoningModel?.modelName || 'gemini-3.1-flash-lite-preview';
+    const modelToUse = agentCard?.agenticConfig?.reasoningModel?.modelName || 'gemini-3.5-flash-lite';
+
+    // Obtener el proveedor de Google balanceado (Service Account o API Key) desde KeyBalancer
+    const { googleProvider, balancedKey } = await this.keyBalancerService.createGoogleProvider(modelToUse, token);
+    const keyName = balancedKey?.name || balancedKey?.id || (balancedKey?.key ? 'balanced-key' : 'env-fallback-key');
+    
+    this.logger.log(`🔑 ChatStream using key '${keyName}' (type: ${balancedKey?.keyType || 'default'}) for model '${modelToUse}'`);
+
 
     const tools: any = {};
     if (toolsEnabled) {
@@ -160,10 +167,12 @@ export class ChatService {
       });
     }
 
+    const conversationMessages = messages.filter((m: any) => m.role !== 'system') as any;
+
     const result = streamText({
-      model: this.google(modelToUse),
+      model: googleProvider(modelToUse),
       instructions: system,
-      messages,
+      messages: conversationMessages,
       stopWhen: isStepCount(5),
       tools,
     });
