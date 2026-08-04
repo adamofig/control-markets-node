@@ -85,11 +85,30 @@ export class UiContextSanitizerService {
       suggestions: context.suggestions?.slice(0, 6),
     };
     if (this.byteLength(reduced) <= MAX_CONTEXT_EFFECTIVE_BYTES) return reduced;
+
+    const reducedListDescriptions: UiContextSnapshotV1 = {
+      ...reduced,
+      list: reduced.list
+        ? {
+            ...reduced.list,
+            items: reduced.list.items.map(item => ({ ...item, description: item.description.slice(0, 300) })),
+          }
+        : undefined,
+    };
+    if (this.byteLength(reducedListDescriptions) <= MAX_CONTEXT_EFFECTIVE_BYTES) return reducedListDescriptions;
+
     counters.droppedFieldCount += 2;
     reduced = {
-      ...reduced,
-      primaryEntity: reduced.primaryEntity ? { ...reduced.primaryEntity, summary: undefined } : undefined,
-      selections: reduced.selections?.map(selection => ({ kind: selection.kind, id: selection.id, label: selection.label, entityType: selection.entityType })),
+      ...reducedListDescriptions,
+      list: reducedListDescriptions.list
+        ? {
+            ...reducedListDescriptions.list,
+            items: reducedListDescriptions.list.items.slice(0, 10),
+            truncated: reducedListDescriptions.list.truncated || reducedListDescriptions.list.items.length > 10,
+          }
+        : undefined,
+      primaryEntity: reducedListDescriptions.primaryEntity ? { ...reducedListDescriptions.primaryEntity, summary: undefined } : undefined,
+      selections: reducedListDescriptions.selections?.map(selection => ({ kind: selection.kind, id: selection.id, label: selection.label, entityType: selection.entityType })),
     };
     return reduced;
   }

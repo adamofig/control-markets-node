@@ -14,6 +14,10 @@
 
 UI context describes state but never grants permission. IDs, labels, selected records and capability names are all untrusted client data. The current registry is an allowlist, not a replacement for organization/ownership checks inside each tool.
 
+## Response language
+
+`ChatService` instructs the model to answer in the language of the user's most recent message, falling back to their last meaningful message when the language is ambiguous. The rule lives in the server-composed system prompt, so it applies consistently to standard and Agent Card-backed global chats without trusting a client-provided language field.
+
 ## SSE acknowledgement
 
 ```json

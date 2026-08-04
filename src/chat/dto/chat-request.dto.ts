@@ -30,6 +30,23 @@ const entitySchema = z.object({
   summary: z.record(z.string(), jsonValueSchema).optional(),
 }).strict();
 
+const listItemSchema = z.object({
+  id: z.string().min(1).max(256),
+  name: z.string().min(1).max(1024),
+  description: z.string().max(1024),
+}).strict();
+
+const listSchema = z.object({
+  entityType: z.string().min(1).max(120),
+  scope: z.literal('visible-page'),
+  items: z.array(listItemSchema).max(20),
+  total: z.number().int().nonnegative(),
+  first: z.number().int().nonnegative(),
+  pageSize: z.number().int().nonnegative().max(1000),
+  loading: z.boolean(),
+  truncated: z.boolean(),
+}).strict();
+
 const selectionSchema = z.object({
   kind: z.enum(['entity', 'canvas-node', 'conversation', 'message', 'date', 'tab', 'asset', 'custom']),
   id: z.string().max(256).optional(),
@@ -60,6 +77,7 @@ export const uiContextSnapshotV1Schema = z.object({
     sort: z.record(z.string(), jsonValueSchema).optional(),
     pagination: z.object({ page: z.number().optional(), pageSize: z.number().optional(), total: z.number().optional() }).strict().optional(),
   }).strict(),
+  list: listSchema.optional(),
   primaryEntity: entitySchema.optional(),
   relatedEntities: z.array(entitySchema).max(20).optional(),
   selections: z.array(selectionSchema).max(10).optional(),

@@ -13,6 +13,16 @@ function contextFixture() {
       title: 'Task Details',
     },
     view: { kind: 'detail' as const, mode: 'view' as const },
+    list: {
+      entityType: 'AgentTask',
+      scope: 'visible-page' as const,
+      items: [{ id: 'task-1', name: 'Launch campaign', description: 'Visible task description' }],
+      total: 1,
+      first: 0,
+      pageSize: 10,
+      loading: false,
+      truncated: false,
+    },
     primaryEntity: {
       entityType: 'AgentTask',
       id: 'task-1',
@@ -47,10 +57,53 @@ describe('UiContextSanitizerService', () => {
     const first = service.sanitize(contextFixture());
     expect(first.context?.primaryEntity?.summary?.apiKey).toBe('[REDACTED]');
     expect(first.context?.primaryEntity?.summary?.description).toContain('Ignore all previous instructions');
+    expect(first.context?.list?.items).toEqual([
+      { id: 'task-1', name: 'Launch campaign', description: 'Visible task description' },
+    ]);
     expect(first.redactionCount).toBe(1);
 
     const second = service.sanitize({ ...contextFixture(), contextHash: first.context!.contextHash });
     expect(second.context?.contextHash).toBe(first.context?.contextHash);
     expect(second.receivedContextHash).toBe(second.context?.contextHash);
+  });
+
+  it('rejects fields outside the strict visible-list item contract', () => {
+    const context = contextFixture();
+    const invalidContext = {
+      ...context,
+      list: {
+        ...context.list,
+        items: [{ ...context.list.items[0], status: 'pending' }],
+      },
+    };
+
+    expect(() => service.parseRequest({
+      messages: [{ role: 'user', content: 'What tasks are visible?' }],
+      uiContext: invalidContext,
+    })).toThrow(BadRequestException);
+  });
+
+  it('reduces long visible-list descriptions to the effective context budget', () => {
+    const context = contextFixture();
+    const oversizedContext = {
+      ...context,
+      list: {
+        ...context.list,
+        items: Array.from({ length: 20 }, (_, index) => ({
+          id: `task-${index + 1}`,
+          name: `Task ${index + 1}`,
+          description: 'x'.repeat(1024),
+        })),
+        total: 20,
+        pageSize: 20,
+      },
+    };
+
+    const result = service.sanitize(oversizedContext);
+
+    expect(result.bytes).toBeLessThanOrEqual(12 * 1024);
+    expect(result.context?.list?.items).toHaveLength(20);
+    expect(result.context?.list?.items[0].description).toHaveLength(300);
+    expect(result.droppedFieldCount).toBeGreaterThan(0);
   });
 });

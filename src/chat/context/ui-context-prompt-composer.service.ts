@@ -9,6 +9,7 @@ export class UiContextPromptComposerService {
     const data = {
       navigation: context.navigation,
       view: context.view,
+      list: context.list,
       primaryEntity: context.primaryEntity,
       relatedEntities: context.relatedEntities,
       selections: context.selections,

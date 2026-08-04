@@ -262,6 +262,10 @@ Use only exposed tools. Tool inputs are validated again against the canonical or
 No execution tools are authorized for this turn. Explain what the user can do, but do not claim to have changed application data.`;
     }
 
+    system += `
+
+Always respond in the same language as the user's most recent message.`;
+
     return system;
   }
 }
