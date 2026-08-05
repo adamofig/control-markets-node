@@ -14,6 +14,19 @@ export interface IAgenticTokenUsage {
   model?: string;
   source?: 'vercel-ai-sdk' | 'acp';
   pricingVersion?: string;
+  /**
+   * Cumulative session cost the agent had reported by the end of this turn (ACP `usage_update.cost`
+   * is cumulative, not per-turn). `estimatedCostUsd` holds this turn's increment; keeping the raw
+   * cumulative makes the accounting self-auditable: the increments of a session must add up to the
+   * last value seen here. A mismatch means turn costs are being mis-attributed.
+   */
+  reportedCumulativeCostUsd?: number;
+  /**
+   * Version of the CLI/adapter that served the turn. `model` stores the alias the UI selected
+   * (`opus[1m]`), and aliases move to newer generations over time — pinning the version is what
+   * lets a historical record be resolved back to the model that actually ran.
+   */
+  engineVersion?: string;
 }
 
 export interface IAgenticConversationTool {
@@ -60,7 +73,13 @@ export interface IAgenticConversation {
   name?: string;
   status: 'active' | 'archived';
   engine?: AgenticConversationEngine;
+  /** Bridge-side session id (`AcpSession.id`, a backend UUID). Sent back to resume the session. */
   acpSessionId?: string;
+  /**
+   * CLI-side session id (`session/new` result). Not interchangeable with `acpSessionId`: this is the
+   * only value that can correlate a conversation with the agent's own session log on disk.
+   */
+  cliSessionId?: string;
   messages: IAgenticConversationMessage[];
   usage?: IAgenticTokenUsage;
   injectedContext?: IAgenticConversationInjectedContext;

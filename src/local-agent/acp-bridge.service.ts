@@ -4,6 +4,7 @@ import { Readable, Writable } from 'stream';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { LocalAgentStreamEvent } from './local-agent-chat.service';
 import { normalizeTokenUsage } from './ai-usage.util';
@@ -28,6 +29,32 @@ export interface AcpRuntimeOptions {
   cwd?: string;
 }
 
+/**
+ * Vendored ACP adapter for the Antigravity CLI. `agy` has no native ACP, so the adapter shells out
+ * to its headless `--print --output-format stream-json` mode. It lives in the repo (instead of an
+ * npm package) because it carries Control Markets patches — token usage in the prompt response
+ * above all.
+ *
+ * The path is discovered by walking up from `__dirname` instead of being hardcoded: the build
+ * webpack-bundles everything into `dist/main.js`, so `__dirname` is `dist/` at runtime but
+ * `src/local-agent/` under ts-jest. Walking up covers both without a build-time constant.
+ */
+function resolveVendoredAgyAcp(): string {
+  const relative = path.join('scripts', 'agy-acp', 'agy-acp.mjs');
+  let dir = __dirname;
+  for (let depth = 0; depth < 6; depth++) {
+    const candidate = path.join(dir, relative);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Not found: return the conventional location so the spawn error names a real path.
+  return path.resolve(process.cwd(), relative);
+}
+
+const VENDORED_AGY_ACP = resolveVendoredAgyAcp();
+
 interface EngineConfig {
   /** Env var that overrides the spawn command (executable + args, space-separated). */
   commandEnv: string;
@@ -35,12 +62,20 @@ interface EngineConfig {
   defaultCommand: string;
   /** Whether the CLI accepts `--include-directories` for extra workspace roots (Gemini only). */
   supportsIncludeDirs: boolean;
+  /** Whether the adapter accepts ACP `additionalDirectories` on session lifecycle requests. */
+  supportsAdditionalDirectories?: boolean;
   /** Env vars stripped from the spawned process so the CLI uses personal auth / doesn't crash. */
   stripEnv: string[];
   /** Command used to probe availability/version (executable + args, space-separated). */
   versionCommand: string;
   /** Optional env var used to force this engine's model independently of the adapter default. */
   modelEnv?: string;
+  /** Whether the model is selected via the standard ACP `session/set_config_option`. */
+  selectsModelViaConfigOption?: boolean;
+  /** Config option id this engine uses for reasoning effort, when it advertises one. */
+  effortConfigId?: string;
+  /** Optional env var with the default reasoning effort for `effortConfigId`. */
+  effortEnv?: string;
 }
 
 const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
@@ -59,6 +94,7 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     commandEnv: 'LOCAL_AGENT_CLAUDE_COMMAND',
     defaultCommand: 'npx -y @agentclientprotocol/claude-agent-acp@0.59.0',
     supportsIncludeDirs: false,
+    selectsModelViaConfigOption: true,
     // CLAUDECODE/CLAUDE_CODE_* are set when the backend itself runs under Claude Code; the adapter
     // then refuses to launch ("cannot be launched inside another Claude Code session").
     stripEnv: ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT'],
@@ -75,11 +111,21 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     modelEnv: 'LOCAL_AGENT_CODEX_MODEL',
   },
   agy: {
+    // Runs the in-repo adapter with the backend's own Node, so there is nothing to install and
+    // nothing to pin: the code that serves a turn is the code committed next to this file.
+    // LOCAL_AGENT_AGY_COMMAND still overrides it (e.g. `npx -y agy-acp-bridge@0.2.2`).
     commandEnv: 'LOCAL_AGENT_AGY_COMMAND',
-    defaultCommand: 'agy-acp',
+    defaultCommand: `${process.execPath} ${VENDORED_AGY_ACP}`,
     supportsIncludeDirs: false,
+    supportsAdditionalDirectories: true,
     stripEnv: [],
+    // Probes the CLI, not the adapter: the adapter ships with the repo and is always present,
+    // while `agy` is the host dependency that can actually be missing.
     versionCommand: 'agy --version',
+    modelEnv: 'LOCAL_AGENT_AGY_MODEL',
+    selectsModelViaConfigOption: true,
+    effortConfigId: 'effort',
+    effortEnv: 'LOCAL_AGENT_AGY_REASONING_EFFORT',
   },
 };
 
@@ -87,6 +133,28 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
 function parseCommand(command: string): [string, string[]] {
   const [exe, ...args] = command.trim().split(/\s+/);
   return [exe, args];
+}
+
+/**
+ * Turns a bare command name into an absolute path when it can be found.
+ *
+ * The backend is often launched from an IDE whose PATH omits `~/.local/bin` — where the Antigravity
+ * installer puts `agy`. Without this, the version probe silently reports the engine as unavailable
+ * and the spawn fails with a misleading ENOENT.
+ */
+function resolveExecutable(exe: string): string {
+  if (exe.includes(path.sep)) return exe;
+  const searchDirs = [...(process.env.PATH ?? '').split(path.delimiter).filter(Boolean), path.join(os.homedir(), '.local', 'bin')];
+  for (const dir of searchDirs) {
+    const candidate = path.join(dir, exe);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {
+      // keep looking
+    }
+  }
+  return exe;
 }
 
 interface PendingPermission {
@@ -105,8 +173,18 @@ interface AcpSession {
   toolNames: Map<string, string>; // toolCallId → title (for tool_call_update mapping)
   contextSent: boolean;
   runtimeOptions: AcpRuntimeOptions;
-  /** Exact USD cost reported by Claude's `usage_update` notifications for the active turn. */
+  /** Model the adapter reports as current (`configOptions[id=model].currentValue`) — what will run. */
+  resolvedModel?: string;
+  /** Reasoning effort the adapter reports as current, when it advertises the option. */
+  resolvedEffort?: string;
+  /** Exact USD cost attributable to the active turn, derived from `usage_update` increments. */
   turnCostUsd?: number;
+  /**
+   * Last cumulative session cost reported by the agent. ACP defines `usage_update.cost` as the
+   * *cumulative* session cost, so each notification must be diffed against this to obtain the
+   * increment. Lives on the session (not the turn) because the counter spans the whole session.
+   */
+  reportedCumulativeCostUsd?: number;
   lastUsedAt: number;
 }
 
@@ -176,7 +254,7 @@ export class AcpBridgeService implements OnModuleDestroy {
     if (this.versions.has(engine)) return this.versions.get(engine)!;
     const [exe, args] = parseCommand(ENGINE_CONFIGS[engine].versionCommand);
     const version = await new Promise<string | null>(resolve => {
-      execFile(exe, args, { timeout: 10_000, shell: process.platform === 'win32' }, (err, stdout) => resolve(err ? null : stdout.trim()));
+      execFile(resolveExecutable(exe), args, { timeout: 10_000, shell: process.platform === 'win32' }, (err, stdout) => resolve(err ? null : stdout.trim()));
     });
     this.versions.set(engine, version);
     return version;
@@ -210,8 +288,18 @@ export class AcpBridgeService implements OnModuleDestroy {
         session.lastUsedAt = Date.now();
         session.turnCostUsd = undefined;
 
-        // Emitimos el ID de la sesión al cliente
-        queue.push({ type: 'session', sessionId: session.id });
+        // Emitimos el ID de la sesión al cliente. `sessionId` es el id del bridge y el cliente lo
+        // reenvía para reanudar, así que no puede cambiar; `cliSessionId` va aparte porque es el
+        // único que permite correlacionar la conversación con el log de sesión del CLI en disco.
+        // `model`/`reasoningEffort` are what the adapter negotiated, not what the caller asked for.
+        // The UI shows these so "esfuerzo default" stops being an unanswerable question.
+        queue.push({
+          type: 'session',
+          sessionId: session.id,
+          cliSessionId: session.acpSessionId || undefined,
+          model: session.resolvedModel,
+          reasoningEffort: session.resolvedEffort,
+        });
         queue.push({ type: 'status', message: 'Conectando con el LLM...' });
 
         const prompt: any[] = [];
@@ -229,14 +317,24 @@ export class AcpBridgeService implements OnModuleDestroy {
           .then((result: any) => {
             const usage = normalizeTokenUsage(result.usage, {
               provider: engine === 'gemini' ? 'google' : engine === 'claude' ? 'anthropic' : engine,
-              model: runtimeOptions.model,
+              // The session's model wins: it holds the adapter default when the caller sent none.
+              model: session.runtimeOptions.model ?? runtimeOptions.model,
               source: 'acp',
             });
             if (usage && session.turnCostUsd != null) {
               // Unlike table-based estimates, this is the adapter's exact Claude Agent SDK
-              // `total_cost_usd`. Keep the established field name for API/UI compatibility.
+              // `total_cost_usd`, reduced to this turn's increment. Keep the established field
+              // name for API/UI compatibility.
               usage.estimatedCostUsd = session.turnCostUsd;
               usage.pricingVersion = 'reported-by-claude-agent-sdk';
+              // Raw cumulative kept alongside so the increments stay auditable against it.
+              if (session.reportedCumulativeCostUsd != null) usage.reportedCumulativeCostUsd = session.reportedCumulativeCostUsd;
+            }
+            if (usage) {
+              // Already-probed value only (the map is populated by the status endpoint); never
+              // spawn a version probe on the turn's hot path.
+              const engineVersion = this.versions.get(session.engine);
+              if (engineVersion) usage.engineVersion = engineVersion;
             }
             queue.push({
               type: 'finish',
@@ -344,7 +442,8 @@ export class AcpBridgeService implements OnModuleDestroy {
       }
     }
 
-    const [exe, baseArgs] = parseCommand(process.env[config.commandEnv] || config.defaultCommand);
+    const [rawExe, baseArgs] = parseCommand(process.env[config.commandEnv] || config.defaultCommand);
+    const exe = resolveExecutable(rawExe);
     // If exe is an absolute path (e.g. nvm's npx), prepend its dir to PATH so the CLI's `env node`
     // shebang resolves — the IDE's PATH often lacks the nvm bin dir, which causes `spawn ... ENOENT`.
     if (path.isAbsolute(exe)) {
@@ -394,9 +493,11 @@ export class AcpBridgeService implements OnModuleDestroy {
     });
 
     const clientCapabilities: any = {};
-    // Claude and Codex adapters use their own native filesystem/tooling. Advertising ACP fs
-    // would duplicate tools and can make the model choose the wrong implementation.
-    if (resolvedEngine !== 'claude' && resolvedEngine !== 'codex') {
+    // Claude, Codex and agy use their own native filesystem tooling. Advertising ACP fs would
+    // duplicate tools and can make the model choose the wrong implementation — and for agy it
+    // would be a lie: its headless mode has no channel to delegate IO back to us, so the CLI
+    // writes to disk directly and FilesystemToolsService's deny-list never sees those paths.
+    if (resolvedEngine === 'gemini') {
       clientCapabilities.fs = { readTextFile: true, writeTextFile: true };
     }
 
@@ -407,20 +508,56 @@ export class AcpBridgeService implements OnModuleDestroy {
     });
     this.logger.log(`ACP initialized (protocol v${init.protocolVersion})`);
 
+    // Extra workspace roots the adapter should mount alongside `cwd`. `supportsIncludeDirs` is the
+    // Gemini-only CLI flag path (handled at spawn time); this is the protocol-level equivalent.
+    // Stale entries in LOCAL_AGENT_WORKSPACE_ROOTS are dropped rather than forwarded: a missing
+    // directory makes the CLI reject the whole invocation, taking the valid roots down with it.
+    const additionalDirectories = config.supportsAdditionalDirectories ? roots.filter(root => root !== cwd && fs.existsSync(root)) : undefined;
+
     let configOptions: any[] | undefined;
+    // Two ways to pick a session back up: `session/load` (legacy flag) and `session/resume` (the
+    // current spec, advertised under sessionCapabilities). Adapters implement one or the other —
+    // the vendored agy adapter implements resume — and checking only the legacy flag would
+    // silently mint a new session after every respawn, losing the CLI-side conversation.
+    const canResume = Boolean(init.agentCapabilities?.sessionCapabilities?.resume);
     if (session.acpSessionId && init.agentCapabilities?.loadSession) {
       onProgress?.(`Restaurando sesión agéntica: ${session.acpSessionId.slice(0, 8)}...`);
       const loaded = await session.connection.loadSession({ sessionId: session.acpSessionId, cwd, mcpServers: [] });
       configOptions = loaded?.configOptions;
+    } else if (session.acpSessionId && canResume) {
+      onProgress?.(`Reanudando sesión agéntica: ${session.acpSessionId.slice(0, 8)}...`);
+      const resumed = await session.connection.resumeSession({ sessionId: session.acpSessionId, cwd, mcpServers: [], additionalDirectories });
+      configOptions = resumed?.configOptions;
     } else {
       onProgress?.('Creando nueva sesión en el motor agéntico...');
-      const created = await session.connection.newSession({ cwd, mcpServers: [] });
+      const created = await session.connection.newSession({ cwd, mcpServers: [], additionalDirectories });
       session.acpSessionId = created.sessionId;
       configOptions = created?.configOptions;
     }
 
-    if (resolvedEngine === 'claude') {
-      await this.applySessionModel(session, configOptions, session.runtimeOptions.model, onProgress);
+    if (config.selectsModelViaConfigOption) {
+      const desiredModel = session.runtimeOptions.model?.trim() || (config.modelEnv ? process.env[config.modelEnv]?.trim() : undefined);
+      configOptions = (await this.applySessionConfigOption(session, configOptions, 'model', desiredModel, onProgress)) ?? configOptions;
+    }
+    if (config.effortConfigId) {
+      const desiredEffort = session.runtimeOptions.reasoningEffort?.trim() || (config.effortEnv ? process.env[config.effortEnv]?.trim() : undefined);
+      configOptions = (await this.applySessionConfigOption(session, configOptions, config.effortConfigId, desiredEffort, onProgress)) ?? configOptions;
+    }
+
+    // What the adapter says it will actually use, after negotiation. This is the only honest
+    // answer to "which model/effort is running?": leaving the selector on "default" means the
+    // adapter picks, and requesting a value it does not advertise means it keeps its own.
+    // Reported to the client in the `session` event and attached to the turn's token usage.
+    const readOption = (id: string) => {
+      const value = configOptions?.find(option => option?.id === id)?.currentValue;
+      return typeof value === 'string' ? value : undefined;
+    };
+    session.resolvedModel = readOption('model');
+    session.resolvedEffort = config.effortConfigId ? readOption(config.effortConfigId) : undefined;
+    // Adapters have their own default model, so a turn where the caller picked none still needs a
+    // model recorded against its token usage — otherwise the history cannot be priced or audited.
+    if (!session.runtimeOptions.model && session.resolvedModel) {
+      session.runtimeOptions.model = session.resolvedModel;
     }
 
     this.sessions.set(session.id, session);
@@ -428,34 +565,48 @@ export class AcpBridgeService implements OnModuleDestroy {
   }
 
   /**
-   * Selects the session model through the standard ACP session config option. The current
-   * claude-agent-acp adapter advertises models as `configOptions[id=model]` and rejects values
-   * outside that list, so resolve aliases/names before sending `session/set_config_option`.
+   * Applies one session setting through the standard ACP `session/set_config_option`.
+   *
+   * Adapters advertise their valid values in `configOptions` and reject anything outside that
+   * list, so the requested value is resolved against what this session actually offers (exact
+   * match first, then a substring match against value/name to tolerate aliases such as `opus`
+   * for `claude-opus-4-6`). Returns the adapter's refreshed `configOptions` when it sends them,
+   * which matters for `model` on agy: changing the model resets the available effort values.
    */
-  private async applySessionModel(session: AcpSession, configOptions: any[] | undefined, requestedModel?: string, onProgress?: (msg: string) => void): Promise<void> {
-    const desired = requestedModel?.trim() || process.env.LOCAL_AGENT_CLAUDE_MODEL?.trim();
-    if (!desired) return;
+  private async applySessionConfigOption(
+    session: AcpSession,
+    configOptions: any[] | undefined,
+    configId: string,
+    requestedValue?: string,
+    onProgress?: (msg: string) => void
+  ): Promise<any[] | undefined> {
+    const desired = requestedValue?.trim();
+    if (!desired) return undefined;
     const norm = (value: unknown) => String(value ?? '').toLowerCase();
-    const modelOption = configOptions?.find(option => option?.id === 'model');
-    const available: { value: string; name?: string }[] = (modelOption?.options ?? []).flatMap((option: any) => (Array.isArray(option?.options) ? option.options : [option]));
-    const match = available.find(model => norm(model.value) === norm(desired)) ?? available.find(model => norm(model.value).includes(norm(desired)) || norm(model.name).includes(norm(desired)));
-    if (!modelOption || !match) {
+    const option = configOptions?.find(candidate => candidate?.id === configId);
+    // Some adapters group their options (`{ name, options: [...] }`); flatten one level.
+    const available: { value: string; name?: string }[] = (option?.options ?? []).flatMap((entry: any) => (Array.isArray(entry?.options) ? entry.options : [entry]));
+    const match = available.find(entry => norm(entry.value) === norm(desired)) ?? available.find(entry => norm(entry.value).includes(norm(desired)) || norm(entry.name).includes(norm(desired)));
+    if (!option || !match) {
       this.logger.warn(
-        `ACP session ${session.id}: model '${desired}' is not advertised by the adapter ` + `(available: ${available.map(model => model.value).join(', ') || 'none'}); keeping its default.`
+        `ACP session ${session.id}: ${configId} '${desired}' is not advertised by the adapter ` +
+          `(available: ${available.map(entry => entry.value).join(', ') || 'none'}); keeping its default.`
       );
-      return;
+      return undefined;
     }
-    if (modelOption.currentValue === match.value) return;
+    if (option.currentValue === match.value) return undefined;
     try {
-      onProgress?.(`Seleccionando modelo: ${match.value}...`);
-      await session.connection.setSessionConfigOption({
+      onProgress?.(`Configurando ${configId}: ${match.value}...`);
+      const updated = await session.connection.setSessionConfigOption({
         sessionId: session.acpSessionId,
-        configId: 'model',
+        configId,
         value: match.value,
       });
-      this.logger.log(`ACP session ${session.id}: model set to ${match.value}`);
+      this.logger.log(`ACP session ${session.id}: ${configId} set to ${match.value}`);
+      return updated?.configOptions;
     } catch (error) {
-      this.logger.warn(`ACP session ${session.id}: could not set model '${desired}': ${error?.message ?? error}`);
+      this.logger.warn(`ACP session ${session.id}: could not set ${configId} '${desired}': ${error?.message ?? error}`);
+      return undefined;
     }
   }
 
@@ -520,14 +671,25 @@ export class AcpBridgeService implements OnModuleDestroy {
       case 'plan':
         return { type: 'plan', entries: update.entries ?? [] };
       case 'usage_update': {
-        // Claude sends the exact SDK cost here before resolving session/prompt. Autonomous
-        // background activity carries an origin marker and is intentionally not attributed to
-        // the user's active turn, whose token totals come from PromptResponse.usage.
+        // ACP defines `usage_update.cost` as the CUMULATIVE session cost, not the turn's cost
+        // (`UsageUpdate.cost` in @agentclientprotocol/sdk: "Cumulative session cost"). Claude
+        // sources it from the Agent SDK's `total_cost_usd`, which keeps growing across turns, so
+        // the amount must be diffed against the previous reading to get this turn's increment.
+        // Storing the raw amount would make every turn report the session total to date.
         const amount = Number(update.cost?.amount);
+        if (update.cost?.currency !== 'USD' || !Number.isFinite(amount)) return null;
+
+        const previous = session.reportedCumulativeCostUsd ?? 0;
+        // A value below the previous reading means the agent restarted its counter (respawn or
+        // fresh session), so the amount is itself the increment rather than a running total.
+        const increment = amount < previous ? amount : amount - previous;
+        session.reportedCumulativeCostUsd = amount;
+
+        // Autonomous background activity carries an origin marker: its increment still advances
+        // the cumulative counter (so it never leaks into the next user turn) but is not billed to
+        // the user's active turn, whose token totals come from PromptResponse.usage.
         const origin = update._meta?.['_claude/origin'];
-        if (!origin && update.cost?.currency === 'USD' && Number.isFinite(amount)) {
-          session.turnCostUsd = (session.turnCostUsd ?? 0) + amount;
-        }
+        if (!origin) session.turnCostUsd = (session.turnCostUsd ?? 0) + increment;
         return null;
       }
       default:
