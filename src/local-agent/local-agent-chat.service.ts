@@ -6,8 +6,9 @@ import { AppToken } from '@dataclouder/nest-auth';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { normalizeTokenUsage } from './ai-usage.util';
-import { AgenticContextLevel } from '../agentic-profile/models/agentic-profile.models';
+import { AgenticContextLevel, IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
 import { createInjectedContextSnapshot, InjectedContextSnapshot } from './context-snapshot.util';
+import { AttachedSourceReport, formatAttachedSourcesBlock } from './attached-sources.util';
 import { KeyBalancerService } from '../key-balancer/key-balancer.service';
 
 export interface LocalAgentMessage {
@@ -30,7 +31,10 @@ export type LocalAgentStreamEvent =
   | { type: 'session'; sessionId: string; cliSessionId?: string; model?: string; reasoningEffort?: string }
   | { type: 'permission-request'; requestId: string; toolName: string; rationale: string; options: { optionId: string; name: string; kind: string }[] }
   | { type: 'plan'; entries: unknown[] }
-  | { type: 'status'; message: string };
+  | { type: 'status'; message: string }
+  // Reports which `@mention` attachments actually made it into this turn's prompt, with their real
+  // size. The UI turns optimistic chips into confirmed ones — or flags what it could not resolve.
+  | { type: 'attached-sources'; attached: AttachedSourceReport[] };
 
 const MAX_STEPS = 25;
 const CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -59,10 +63,21 @@ export class LocalAgentChatService {
     token: AppToken,
     agenticProfileId?: string,
     orgId?: string,
+    attachedSources?: IAttachedSourceRef[],
   ): AsyncGenerator<LocalAgentStreamEvent> {
     const resolvedOrgId = orgId ?? token['orgId'];
-    const { system, profileContext } = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId);
+    // Unlike the ACP engines, this harness rebuilds the system prompt on every request, so an
+    // attachment lives only in the turn that carried it — the model will not see it again later.
+    const attachedBlock =
+      agenticProfileId && attachedSources?.length
+        ? await this.buildAttachedSourcesBlock(agenticProfileId, attachedSources, resolvedOrgId).catch(error => {
+            this.logger.warn(`Could not resolve attached sources for profile ${agenticProfileId}: ${error?.message}`);
+            return null;
+          })
+        : null;
+    const { system, profileContext } = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId, attachedBlock?.markdown);
     if (profileContext) yield { type: 'context-snapshot', context: this.createContextSnapshot(profileContext) };
+    if (attachedBlock?.attached.length) yield { type: 'attached-sources', attached: attachedBlock.attached };
 
     const model = process.env.LOCAL_AGENT_MODEL ?? 'gemini-3.5-flash-lite';
     const { googleProvider, balancedKey } = await this.keyBalancerService.createGoogleProvider(model, token);
@@ -130,7 +145,7 @@ export class LocalAgentChatService {
     }
   }
 
-  private async buildSystemPrompt(token: AppToken, orgId?: string, agenticProfileId?: string): Promise<{ system: string; profileContext: string }> {
+  private async buildSystemPrompt(token: AppToken, orgId?: string, agenticProfileId?: string, attachedBlock?: string): Promise<{ system: string; profileContext: string }> {
     let profileContext = '';
     if (agenticProfileId) {
       profileContext = await this.getProfileContext(agenticProfileId, orgId);
@@ -151,7 +166,7 @@ Rules:
 
     const system = `You are a local agent harness assistant for Control Markets, running on the user's own machine.
 
-${profileContext ? `# AGENT PROFILE (your identity, knowledge and tasks)\n\n${profileContext}\n\n` : ''}${toolsNote}
+${profileContext ? `# AGENT PROFILE (your identity, knowledge and tasks)\n\n${profileContext}\n\n` : ''}${attachedBlock ? `${attachedBlock}\n\n` : ''}${toolsNote}
 
 Current user: ${token.name ?? token.email} (userId: ${token.userId}, orgId: ${orgId ?? 'unknown'}).
 Answer in the user's language.`;
@@ -160,6 +175,23 @@ Answer in the user's language.`;
 
   createContextSnapshot(content: string): InjectedContextSnapshot {
     return createInjectedContextSnapshot(content);
+  }
+
+  /**
+   * Resolves the sources the user attached with `@` for ONE turn and renders them as markdown.
+   *
+   * Deliberately not cached: `contextCache` holds the profile context, which is stable for minutes,
+   * while attachments change with every message — caching them would serve the previous turn's
+   * documents to the current question.
+   */
+  async buildAttachedSourcesBlock(
+    profileId: string,
+    refs: IAttachedSourceRef[],
+    orgId?: string,
+  ): Promise<{ markdown: string; attached: AttachedSourceReport[] }> {
+    if (!refs?.length) return { markdown: '', attached: [] };
+    const resources = await this.agenticProfileService.getLinkedContextResources(profileId, refs, orgId);
+    return formatAttachedSourcesBlock(resources);
   }
 
   async getProfileContext(profileId: string, orgId?: string, levelOverride?: AgenticContextLevel): Promise<string> {

@@ -141,12 +141,8 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "roots": [
-      "<rootDir>/src/",
-      "<rootDir>/libs/"
-    ],
-    "moduleNameMapper": {
-      "^@dataclouder/nest-mongo(|/.*)$": "<rootDir>/libs/nest-mongo/src/$1"
-    }
+      "<rootDir>/src/"
+    ]
   },
   "pnpm": {
     "allowBuilds": {

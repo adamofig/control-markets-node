@@ -259,8 +259,19 @@ export class AcpBridgeService implements OnModuleDestroy {
   /**
    * Streams one prompt turn through an ACP CLI engine. Yields the same SSE event union
    * as the built-in harness, plus `session`, `permission-request` and `plan` events.
+   *
+   * `profileContext` is the profile's standing identity and goes in once per session;
+   * `attachedContext` is what the user pinned to THIS turn with `@` and goes in every time it
+   * arrives. Keeping them as separate arguments is what lets those two lifetimes differ.
    */
-  async *stream(message: string, sessionId?: string, profileContext?: string, engine: AcpEngine = DEFAULT_ACP_ENGINE, runtimeOptions: AcpRuntimeOptions = {}): AsyncGenerator<LocalAgentStreamEvent> {
+  async *stream(
+    message: string,
+    sessionId?: string,
+    profileContext?: string,
+    engine: AcpEngine = DEFAULT_ACP_ENGINE,
+    runtimeOptions: AcpRuntimeOptions = {},
+    attachedContext?: string,
+  ): AsyncGenerator<LocalAgentStreamEvent> {
     if (!this.enabled) {
       yield { type: 'error', error: 'LOCAL_AGENT_MODE is disabled on this server.' };
       return;
@@ -305,6 +316,15 @@ export class AcpBridgeService implements OnModuleDestroy {
             resource: { uri: 'context://agentic-profile', mimeType: 'text/markdown', text: profileContext },
           });
           session.contextSent = true;
+        }
+        // No latch here, on purpose. The CLI keeps the session history, so a source attached on
+        // turn 3 stays visible afterwards — resending it would only pay for the same tokens twice.
+        // What must be sent is whatever the user attached to *this* turn.
+        if (attachedContext) {
+          prompt.push({
+            type: 'resource',
+            resource: { uri: 'context://user-attached-sources', mimeType: 'text/markdown', text: attachedContext },
+          });
         }
         prompt.push({ type: 'text', text: message });
 

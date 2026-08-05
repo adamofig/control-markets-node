@@ -6,13 +6,16 @@ import { FastifyReply } from 'fastify';
 import { DecodedToken } from '../common/token.decorator';
 import { LocalAgentChatService, LocalAgentMessage, LocalAgentStreamEvent } from './local-agent-chat.service';
 import { AcpBridgeService, AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from './acp-bridge.service';
+import { AttachedSourceReport } from './attached-sources.util';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
+import { IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
 import { WorkspaceService } from '../workspaces/services/workspace.service';
 
 class LocalAgentChatRequestDto {
   messages: LocalAgentMessage[];
   agenticProfileId?: string;
   orgId?: string;
+  attachedSources?: IAttachedSourceRef[];
 }
 
 class AcpStreamRequestDto {
@@ -23,6 +26,8 @@ class AcpStreamRequestDto {
   engine?: AcpEngine;
   model?: string;
   reasoningEffort?: CodexReasoningEffort;
+  /** Resources the user pinned to this turn with `@`. Their `kind` is a hint; the service re-derives it. */
+  attachedSources?: IAttachedSourceRef[];
 }
 
 class AcpPermissionRequestDto {
@@ -58,7 +63,7 @@ export class LocalAgentController {
     res.raw.setHeader('Connection', 'keep-alive');
     res.raw.setHeader('Access-Control-Allow-Origin', '*');
 
-    const events = this.localAgentChatService.streamChat(body.messages, token, body.agenticProfileId, body.orgId);
+    const events = this.localAgentChatService.streamChat(body.messages, token, body.agenticProfileId, body.orgId, body.attachedSources);
     await this.pipeSse(events, res);
   }
 
@@ -70,9 +75,21 @@ export class LocalAgentController {
     res.raw.setHeader('Connection', 'keep-alive');
     res.raw.setHeader('Access-Control-Allow-Origin', '*');
 
+    const resolvedOrgId = body.orgId ?? token['orgId'];
+
+    // The standing profile context is a first-turn concern: the CLI keeps it in session history.
     let profileContext: string | undefined;
     if (body.agenticProfileId && !body.sessionId) {
-      profileContext = await this.localAgentChatService.getProfileContext(body.agenticProfileId, body.orgId ?? token['orgId']).catch(() => undefined);
+      profileContext = await this.localAgentChatService.getProfileContext(body.agenticProfileId, resolvedOrgId).catch(() => undefined);
+    }
+
+    // `@mention` attachments are a per-turn concern, so they are resolved on EVERY request —
+    // deliberately outside the `!sessionId` guard above.
+    let attached: { markdown: string; attached: AttachedSourceReport[] } | null = null;
+    if (body.agenticProfileId && body.attachedSources?.length) {
+      attached = await this.localAgentChatService
+        .buildAttachedSourcesBlock(body.agenticProfileId, body.attachedSources, resolvedOrgId)
+        .catch(() => null);
     }
 
     // A profile bound to a workspace chats from that workspace's root on this host
@@ -84,15 +101,19 @@ export class LocalAgentController {
       cwd = this.workspaceService.resolveRootForHost(profile?.workspaceId) ?? undefined;
     }
 
-    const acpEvents = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? DEFAULT_ACP_ENGINE, {
-      model: body.model,
-      reasoningEffort: body.reasoningEffort,
-      cwd,
-    });
-    const events = profileContext
-      ? this.withContextSnapshot(profileContext, acpEvents)
-      : acpEvents;
-    await this.pipeSse(events, res);
+    const acpEvents = this.acpBridge.stream(
+      body.message,
+      body.sessionId,
+      profileContext,
+      body.engine ?? DEFAULT_ACP_ENGINE,
+      { model: body.model, reasoningEffort: body.reasoningEffort, cwd },
+      attached?.markdown || undefined,
+    );
+
+    const preamble: LocalAgentStreamEvent[] = [];
+    if (profileContext) preamble.push({ type: 'context-snapshot', context: this.localAgentChatService.createContextSnapshot(profileContext) });
+    if (attached?.attached.length) preamble.push({ type: 'attached-sources', attached: attached.attached });
+    await this.pipeSse(preamble.length ? this.withPreamble(preamble, acpEvents) : acpEvents, res);
   }
 
   @Post('acp/permission')
@@ -121,11 +142,12 @@ export class LocalAgentController {
     }
   }
 
-  private async *withContextSnapshot(
-    context: string,
+  /** Emits what the server decided to inject before the engine starts talking. */
+  private async *withPreamble(
+    preamble: LocalAgentStreamEvent[],
     events: AsyncGenerator<LocalAgentStreamEvent>,
   ): AsyncGenerator<LocalAgentStreamEvent> {
-    yield { type: 'context-snapshot', context: this.localAgentChatService.createContextSnapshot(context) };
+    for (const event of preamble) yield event;
     yield* events;
   }
 }

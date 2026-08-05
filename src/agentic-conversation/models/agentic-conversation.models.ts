@@ -45,6 +45,21 @@ export interface IAgenticConversationPermission {
   status: 'pending' | 'allowed' | 'denied';
 }
 
+/**
+ * A source the user pinned to one turn with an `@mention`. Stored per message rather than per
+ * conversation because attachments are a per-turn decision — this is what makes it answerable
+ * later which documents were in front of the model when it said what it said.
+ */
+export interface IAgenticConversationAttachment {
+  id: string;
+  kind?: 'knowledge' | 'skill' | 'exploration' | 'memory' | 'task';
+  name?: string;
+  characters?: number;
+  estimatedTokens?: number;
+  truncatedFrom?: number;
+  error?: 'not-linked' | 'not-found' | 'over-limit';
+}
+
 export interface IAgenticConversationMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -54,6 +69,7 @@ export interface IAgenticConversationMessage {
   plan?: { content?: string; status?: string }[];
   createdAt?: string;
   usage?: IAgenticTokenUsage;
+  attachments?: IAgenticConversationAttachment[];
 }
 
 export interface IAgenticConversationInjectedContext {

@@ -45,6 +45,33 @@ export interface IAgenticProfileExploration {
 export type AgenticHeartbeatEngine = 'agy' | 'claude' | 'codex';
 export type AgenticContextLevel = 'basic' | 'medium' | 'full';
 
+/**
+ * Category of a resource linked to a profile. Always derived from WHICH of the profile's own
+ * arrays holds the id — never from the caller, so nobody can relabel a task as a source to
+ * reach a different collection.
+ */
+export type AgenticLinkedResourceKind = 'knowledge' | 'skill' | 'exploration' | 'memory' | 'task';
+
+/** A resource the user attached to a single chat turn through the `@` mention menu. */
+export interface IAttachedSourceRef {
+  id: string;
+  /** UI hint only; the server re-derives the authoritative kind from the profile. */
+  kind?: AgenticLinkedResourceKind;
+}
+
+export interface ILinkedContextResource {
+  id: string;
+  /** Absent only when the ref could not be resolved — see `error`. */
+  kind?: AgenticLinkedResourceKind;
+  name?: string;
+  description?: string;
+  sourceUrl?: string;
+  content?: string;
+  /** Only for `task` refs. */
+  status?: string;
+  error?: 'not-linked' | 'not-found';
+}
+
 export interface IAgenticHeartbeat {
   enabled: boolean;
   cronExpression?: string; // e.g. "0 */6 * * *"

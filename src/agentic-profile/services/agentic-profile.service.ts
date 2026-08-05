@@ -7,7 +7,7 @@ import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
-import { AgenticContextLevel } from '../models/agentic-profile.models';
+import { AgenticContextLevel, AgenticLinkedResourceKind, ILinkedContextResource } from '../models/agentic-profile.models';
 import { buildFingerprint, hashContent } from './sync-hash.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WIKI_PROFILE_CHANGED } from '../../wiki-sync/wiki-sync.events';
@@ -709,25 +709,106 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     return md.trim() + '\n';
   }
 
+  /**
+   * Loads one linked resource. Kept for the `getProfileSource` tool of the built-in harness,
+   * which expects a flat object and an exception when the id is not reachable.
+   */
   async getLinkedContextResource(profileId: string, sourceId: string, orgId?: string): Promise<{ id: string; name?: string; description?: string; sourceUrl?: string; content?: string }> {
-    const profileQuery: any = {
-      $or: [{ id: profileId }, { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null }].filter(item => item._id !== null),
-      ...(orgId ? { orgId } : {}),
+    const [resource] = await this.getLinkedContextResources(profileId, [{ id: sourceId }], orgId);
+    if (!resource || resource.error === 'not-linked') throw new Error(`Source ${sourceId} is not linked to profile ${profileId}`);
+    if (resource.error === 'not-found') throw new Error(`Source ${sourceId} not found`);
+    return {
+      id: resource.id,
+      name: resource.name,
+      description: resource.description,
+      sourceUrl: resource.sourceUrl,
+      content: resource.content,
     };
-    const profile = await this.genericModel.findOne(profileQuery).lean().exec();
+  }
+
+  /**
+   * Resolves several profile-linked resources at once, for the `@mention` attachment flow.
+   *
+   * Two properties this method owes its callers:
+   * 1. **The kind is derived from the profile, not from the request.** The caller's `kind` is a UI
+   *    hint; a client cannot relabel a task as a source to make us read a different collection.
+   * 2. **A bad ref is flagged, not thrown.** One unreachable id must not kill a whole chat turn,
+   *    so unresolved refs come back with `error` and the caller decides what to say about them.
+   *
+   * Cost is two queries no matter how many refs arrive: one on `sources`, one on `agent_tasks`.
+   * The returned array preserves the caller's order, deduplicated.
+   */
+  async getLinkedContextResources(profileId: string, refs: Array<{ id: string }>, orgId?: string): Promise<ILinkedContextResource[]> {
+    const requestedIds = Array.from(new Set((refs || []).map(ref => ref?.id).filter(Boolean)));
+    if (requestedIds.length === 0) return [];
+
+    const profile = await this.genericModel.findOne(this.buildProfileIdentityQuery(profileId, orgId)).lean().exec();
     if (!profile) throw new Error(`AgenticProfile with ID ${profileId} not found`);
 
-    const linkedIds = [...(profile.sources || []), ...(profile.skills || []), ...(profile.memories || []), ...(profile.explorations || [])].map((item: any) => item.id);
-    if (!linkedIds.includes(sourceId)) throw new Error(`Source ${sourceId} is not linked to profile ${profileId}`);
+    const kindById = this.buildLinkedKindMap(profile);
+    const sourceLikeIds: string[] = [];
+    const taskIds: string[] = [];
+    for (const id of requestedIds) {
+      const kind = kindById.get(id);
+      if (!kind) continue;
+      if (kind === 'task') taskIds.push(id);
+      else sourceLikeIds.push(id);
+    }
 
-    const [source] = await this.sourcesService.findManyByIds([sourceId], orgId);
-    if (!source) throw new Error(`Source ${sourceId} not found`);
-    return {
-      id: source.id,
-      name: source.name,
-      description: source.description,
-      sourceUrl: source.sourceUrl,
-      content: source.content,
+    const [sources, tasks] = await Promise.all([
+      sourceLikeIds.length > 0 ? this.sourcesService.findManyByIds(sourceLikeIds, orgId) : Promise.resolve([]),
+      taskIds.length > 0
+        ? this.agentTasksService.executeOperation({ action: 'find', query: { id: { $in: taskIds }, ...(orgId ? { orgId } : {}) } })
+        : Promise.resolve([]),
+    ]);
+
+    const sourceById = new Map<string, any>((sources || []).map((doc: any) => [doc.id, doc]));
+    const taskById = new Map<string, any>((Array.isArray(tasks) ? tasks : []).map((doc: any) => [doc.id, doc]));
+
+    return requestedIds.map((id): ILinkedContextResource => {
+      const kind = kindById.get(id);
+      if (!kind) return { id, error: 'not-linked' };
+
+      const doc = kind === 'task' ? taskById.get(id) : sourceById.get(id);
+      if (!doc) return { id, kind, error: 'not-found' };
+
+      return {
+        id,
+        kind,
+        name: doc.name,
+        description: doc.description,
+        sourceUrl: doc.sourceUrl,
+        content: doc.content,
+        ...(kind === 'task' ? { status: doc.status } : {}),
+      };
+    });
+  }
+
+  private buildProfileIdentityQuery(profileId: string, orgId?: string): any {
+    const identityClauses: any[] = [{ id: profileId }];
+    if (mongoose.Types.ObjectId.isValid(profileId)) identityClauses.push({ _id: new mongoose.Types.ObjectId(profileId) });
+    return { $or: identityClauses, ...(orgId ? { orgId } : {}) };
+  }
+
+  /**
+   * Maps every id the profile links to its category. `enabled === false` links are left out on
+   * purpose: `composeFullContext` already hides them from the context index, so offering them as
+   * an attachment would contradict what the agent is told it has.
+   */
+  private buildLinkedKindMap(profile: any): Map<string, AgenticLinkedResourceKind> {
+    const map = new Map<string, AgenticLinkedResourceKind>();
+    const register = (items: any[] | undefined, kind: AgenticLinkedResourceKind, respectEnabled = false) => {
+      for (const item of items || []) {
+        if (!item?.id || map.has(item.id)) continue;
+        if (respectEnabled && item.enabled === false) continue;
+        map.set(item.id, kind);
+      }
     };
+    register(profile.sources, 'knowledge');
+    register(profile.skills, 'skill', true);
+    register(profile.explorations, 'exploration', true);
+    register(profile.memories, 'memory', true);
+    register(profile.tasks, 'task');
+    return map;
   }
 }
