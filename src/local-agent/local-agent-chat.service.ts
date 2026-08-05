@@ -24,7 +24,7 @@ export type LocalAgentStreamEvent =
   | { type: 'tool-result'; toolName: string; output: unknown }
   | { type: 'finish'; usage?: unknown }
   | { type: 'error'; error: string }
-  // ACP (Gemini CLI) engine extras:
+  // ACP engine extras (claude / codex / agy):
   // `model`/`reasoningEffort` are what the adapter negotiated for this session, not what the
   // caller requested — they are absent when the engine advertises no such config option.
   | { type: 'session'; sessionId: string; cliSessionId?: string; model?: string; reasoningEffort?: string }

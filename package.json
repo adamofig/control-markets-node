@@ -28,6 +28,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:agy-acp": "node scripts/agy-acp/test-agy-acp.mjs",
     "test:agy-bridge": "RUN_AGY_E2E=1 NODE_OPTIONS=--experimental-vm-modules jest --roots '<rootDir>/src' --testPathPattern acp-bridge.agy",
+    "bench:agy-turn": "node scripts/agy-acp/bench-agy-turn.mjs",
+    "bench:acp-handshake": "node scripts/agy-acp/bench-acp-handshake.mjs",
     "send:agent-message": "node scripts/send-agent-message.js"
   },
   "dependencies": {

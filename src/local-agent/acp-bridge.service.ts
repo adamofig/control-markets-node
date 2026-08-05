@@ -16,8 +16,18 @@ const loadAcpSdk = new Function('return import("@agentclientprotocol/sdk")') as 
 const IDLE_TTL_MS = 15 * 60 * 1000;
 const PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
 
-/** ACP agents the bridge can spawn. The protocol is agent-agnostic — only the command differs. */
-export type AcpEngine = 'gemini' | 'claude' | 'codex' | 'agy';
+/**
+ * ACP agents the bridge can spawn. The protocol is agent-agnostic — only the command differs.
+ *
+ * `gemini` (`gemini --acp`) was removed on 2026-08-04: Google retired that client for individual
+ * accounts ("This client is no longer supported for Gemini Code Assist for individuals — migrate to
+ * the Antigravity suite"), so every session failed at the handshake. Antigravity (`agy`) is the
+ * Google path now. See wiki `02-references/09-agentic-profile-(borges)/local-agent-acp-connectors-performance.md`.
+ */
+export type AcpEngine = 'claude' | 'codex' | 'agy';
+
+/** Engine used when the caller sends none, or sends one that no longer exists. */
+export const DEFAULT_ACP_ENGINE: AcpEngine = 'agy';
 export type CodexReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
 export interface AcpRuntimeOptions {
@@ -60,8 +70,6 @@ interface EngineConfig {
   commandEnv: string;
   /** Default spawn command if the env var is unset. */
   defaultCommand: string;
-  /** Whether the CLI accepts `--include-directories` for extra workspace roots (Gemini only). */
-  supportsIncludeDirs: boolean;
   /** Whether the adapter accepts ACP `additionalDirectories` on session lifecycle requests. */
   supportsAdditionalDirectories?: boolean;
   /** Env vars stripped from the spawned process so the CLI uses personal auth / doesn't crash. */
@@ -79,21 +87,11 @@ interface EngineConfig {
 }
 
 const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
-  gemini: {
-    commandEnv: 'LOCAL_AGENT_GEMINI_COMMAND',
-    defaultCommand: 'gemini --acp',
-    supportsIncludeDirs: true,
-    // With these present (the backend sets them for Vertex AI) gemini switches from personal OAuth
-    // to project-billed Code Assist and fails with 403 IAM_PERMISSION_DENIED.
-    stripEnv: ['GOOGLE_CLOUD_PROJECT', 'GOOGLE_CLOUD_PROJECT_ID', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_GENAI_USE_VERTEXAI', 'GOOGLE_CLOUD_LOCATION'],
-    versionCommand: 'gemini --version',
-  },
   claude: {
     // Official ACP adapter for the Claude Agent SDK. Pin the version so local-agent behavior
     // cannot change underneath a running deployment when npm's latest tag advances.
     commandEnv: 'LOCAL_AGENT_CLAUDE_COMMAND',
     defaultCommand: 'npx -y @agentclientprotocol/claude-agent-acp@0.59.0',
-    supportsIncludeDirs: false,
     selectsModelViaConfigOption: true,
     // CLAUDECODE/CLAUDE_CODE_* are set when the backend itself runs under Claude Code; the adapter
     // then refuses to launch ("cannot be launched inside another Claude Code session").
@@ -105,7 +103,6 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     // The official ACP adapter starts `codex app-server` and translates it to ACP.
     commandEnv: 'LOCAL_AGENT_CODEX_COMMAND',
     defaultCommand: 'npx -y @agentclientprotocol/codex-acp@latest',
-    supportsIncludeDirs: false,
     stripEnv: [],
     versionCommand: 'codex --version',
     modelEnv: 'LOCAL_AGENT_CODEX_MODEL',
@@ -116,7 +113,6 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     // LOCAL_AGENT_AGY_COMMAND still overrides it (e.g. `npx -y agy-acp-bridge@0.2.2`).
     commandEnv: 'LOCAL_AGENT_AGY_COMMAND',
     defaultCommand: `${process.execPath} ${VENDORED_AGY_ACP}`,
-    supportsIncludeDirs: false,
     supportsAdditionalDirectories: true,
     stripEnv: [],
     // Probes the CLI, not the adapter: the adapter ships with the repo and is always present,
@@ -235,19 +231,19 @@ export class AcpBridgeService implements OnModuleDestroy {
     return this.fsTools.enabled;
   }
 
-  /** Probes each engine's version command once (cached) and reports per-engine availability. */
-  async getAcpStatus(): Promise<{
-    acpAvailable: boolean;
-    geminiVersion: string | null;
-    engines: Record<AcpEngine, { available: boolean; version: string | null }>;
-  }> {
+  /**
+   * Probes each engine's version command once (cached) and reports per-engine availability.
+   *
+   * The old flat `acpAvailable`/`geminiVersion` fields are gone with the `gemini` engine: they both
+   * described that one CLI, and there is no single "the ACP CLI" anymore. Read `engines[<id>]`.
+   */
+  async getAcpStatus(): Promise<{ engines: Record<AcpEngine, { available: boolean; version: string | null }> }> {
     const engines = {} as Record<AcpEngine, { available: boolean; version: string | null }>;
     for (const engine of Object.keys(ENGINE_CONFIGS) as AcpEngine[]) {
       const version = await this.probeVersion(engine);
       engines[engine] = { available: this.enabled && version !== null, version };
     }
-    // Keep the legacy flat fields for callers that predate the per-engine map.
-    return { acpAvailable: engines.gemini.available, geminiVersion: engines.gemini.version, engines };
+    return { engines };
   }
 
   private async probeVersion(engine: AcpEngine): Promise<string | null> {
@@ -261,10 +257,10 @@ export class AcpBridgeService implements OnModuleDestroy {
   }
 
   /**
-   * Streams one prompt turn through the Gemini CLI (ACP). Yields the same SSE event union
+   * Streams one prompt turn through an ACP CLI engine. Yields the same SSE event union
    * as the built-in harness, plus `session`, `permission-request` and `plan` events.
    */
-  async *stream(message: string, sessionId?: string, profileContext?: string, engine: AcpEngine = 'gemini', runtimeOptions: AcpRuntimeOptions = {}): AsyncGenerator<LocalAgentStreamEvent> {
+  async *stream(message: string, sessionId?: string, profileContext?: string, engine: AcpEngine = DEFAULT_ACP_ENGINE, runtimeOptions: AcpRuntimeOptions = {}): AsyncGenerator<LocalAgentStreamEvent> {
     if (!this.enabled) {
       yield { type: 'error', error: 'LOCAL_AGENT_MODE is disabled on this server.' };
       return;
@@ -316,7 +312,7 @@ export class AcpBridgeService implements OnModuleDestroy {
           .prompt({ sessionId: session.acpSessionId, prompt })
           .then((result: any) => {
             const usage = normalizeTokenUsage(result.usage, {
-              provider: engine === 'gemini' ? 'google' : engine === 'claude' ? 'anthropic' : engine,
+              provider: engine === 'claude' ? 'anthropic' : engine,
               // The session's model wins: it holds the adapter default when the caller sent none.
               model: session.runtimeOptions.model ?? runtimeOptions.model,
               source: 'acp',
@@ -383,7 +379,7 @@ export class AcpBridgeService implements OnModuleDestroy {
     return { ok: true };
   }
 
-  private async getOrCreateSession(sessionId?: string, engine: AcpEngine = 'gemini', runtimeOptions: AcpRuntimeOptions = {}, onProgress?: (msg: string) => void): Promise<AcpSession> {
+  private async getOrCreateSession(sessionId?: string, engine: AcpEngine = DEFAULT_ACP_ENGINE, runtimeOptions: AcpRuntimeOptions = {}, onProgress?: (msg: string) => void): Promise<AcpSession> {
     const existing = sessionId ? this.sessions.get(sessionId) : undefined;
     if (existing && existing.process.exitCode === null) {
       onProgress?.('Reutilizando sesión activa...');
@@ -391,7 +387,14 @@ export class AcpBridgeService implements OnModuleDestroy {
     }
 
     // Respawns must keep the engine the session was created with, regardless of the requested one.
-    const resolvedEngine = existing?.engine ?? engine;
+    const requestedEngine = existing?.engine ?? engine;
+    // Stored profiles may still carry a retired engine id (`gemini` was removed on 2026-08-04).
+    // Falling back beats crashing on `ENGINE_CONFIGS[undefined]` three statements later.
+    const resolvedEngine = ENGINE_CONFIGS[requestedEngine] ? requestedEngine : DEFAULT_ACP_ENGINE;
+    if (resolvedEngine !== requestedEngine) {
+      this.logger.warn(`Unknown ACP engine '${requestedEngine}' (retired?) — falling back to '${DEFAULT_ACP_ENGINE}'.`);
+      onProgress?.(`El motor '${requestedEngine}' ya no existe; usando '${DEFAULT_ACP_ENGINE}'.`);
+    }
     const config = ENGINE_CONFIGS[resolvedEngine];
 
     onProgress?.('Cargando protocolo ACP...');
@@ -451,9 +454,6 @@ export class AcpBridgeService implements OnModuleDestroy {
       env.PATH = `${binDir}${path.delimiter}${env.PATH ?? ''}`;
     }
     const args = [...baseArgs];
-    if (config.supportsIncludeDirs && roots.length > 1) {
-      args.push('--include-directories', roots.slice(1).join(','));
-    }
 
     onProgress?.(`Iniciando subproceso de la CLI (${resolvedEngine})...`);
     const child = spawn(exe, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -492,14 +492,14 @@ export class AcpBridgeService implements OnModuleDestroy {
       session.queue?.close();
     });
 
+    // No current engine gets ACP `fs` delegation. Claude, Codex and agy all use their own native
+    // filesystem tooling: advertising it would duplicate tools and can make the model pick the wrong
+    // implementation — and for agy it would be a lie, since its headless mode has no channel to
+    // delegate IO back to us, so the CLI writes to disk directly and FilesystemToolsService's
+    // deny-list never sees those paths. `gemini` was the only engine that took the delegation, and
+    // it was retired (see AcpEngine). The client still implements `fs/*` in buildClientHandler, so
+    // an engine that does advertise support only needs this object filled in again.
     const clientCapabilities: any = {};
-    // Claude, Codex and agy use their own native filesystem tooling. Advertising ACP fs would
-    // duplicate tools and can make the model choose the wrong implementation — and for agy it
-    // would be a lie: its headless mode has no channel to delegate IO back to us, so the CLI
-    // writes to disk directly and FilesystemToolsService's deny-list never sees those paths.
-    if (resolvedEngine === 'gemini') {
-      clientCapabilities.fs = { readTextFile: true, writeTextFile: true };
-    }
 
     onProgress?.('Estableciendo conexión y handshake (ACP)...');
     const init = await session.connection.initialize({
@@ -508,8 +508,8 @@ export class AcpBridgeService implements OnModuleDestroy {
     });
     this.logger.log(`ACP initialized (protocol v${init.protocolVersion})`);
 
-    // Extra workspace roots the adapter should mount alongside `cwd`. `supportsIncludeDirs` is the
-    // Gemini-only CLI flag path (handled at spawn time); this is the protocol-level equivalent.
+    // Extra workspace roots the adapter should mount alongside `cwd`, negotiated at the protocol
+    // level (no engine takes them as a CLI flag anymore).
     // Stale entries in LOCAL_AGENT_WORKSPACE_ROOTS are dropped rather than forwarded: a missing
     // directory makes the CLI reject the whole invocation, taking the valid roots down with it.
     const additionalDirectories = config.supportsAdditionalDirectories ? roots.filter(root => root !== cwd && fs.existsSync(root)) : undefined;

@@ -5,7 +5,7 @@ import { AppGuard } from '@dataclouder/nest-core';
 import { FastifyReply } from 'fastify';
 import { DecodedToken } from '../common/token.decorator';
 import { LocalAgentChatService, LocalAgentMessage, LocalAgentStreamEvent } from './local-agent-chat.service';
-import { AcpBridgeService, AcpEngine, CodexReasoningEffort } from './acp-bridge.service';
+import { AcpBridgeService, AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from './acp-bridge.service';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { WorkspaceService } from '../workspaces/services/workspace.service';
 
@@ -63,7 +63,7 @@ export class LocalAgentController {
   }
 
   @Post('acp/stream')
-  @ApiOperation({ summary: 'Stream a chat turn through the local Gemini CLI via the Agent Client Protocol (structured SSE events)' })
+  @ApiOperation({ summary: 'Stream a chat turn through a local ACP CLI engine — agy (default), claude or codex (structured SSE events)' })
   async streamAcp(@Body() body: AcpStreamRequestDto, @Res() res: FastifyReply, @DecodedToken() token: AppToken) {
     res.raw.setHeader('Content-Type', 'text/event-stream');
     res.raw.setHeader('Cache-Control', 'no-cache');
@@ -84,7 +84,7 @@ export class LocalAgentController {
       cwd = this.workspaceService.resolveRootForHost(profile?.workspaceId) ?? undefined;
     }
 
-    const acpEvents = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? 'gemini', {
+    const acpEvents = this.acpBridge.stream(body.message, body.sessionId, profileContext, body.engine ?? DEFAULT_ACP_ENGINE, {
       model: body.model,
       reasoningEffort: body.reasoningEffort,
       cwd,

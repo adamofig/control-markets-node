@@ -323,7 +323,9 @@ export class WikiWriteBackService {
     await this.agenticProfileService.executeOperation({
       action: 'updateOne',
       query: { id: profile.id || profile._id?.toString() },
-      payload: { $push: { tasks: { id: taskId, name: task.name, status: task.status || 'pending' } } },
+      payload: {
+        $push: { tasks: { id: taskId, name: task.name, status: task.status || 'pending', updatedAt: task.updatedAt } },
+      },
     });
   }
 

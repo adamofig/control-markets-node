@@ -25,6 +25,7 @@ export interface IAgenticProfileTaskRef {
   id: string; // references AgentTaskEntity.id
   name?: string;
   status?: string;
+  updatedAt?: string; // mirrors AgentTaskEntity.updatedAt at the time the ref was last (re)written
 }
 
 export interface IAgenticProfileMemory {
@@ -41,7 +42,7 @@ export interface IAgenticProfileExploration {
   enabled: boolean;
 }
 
-export type AgenticHeartbeatEngine = 'agy' | 'gemini' | 'claude' | 'codex';
+export type AgenticHeartbeatEngine = 'agy' | 'claude' | 'codex';
 export type AgenticContextLevel = 'basic' | 'medium' | 'full';
 
 export interface IAgenticHeartbeat {

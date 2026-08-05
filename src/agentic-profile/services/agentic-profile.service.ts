@@ -430,6 +430,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           id: resolvedId,
           name: taskEntity.name,
           status: taskEntity.status,
+          updatedAt: (taskEntity as any).updatedAt,
         });
 
         // Add to write-back list
