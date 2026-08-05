@@ -1,6 +1,18 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { IAgentTask, IAgentTaskSettings, AgentTaskType, AssignedType, IAssignedTo, CloudStorageData, TaskStatus, IAgentCardMinimal, ISubtask } from '../models/classes';
+import {
+  IAgentTask,
+  IAgentTaskSettings,
+  AgentTaskType,
+  AssignedType,
+  IAssignedTo,
+  CloudStorageData,
+  TaskStatus,
+  IAgentCardMinimal,
+  ISubtask,
+  TaskPriority,
+  DEFAULT_TASK_PRIORITY,
+} from '../models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 
@@ -38,8 +50,12 @@ export class AgentTaskEntity implements IAgentTask {
   @Prop({ required: false, type: Object })
   image?: CloudStorageData;
 
-  @Prop({ required: false, type: String, enum: Object.values(TaskStatus) })
+  @Prop({ required: false, type: String, enum: Object.values(TaskStatus), index: true })
   status: TaskStatus;
+
+  /** Urgency 1..5 (1 Baja … 5 Crítica). Higher is more urgent — sort descending. */
+  @Prop({ required: false, type: Number, min: 1, max: 5, default: DEFAULT_TASK_PRIORITY, index: true })
+  priority?: TaskPriority;
 
   @Prop({ required: false, type: String })
   taskType: AgentTaskType | string;

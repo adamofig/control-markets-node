@@ -7,6 +7,7 @@ import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
+import { normalizeTaskPriority, DEFAULT_TASK_PRIORITY, TASK_PRIORITY_LABELS, TASK_STATUS_MARKS } from '../../agent-tasks/models/classes';
 import { AgenticContextLevel, AgenticLinkedResourceKind, ILinkedContextResource } from '../models/agentic-profile.models';
 import { buildFingerprint, hashContent } from './sync-hash.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -342,6 +343,9 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         }
 
         const taskStatus = link.status || 'pending';
+        // `priority` is an auto-frontmatter key (excluded from the content hash), so it always
+        // travels on the link — exactly like `status`. Missing/invalid → keep whatever the DB has.
+        const taskPriority = normalizeTaskPriority(link.priority);
         const hasContent = link.content !== undefined && link.content !== null;
         const taskFingerprint = workspaceId && link.relPath ? buildFingerprint(workspaceId, link.relPath) : undefined;
         const taskContractFields: any = taskFingerprint ? { fingerprint: taskFingerprint, workspaceId, relPath: link.relPath } : {};
@@ -350,11 +354,12 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           // Delta sync: content unchanged per manifest. Status still flows from the local
           // checkbox/frontmatter, so apply it alone when it differs.
           const fingerprintChanged = taskFingerprint && taskEntity.fingerprint !== taskFingerprint;
-          if (taskStatus !== taskEntity.status || fingerprintChanged) {
+          const priorityChanged = taskPriority !== undefined && taskPriority !== taskEntity.priority;
+          if (taskStatus !== taskEntity.status || priorityChanged || fingerprintChanged) {
             await this.agentTasksService.executeOperation({
               action: 'updateOne',
               query: { id: link.taskId },
-              payload: { $set: { status: taskStatus, ...taskContractFields } },
+              payload: { $set: { status: taskStatus, ...(taskPriority !== undefined ? { priority: taskPriority } : {}), ...taskContractFields } },
             });
             taskEntity = await this.agentTasksService.executeOperation({
               action: 'findOne',
@@ -372,6 +377,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
             taskEntity &&
             taskEntity.contentHash === contentHash &&
             taskEntity.status === taskStatus &&
+            (taskPriority === undefined || taskEntity.priority === taskPriority) &&
             taskEntity.name === link.label &&
             taskEntity.description === link.description &&
             (!taskFingerprint || taskEntity.fingerprint === taskFingerprint)
@@ -385,6 +391,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
               content: fileContent || link.description,
               sourceUrl: link.url,
               status: taskStatus,
+              ...(taskPriority !== undefined ? { priority: taskPriority } : {}),
               contentHash,
               ...taskContractFields,
               assignedType: 'agent',
@@ -430,6 +437,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           id: resolvedId,
           name: taskEntity.name,
           status: taskEntity.status,
+          priority: taskEntity.priority,
           updatedAt: (taskEntity as any).updatedAt,
         });
 
@@ -440,6 +448,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           taskId: resolvedId,
           orgId,
           status: taskEntity.status,
+          priority: taskEntity.priority,
         });
       }
     }
@@ -537,6 +546,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         url: t.sourceUrl,
         taskId: t.id || t._id?.toString(),
         status: t.status,
+        priority: t.priority ?? null,
         contentHash: t.contentHash || null,
       })),
     };
@@ -667,11 +677,14 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
 
     md += `## 6. Tareas (Task)\n\n`;
-    const visibleTasks = level === 'basic' ? [] : level === 'medium' ? (tasks || []).filter((task: any) => task.status !== 'done') : tasks || [];
+    const unsortedTasks = level === 'basic' ? [] : level === 'medium' ? (tasks || []).filter((task: any) => task.status !== 'done') : tasks || [];
+    // Most urgent first, so a truncated context window still carries what matters.
+    const visibleTasks = [...unsortedTasks].sort((a: any, b: any) => (b.priority ?? DEFAULT_TASK_PRIORITY) - (a.priority ?? DEFAULT_TASK_PRIORITY));
     if (visibleTasks.length > 0) {
       for (const task of visibleTasks) {
-        const statusBox = task.status === 'done' ? '[x]' : task.status === 'in_progress' ? '[/]' : '[ ]';
-        md += `- ${statusBox} **${task.name || 'Tarea sin título'}** (ID: \`${task.id || task._id?.toString() || ''}\`, Status: \`${task.status || 'pending'}\`)\n`;
+        const statusBox = `[${TASK_STATUS_MARKS[task.status] ?? ' '}]`;
+        const priority = task.priority ?? DEFAULT_TASK_PRIORITY;
+        md += `- ${statusBox} **${task.name || 'Tarea sin título'}** (ID: \`${task.id || task._id?.toString() || ''}\`, Status: \`${task.status || 'pending'}\`, Prioridad: \`P${priority} ${TASK_PRIORITY_LABELS[priority] ?? ''}\`)\n`;
         if (task.description) {
           md += `  *Descripción:* ${task.description}\n`;
         }

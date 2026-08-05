@@ -72,12 +72,15 @@ The schema is derived directly from the TypeScript models — it is always up to
     name: 'tasks_operation',
     description: `Execute any MongoDB operation on the agent_tasks collection.
 Call tasks_getSchema first if you are unsure of field names or nested shapes. Here are only the basic fields, so user request make sense:
-Fields: name, description, status ("pending"|"in_progress"|"done"|"paused"|""|null), orgId,
+Fields: name, description, status ("pending"|"in_progress"|"in_review"|"done"|"paused"|""|null), orgId,
+priority (number 1..5 — 1 Baja, 2 Media (default), 3 Alta, 4 Importante, 5 Crítica; higher is more urgent),
 taskType ("review_task"|"create_content"|"human_task"),
 assignedType ("agent"|"user"),
 assignedTo {userId, email, name} — nested object, always query with dot-notation:
 "assignedTo.name", "assignedTo.email", "assignedTo.userId".
 Note: in order to create, orgId is a must, ask user for it.
+Examples: urgent backlog → query { "priority": { "$gte": 4 }, "status": { "$ne": "done" } } with options { "sort": { "priority": -1 } };
+pending review → query { "status": "in_review" }.
 `,
 
     parameters: operationSchema,
@@ -92,21 +95,36 @@ Note: in order to create, orgId is a must, ask user for it.
     name: 'tasks_getByAssignee',
     description: `Find all tasks assigned to a specific user.
 Handles the nested assignedTo object query internally — no need to know the dot-notation path.
-Optionally filter by status.`,
+Optionally filter by status (use "in_review" for work waiting on approval) and/or by minimum priority.
+Results come back sorted by priority descending (most urgent first).`,
     parameters: z.object({
       userId: assignedUserSchema.shape.userId.optional().describe('Firebase UID (assignedTo.userId)'),
       email: assignedUserSchema.shape.email.optional().describe('User email (assignedTo.email)'),
       name: assignedUserSchema.shape.name.optional().describe('Display name (assignedTo.name)'),
       status: agentTaskSummarySchema.shape.status,
+      minPriority: z.number().int().min(1).max(5).optional().describe('Only tasks with priority >= this value (1..5).'),
     }),
   })
-  async getTasksByAssignee({ userId, email, name, status }: { userId?: string; email?: string; name?: string; status?: string }) {
+  async getTasksByAssignee({
+    userId,
+    email,
+    name,
+    status,
+    minPriority,
+  }: {
+    userId?: string;
+    email?: string;
+    name?: string;
+    status?: string;
+    minPriority?: number;
+  }) {
     const query: Record<string, unknown> = {};
     if (userId) query['assignedTo.userId'] = userId;
     else if (email) query['assignedTo.email'] = email;
     else if (name) query['assignedTo.name'] = name;
     if (status) query['status'] = status;
-    const result = await this.agentTasksService.executeOperation({ action: 'find', query });
+    if (minPriority) query['priority'] = { $gte: minPriority };
+    const result = await this.agentTasksService.executeOperation({ action: 'find', query, options: { sort: { priority: -1 } } });
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 

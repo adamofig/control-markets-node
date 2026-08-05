@@ -32,10 +32,61 @@ export type IAgentCardMinimal = Pick<IAgentCard, 'id' | 'assets' | 'description'
 export enum TaskStatus {
   PENDING = 'pending',
   IN_PROGRESS = 'in_progress',
+  /** Work finished by the assignee, waiting for a reviewer (human or agent) to approve it. */
+  IN_REVIEW = 'in_review',
   DONE = 'done',
   PAUSED = 'paused',
   NOT_DEFINED = '',
   NA = null,
+}
+
+/** Statuses accepted by the markdown sync and the MCP tools (excludes the empty/null legacy values). */
+export const TASK_STATUS_VALUES = ['pending', 'in_progress', 'in_review', 'done', 'paused'] as const;
+
+/**
+ * Canonical status ↔ markdown checkbox mark. Single source of truth for the wiki sync:
+ * the CLI parser reads these marks and the write-back writes them back.
+ * `[ ]` pending · `[/]` in_progress · `[r]` in_review · `[x]` done · `[-]` paused.
+ */
+export const TASK_STATUS_MARKS: Record<string, string> = {
+  pending: ' ',
+  in_progress: '/',
+  in_review: 'r',
+  done: 'x',
+  paused: '-',
+};
+
+export const MARK_TO_TASK_STATUS: Record<string, string> = {
+  '': 'pending',
+  ' ': 'pending',
+  '/': 'in_progress',
+  r: 'in_review',
+  x: 'done',
+  '-': 'paused',
+};
+
+/**
+ * Urgency scale 1..5. Higher is more urgent — always sort descending.
+ * The scale is fixed by product: 1 Baja, 2 Media (default), 3 Alta, 4 Importante, 5 Crítica.
+ */
+export type TaskPriority = 1 | 2 | 3 | 4 | 5;
+
+export const DEFAULT_TASK_PRIORITY: TaskPriority = 2;
+
+export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
+  1: 'Baja',
+  2: 'Media',
+  3: 'Alta',
+  4: 'Importante',
+  5: 'Crítica',
+};
+
+/** Coerces "4", 4 or 4.0 to a valid TaskPriority. Returns undefined for anything out of range. */
+export function normalizeTaskPriority(value: unknown): TaskPriority | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = typeof value === 'number' ? value : parseInt(String(value).trim(), 10);
+  if (!Number.isInteger(n) || n < 1 || n > 5) return undefined;
+  return n as TaskPriority;
 }
 
 export enum AssignedType {
@@ -80,6 +131,8 @@ export interface ITask {
   assignedTo?: IAssignedTo;
   assignedType?: AssignedType;
   status?: TaskStatus;
+  /** 1..5, higher is more urgent. Defaults to 2 (Media) on creation. */
+  priority?: TaskPriority;
   image?: CloudStorageData;
   taskType?: AgentTaskType | string;
   subtasks?: ISubtask[];

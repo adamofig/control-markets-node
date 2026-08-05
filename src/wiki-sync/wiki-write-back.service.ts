@@ -10,6 +10,13 @@ import { SourcesService } from '../agent-tasks/services/sources.service';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { buildFingerprint, hashContent } from '../agentic-profile/services/sync-hash.util';
 import { WIKI_PROFILE_CHANGED, WIKI_SOURCE_CHANGED, WIKI_TASK_CHANGED, WikiEntityChangedEvent } from './wiki-sync.events';
+import { DEFAULT_TASK_PRIORITY, TASK_STATUS_MARKS } from '../agent-tasks/models/classes';
+
+/**
+ * Matches the leading `- [x] P4 ` part of a Section 6 task line, so the mark and the priority
+ * badge can be rewritten together without touching the link or the description.
+ */
+const PROFILE_TASK_LINE_PREFIX = /^(\s*-\s*)\[\s*[xX/rR-]?\s*\]\s*(?:P[1-5]\s+)?/;
 
 /**
  * Phase 2 of the sync contract: local write-back (DB → wiki `.md` files).
@@ -19,7 +26,7 @@ import { WIKI_PROFILE_CHANGED, WIKI_SOURCE_CHANGED, WIKI_TASK_CHANGED, WikiEntit
  * and every resolved path must stay inside the workspace root (anti-escape).
  *
  * 3-way rule (see 01-sync-md-files.md): the sync owns the auto frontmatter keys
- * (status/taskId/sourceId/orgId) — those are excluded from the content hash and can
+ * (status/priority/taskId/sourceId/orgId) — those are excluded from the content hash and can
  * always be written. The BODY is only overwritten when the local file is unchanged
  * since the last sync (sha256(local) === entity.contentHash); otherwise the DB
  * version is left next to the file as `<name>.md.db-version` and a conflict is logged.
@@ -98,7 +105,7 @@ export class WikiWriteBackService {
 
     const local = fs.readFileSync(abs, 'utf-8');
     const localHash = hashContent(local);
-    const autoKeys = { status: task.status, taskId: this.idOf(task), orgId: task.orgId };
+    const autoKeys = { status: task.status, priority: task.priority, taskId: this.idOf(task), orgId: task.orgId };
     const localBodyUnchanged = !task.contentHash || localHash === task.contentHash;
     const dbBodyHash = task.content ? hashContent(task.content) : null;
 
@@ -162,7 +169,12 @@ export class WikiWriteBackService {
     body += `- **Agente Asignado**: [${profile.agentCard?.name || 'Agente'}](../${path.basename(profileAbs)})\n\n`;
     if (task.description) body += `## 🎯 Objetivo\n\n${task.description}\n`;
     if (task.content) body += `\n${task.content}\n`;
-    const content = this.setFrontmatterKeys(body, { status: task.status || 'pending', orgId: task.orgId, taskId });
+    const content = this.setFrontmatterKeys(body, {
+      status: task.status || 'pending',
+      priority: task.priority ?? DEFAULT_TASK_PRIORITY,
+      orgId: task.orgId,
+      taskId,
+    });
 
     fs.writeFileSync(taskAbs, content, 'utf-8');
     this.logger.log(`Created local task file: ${sourceUrl} for profile ${profile.name}`);
@@ -260,7 +272,7 @@ export class WikiWriteBackService {
     return result;
   }
 
-  /** Rewrites the `- [ ]/[x]/[/]` mark of the task's line in Section 6 of the profile file. */
+  /** Rewrites the `- [ ]/[/]/[r]/[x]/[-]` mark and the `P<n>` badge of the task's line in Section 6. */
   private async updateProfileTaskCheckbox(task: any, root: string): Promise<void> {
     const profile = await this.findProfileForTask(task);
     if (!profile?.relPath || !profile?.workspaceId) return;
@@ -269,11 +281,12 @@ export class WikiWriteBackService {
 
     const content = fs.readFileSync(located.abs, 'utf-8');
     const mark = this.statusToMark(task.status);
+    const badge = this.priorityBadge(task.priority);
     const lines = content.split('\n');
     let changed = false;
     for (let i = 0; i < lines.length; i++) {
       if (task.sourceUrl && lines[i].includes(`](${task.sourceUrl})`)) {
-        const updated = lines[i].replace(/^(\s*-\s*)\[\s*[xX\/]?\s*\]/, `$1[${mark}]`);
+        const updated = lines[i].replace(PROFILE_TASK_LINE_PREFIX, `$1[${mark}] ${badge}`);
         if (updated !== lines[i]) {
           lines[i] = updated;
           changed = true;
@@ -282,8 +295,16 @@ export class WikiWriteBackService {
     }
     if (changed) {
       fs.writeFileSync(located.abs, lines.join('\n'), 'utf-8');
-      this.logger.log(`Updated Section 6 checkbox for "${task.name}" → [${mark}]`);
+      this.logger.log(`Updated Section 6 line for "${task.name}" → [${mark}] ${badge}`.trim());
     }
+  }
+
+  /**
+   * Section 6 badge for the priority. Only non-default priorities are rendered, so a profile with
+   * 20 ordinary tasks stays readable; the authoritative value always lives in the task frontmatter.
+   */
+  private priorityBadge(priority?: number): string {
+    return priority && priority !== DEFAULT_TASK_PRIORITY ? `P${priority} ` : '';
   }
 
   /** Appends the new task's checkbox line at the end of the Section 6 list of the profile file. */
@@ -309,7 +330,7 @@ export class WikiWriteBackService {
     }
     const mark = this.statusToMark(task.status);
     const desc = task.description ? ` — ${task.description}` : '';
-    const line = `- [${mark}] **[${task.name}](${sourceUrl})**${desc}`;
+    const line = `- [${mark}] ${this.priorityBadge(task.priority)}**[${task.name}](${sourceUrl})**${desc}`;
     lines.splice(insertAfter !== -1 ? insertAfter + 1 : start + 1, 0, line);
     fs.writeFileSync(profileAbs, lines.join('\n'), 'utf-8');
     this.logger.log(`Inserted Section 6 line for new task "${task.name}"`);
@@ -324,7 +345,9 @@ export class WikiWriteBackService {
       action: 'updateOne',
       query: { id: profile.id || profile._id?.toString() },
       payload: {
-        $push: { tasks: { id: taskId, name: task.name, status: task.status || 'pending', updatedAt: task.updatedAt } },
+        $push: {
+          tasks: { id: taskId, name: task.name, status: task.status || 'pending', priority: task.priority ?? DEFAULT_TASK_PRIORITY, updatedAt: task.updatedAt },
+        },
       },
     });
   }
@@ -388,9 +411,8 @@ export class WikiWriteBackService {
   }
 
   private statusToMark(status: string): string {
-    if (status === 'done' || status === 'completed') return 'x';
-    if (status === 'in_progress') return '/';
-    return ' ';
+    if (status === 'completed') return TASK_STATUS_MARKS.done; // legacy alias
+    return TASK_STATUS_MARKS[status] ?? ' ';
   }
 
   private nextTaskFileName(tasksDir: string, name: string): string {

@@ -25,6 +25,7 @@ export interface IAgenticProfileTaskRef {
   id: string; // references AgentTaskEntity.id
   name?: string;
   status?: string;
+  priority?: number; // 1..5, mirrors AgentTaskEntity.priority
   updatedAt?: string; // mirrors AgentTaskEntity.updatedAt at the time the ref was last (re)written
 }
 

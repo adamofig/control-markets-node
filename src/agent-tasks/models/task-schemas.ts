@@ -55,7 +55,11 @@ export const agentTaskSummarySchema = z.object({
   orgId: z.string().optional(),
   name: z.string(),
   description: z.string().optional(),
-  status: z.enum(['pending', 'in_progress', 'done', 'paused', '', null as any]).optional().describe('Task status'),
+  status: z
+    .enum(['pending', 'in_progress', 'in_review', 'done', 'paused', '', null as any])
+    .optional()
+    .describe('Task status. "in_review" = finished by the assignee, waiting for a reviewer to approve it.'),
+  priority: z.number().int().min(1).max(5).optional().describe('Urgency 1..5 — 1 Baja, 2 Media (default), 3 Alta, 4 Importante, 5 Crítica. Sort descending.'),
   taskType: z.enum(['review_task', 'create_content', 'human_task']).optional(),
   assignedType: z.enum(['agent', 'user']).optional(),
   assignedTo: assignedToSchema.optional(),
