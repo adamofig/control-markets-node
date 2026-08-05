@@ -160,6 +160,20 @@ export interface IAgentTask extends ITask {
 /** @deprecated Use IAgentTask instead */
 export type ILlmTask = IAgentTask;
 
+/**
+ * Projection of the fields other entities denormalize from a task (today: the agentic profile's
+ * `tasks[]` refs). `orgId` travels with it so the consumer can reject a cross-tenant match.
+ */
+export interface ITaskRefFields {
+  id?: string;
+  _id?: any;
+  orgId?: string;
+  name?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  updatedAt?: Date | string;
+}
+
 // Tiene una relación con el agente y la tarea. parcial asi muestro graficamente que pasa.
 export interface IAgentOutcomeJob {
   _id?: string;

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { firstValueFrom } from 'rxjs';
@@ -12,7 +12,7 @@ import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mong
 import { buildInitialConversation, ChatRole, AgentCardService, IAgentCard, ChatMessage } from '@dataclouder/nest-agent-cards';
 // local
 import { AgentTaskEntity, AgentTaskDocument } from '../schemas/agent-task.schema';
-import { AgentTaskType, AssignedType, IAgentTask, IAgentOutcomeJob, ISourceTask, ISubtask, MessageAI, OutputTaks, SubtaskStatus, TaskStatus } from '../models/classes';
+import { AgentTaskType, AssignedType, IAgentTask, IAgentOutcomeJob, ISourceTask, ISubtask, ITaskRefFields, MessageAI, OutputTaks, SubtaskStatus, TaskStatus } from '../models/classes';
 import { AgentOutcomeJobService } from './agent-job.service';
 import { SourcesService } from './sources.service';
 import { ChatLLMRequestAdapter, AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
@@ -43,6 +43,22 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     const result = await super.executeOperation(operation);
     emitWikiChangeForOperation(this.eventEmitter, WIKI_TASK_CHANGED, operation, result);
     return result;
+  }
+
+  /**
+   * Batched read of the few fields other entities mirror in their own documents (agentic profile
+   * task refs). Queried by `_id` — which `id` always equals, see `addIdAfterSave` — because `id`
+   * itself has no index on `agent_tasks` and an `{ id: { $in } }` would be a collection scan.
+   * Returns lean objects: this is read-only projection data, never persisted back.
+   */
+  async findRefFieldsByIds(ids: string[]): Promise<ITaskRefFields[]> {
+    const objectIds = [...new Set(ids)].filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
+    if (objectIds.length === 0) return [];
+    return this.genericModel
+      .find({ _id: { $in: objectIds } })
+      .select({ id: 1, orgId: 1, name: 1, status: 1, priority: 1, updatedAt: 1 })
+      .lean<ITaskRefFields[]>()
+      .exec();
   }
 
   /** Sync-contract fields written by the wiki write-back itself — deliberately does NOT emit events */

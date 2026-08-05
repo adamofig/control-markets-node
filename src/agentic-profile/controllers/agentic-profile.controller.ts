@@ -81,7 +81,10 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
       }
       return { ...(profile.toObject?.() ?? profile), nextRunAt };
     };
-    return Array.isArray(result) ? result.map(withNextRun) : withNextRun(result);
+    const profiles = (Array.isArray(result) ? result : [result]).filter(Boolean).map(withNextRun);
+    // Task refs are a stale snapshot until refreshed against `agent_tasks` — one batched query for the whole response.
+    await this.agenticProfileService.hydrateTaskRefs(profiles);
+    return Array.isArray(result) ? profiles : (profiles[0] ?? result);
   }
 
   @Post('sync-markdown')

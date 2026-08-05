@@ -40,6 +40,42 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
   }
 
   /**
+   * `profile.tasks[]` keeps a denormalized copy of each task's name/status/priority, written by the
+   * markdown sync and by the profile form. Editing a task in `/page/tasks` writes `agent_tasks` only,
+   * so that copy goes stale and the profile detail renders an old priority. Refresh it at read time.
+   *
+   * Cost is one extra query for the whole response, not one per profile: every ref of every profile
+   * is resolved in a single `_id: { $in }` lookup (primary index) projected to five fields and read
+   * with `.lean()`. No refs, no query. Refs whose task was deleted or belongs to another org keep
+   * their stored snapshot untouched — this hydrates, it never prunes.
+   */
+  async hydrateTaskRefs<T extends { tasks?: any[]; orgId?: string }>(profiles: T[]): Promise<T[]> {
+    const ids = profiles.flatMap(profile => (profile?.tasks || []).map((ref: any) => ref?.id).filter(Boolean));
+    if (ids.length === 0) return profiles;
+
+    const liveTasks = await this.agentTasksService.findRefFieldsByIds(ids);
+    const liveById = new Map(liveTasks.map(task => [task.id || task._id?.toString(), task]));
+
+    for (const profile of profiles) {
+      if (!profile?.tasks?.length) continue;
+      profile.tasks = profile.tasks.map((ref: any) => {
+        const live = ref?.id ? liveById.get(ref.id) : undefined;
+        if (!live) return ref;
+        // Never let a task from another organization overwrite this profile's snapshot.
+        if (profile.orgId && live.orgId && live.orgId !== profile.orgId) return ref;
+        return {
+          ...ref,
+          name: live.name ?? ref.name,
+          status: live.status ?? ref.status,
+          priority: live.priority ?? ref.priority,
+          updatedAt: live.updatedAt ?? ref.updatedAt,
+        };
+      });
+    }
+    return profiles;
+  }
+
+  /**
    * Updates ONLY the Section 8 live briefing (owner-written text) of a profile and notifies
    * the wiki write-back so the change mirrors into the local `.md` (Section 8) when running locally.
    * Scoped by orgId for multi-tenant safety; returns the persisted value.
