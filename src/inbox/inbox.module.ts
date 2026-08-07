@@ -3,6 +3,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NestAuthModule } from '@dataclouder/nest-auth';
 import { AgentCardsModule } from '@dataclouder/nest-agent-cards';
 import { AgenticProfileModule } from '../agentic-profile/agentic-profile.module';
+import { LocalAgentModule } from '../local-agent/local-agent.module';
+import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { UserModule } from '../user/user.module';
 import { AgentsModule } from '../agent-tasks/agent-tasks.module';
 import { InboxConversationEntity, InboxConversationSchema } from './schemas/inbox-conversation.schema';
@@ -11,6 +13,7 @@ import { InboxMessageEntity, InboxMessageSchema } from './schemas/inbox-message.
 import { InboxController } from './controllers/inbox.controller';
 import { InboxAgentController } from './controllers/inbox-agent.controller';
 import { InboxPatDelegationGuard } from './guards/inbox-pat-delegation.guard';
+import { InboxAgentDispatcherService } from './services/inbox-agent-dispatcher.service';
 import { InboxAgentIdentityService } from './services/inbox-agent-identity.service';
 import { InboxAgentMessageService } from './services/inbox-agent-message.service';
 import { InboxConversationService } from './services/inbox-conversation.service';
@@ -27,6 +30,8 @@ import { InboxTaskAutomationService } from './services/inbox-task-automation.ser
     AgentsModule,
     AgenticProfileModule,
     AgentCardsModule,
+    LocalAgentModule,
+    WorkspacesModule,
     MongooseModule.forFeature([
       { name: InboxConversationEntity.name, schema: InboxConversationSchema },
       { name: InboxMembershipEntity.name, schema: InboxMembershipSchema },
@@ -40,6 +45,7 @@ import { InboxTaskAutomationService } from './services/inbox-task-automation.ser
     InboxIdentityService,
     InboxAgentIdentityService,
     InboxAgentMessageService,
+    InboxAgentDispatcherService,
     InboxPatDelegationGuard,
     InboxMembershipService,
     InboxMessageService,

@@ -8,7 +8,13 @@ export type InboxConversationType = (typeof INBOX_CONVERSATION_TYPES)[number];
 export const INBOX_CONVERSATION_STATUSES = ['open', 'closed'] as const;
 export type InboxConversationStatus = (typeof INBOX_CONVERSATION_STATUSES)[number];
 
-export const INBOX_AGENT_MODES = ['roleplay', 'agentic'] as const;
+/**
+ * `conversational` is the reactive Inbox mode: the user writes, the agent answers in the thread as
+ * a normal chat message. `agentic` keeps the forensic full-stream experience (reasoning, tools and
+ * HITL permissions rendered live) and `roleplay` the persona-only chat. The three share the same
+ * storage — only the presentation and the dispatch strategy differ.
+ */
+export const INBOX_AGENT_MODES = ['roleplay', 'agentic', 'conversational'] as const;
 export type InboxAgentMode = (typeof INBOX_AGENT_MODES)[number];
 
 export const INBOX_PARTICIPANT_TYPES = ['user', 'agent_card', 'agentic_profile', 'system'] as const;

@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SendInboxMessageDto } from '../dto/inbox.dto';
-import { IInboxMessageOrigin, IInboxMessageProvenance, InboxMessagePart } from '../models/inbox.models';
+import { IInboxAgentExecutionSnapshot, IInboxMessageOrigin, IInboxMessageProvenance, InboxMessagePart } from '../models/inbox.models';
 import { InboxConversationDocument, InboxConversationEntity } from '../schemas/inbox-conversation.schema';
 import { InboxMembershipDocument, InboxMembershipEntity } from '../schemas/inbox-membership.schema';
 import { InboxMessageDocument, InboxMessageEntity } from '../schemas/inbox-message.schema';
@@ -57,7 +57,7 @@ export class InboxMessageService {
     conversationId: string,
     actorRefId: string,
     dto: SendInboxMessageDto,
-    context: { origin?: IInboxMessageOrigin; provenance?: IInboxMessageProvenance } = {}
+    context: { origin?: IInboxMessageOrigin; provenance?: IInboxMessageProvenance; agentExecution?: IInboxAgentExecutionSnapshot } = {}
   ): Promise<{ message: Record<string, any>; agentResponseExpected: boolean }> {
     const membership = await this.assertMembership(orgId, conversationId, actorRefId);
     this.validate(dto);
@@ -86,6 +86,7 @@ export class InboxMessageService {
         parts: dto.parts,
         replyToMessageId: dto.replyToMessageId,
         groupId: dto.groupId,
+        agentExecution: context.agentExecution,
         origin: context.origin || { channel: 'internal' },
         provenance: context.provenance,
       }).save();
@@ -122,6 +123,34 @@ export class InboxMessageService {
     const recipients = await this.conversations.recipientRefIds(orgId, conversationId);
     this.events.emit('inbox.message.created', orgId, conversationId, normalized, recipients);
     return { message: normalized, agentResponseExpected: conversation.type === 'agent' && membership.memberType === 'user' };
+  }
+
+  /**
+   * Last turns of a thread as flat text, oldest first — the shape an LLM harness expects.
+   *
+   * Deliberately skips the membership check: the only caller is the in-process agent dispatcher,
+   * which is already acting as a participant of this very conversation. Asset-only messages are
+   * dropped rather than described, because a caption-less image adds nothing to a text prompt.
+   */
+  async recentTurns(orgId: string, conversationId: string, limit = 20): Promise<{ role: 'user' | 'assistant'; content: string }[]> {
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 60);
+    const page = await this.messageModel
+      .find({ orgId, conversationId, kind: 'message', deletedAt: { $exists: false } })
+      .sort({ sequence: -1 })
+      .limit(safeLimit)
+      .lean()
+      .exec();
+
+    return page
+      .reverse()
+      .map(message => ({
+        role: message.role === 'user' ? ('user' as const) : ('assistant' as const),
+        content: (message.parts || [])
+          .filter((part: any) => part.type === 'text' && part.text?.trim())
+          .map((part: any) => part.text.trim())
+          .join('\n'),
+      }))
+      .filter(turn => turn.content.length > 0);
   }
 
   private async assertMembership(orgId: string, conversationId: string, memberRefId: string): Promise<any> {

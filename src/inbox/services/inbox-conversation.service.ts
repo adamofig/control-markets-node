@@ -42,7 +42,20 @@ export class InboxConversationService {
     return this.getOrCreate(orgId, 'task', title, unique, `task:${taskId}`, actor.refId, [{ type: 'task', entityId: taskId, relation: 'primary' }]);
   }
 
-  async getOrCreateAgent(orgId: string, agent: IInboxParticipantSnapshot, targetUser: IInboxParticipantSnapshot, agentContext: IInboxAgentContext): Promise<InboxConversationListItem> {
+  /**
+   * One durable thread per (agent card, user) pair, whichever side opened it.
+   *
+   * `ownerRefId` decides who the returned membership belongs to, so the caller gets its own view:
+   * a PAT-delegated send is the agent writing to a user and defaults to the agent, while a user
+   * starting the chat from Control Inbox passes its own refId and gets the membership the UI needs.
+   */
+  async getOrCreateAgent(
+    orgId: string,
+    agent: IInboxParticipantSnapshot,
+    targetUser: IInboxParticipantSnapshot,
+    agentContext: IInboxAgentContext,
+    ownerRefId = agent.refId
+  ): Promise<InboxConversationListItem> {
     if (agent.type !== 'agent_card' || targetUser.type !== 'user') {
       throw new BadRequestException('An agent conversation requires one Agent Card and one user');
     }
@@ -52,7 +65,26 @@ export class InboxConversationService {
 
     const participants = this.uniqueParticipants([agent, targetUser]);
     const dedupeKey = `agent:${agent.refId}:user:${targetUser.refId}`;
-    return this.getOrCreate(orgId, 'agent', undefined, participants, dedupeKey, agent.refId, undefined, agentContext);
+    return this.getOrCreate(orgId, 'agent', undefined, participants, dedupeKey, ownerRefId, undefined, agentContext);
+  }
+
+  /** Reads a conversation without a membership check — for internal runtimes acting on their own. */
+  async findById(orgId: string, conversationId: string): Promise<Record<string, any> | null> {
+    const conversation = await this.conversationModel.findOne({ orgId, id: conversationId }).lean().exec();
+    return conversation ? this.normalize(conversation) : null;
+  }
+
+  /**
+   * Persists the ACP session the thread is bound to, so the next turn resumes the CLI conversation
+   * instead of paying the cold-start and re-injecting the whole profile context.
+   */
+  async updateAgentSession(orgId: string, conversationId: string, externalSessionId: string | undefined): Promise<void> {
+    await this.conversationModel
+      .updateOne(
+        { orgId, id: conversationId },
+        externalSessionId ? { $set: { 'agentContext.externalSessionId': externalSessionId } } : { $unset: { 'agentContext.externalSessionId': '' } }
+      )
+      .exec();
   }
 
   async listForMember(orgId: string, memberRefId: string, options: { limit?: number; filter?: string; search?: string } = {}): Promise<{ items: InboxConversationListItem[] }> {

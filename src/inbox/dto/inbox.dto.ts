@@ -4,6 +4,10 @@ export interface CreateDirectConversationDto {
   userId: string;
 }
 
+export interface CreateAgentConversationDto {
+  agenticProfileId: string;
+}
+
 export interface CreateGroupConversationDto {
   userIds: string[];
   title: string;

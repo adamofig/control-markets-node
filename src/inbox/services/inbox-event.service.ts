@@ -2,7 +2,24 @@ import { Injectable, MessageEvent } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Observable, Subject, filter, map } from 'rxjs';
 
-export type InboxEventType = 'inbox.conversation.created' | 'inbox.conversation.updated' | 'inbox.membership.updated' | 'inbox.message.created' | 'inbox.message.updated' | 'inbox.message.deleted';
+export type InboxEventType =
+  | 'inbox.conversation.created'
+  | 'inbox.conversation.updated'
+  | 'inbox.membership.updated'
+  | 'inbox.message.created'
+  | 'inbox.message.updated'
+  | 'inbox.message.deleted'
+  /** Ephemeral: an agent is working on its reply. Never persisted — it only drives the typing hint. */
+  | 'inbox.agent.status';
+
+/** Payload of `inbox.agent.status`. `detail` carries the engine's own progress line when there is one. */
+export interface InboxAgentStatusPayload {
+  conversationId: string;
+  agentParticipantId: string;
+  displayName: string;
+  state: 'thinking' | 'idle';
+  detail?: string;
+}
 
 export interface InboxEventEnvelope<T = unknown> {
   id: string;

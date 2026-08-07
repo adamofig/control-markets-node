@@ -1,6 +1,6 @@
 import { BadRequestException, HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { SendAgentInboxMessageDto, SendInboxMessageDto } from '../dto/inbox.dto';
-import { INBOX_PROVENANCE_SOURCES, InboxProvenanceSource } from '../models/inbox.models';
+import { IInboxAgentExecutionSnapshot, INBOX_PROVENANCE_SOURCES, InboxProvenanceSource } from '../models/inbox.models';
 import { InboxAgentIdentityService, ResolvedInboxAgentIdentity } from './inbox-agent-identity.service';
 import { InboxConversationService } from './inbox-conversation.service';
 import { InboxActorContext, InboxIdentityService } from './inbox-identity.service';
@@ -49,10 +49,12 @@ export class InboxAgentMessageService {
     agent: ResolvedInboxAgentIdentity,
     conversationId: string,
     dto: SendInboxMessageDto,
-    source: { type: Exclude<InboxProvenanceSource, 'rest'>; executionId?: string; engine?: string }
+    source: { type: Exclude<InboxProvenanceSource, 'rest'>; executionId?: string; engine?: string },
+    agentExecution?: IInboxAgentExecutionSnapshot
   ) {
     const normalizedSource = this.validateSource(source.type, source.executionId, source.engine);
     return this.messages.send(agent.orgId, conversationId, agent.agentCardId, dto, {
+      agentExecution,
       provenance: {
         authType: 'internal_runtime',
         agenticProfileId: agent.agenticProfileId,

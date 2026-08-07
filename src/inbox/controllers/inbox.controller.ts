@@ -5,7 +5,9 @@ import { interval, map, merge, Observable } from 'rxjs';
 import { OrgId } from '../../common/org-id.decorator';
 import { DecodedToken } from '../../common/token.decorator';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
-import { CreateDirectConversationDto, CreateGroupConversationDto, MarkInboxReadDto, SendInboxMessageDto, UpdateInboxMembershipDto } from '../dto/inbox.dto';
+import { CreateAgentConversationDto, CreateDirectConversationDto, CreateGroupConversationDto, MarkInboxReadDto, SendInboxMessageDto, UpdateInboxMembershipDto } from '../dto/inbox.dto';
+import { InboxAgentDispatcherService } from '../services/inbox-agent-dispatcher.service';
+import { InboxAgentIdentityService } from '../services/inbox-agent-identity.service';
 import { InboxConversationService } from '../services/inbox-conversation.service';
 import { InboxEventService } from '../services/inbox-event.service';
 import { InboxIdentityService } from '../services/inbox-identity.service';
@@ -19,9 +21,11 @@ import { InboxMessageService } from '../services/inbox-message.service';
 export class InboxController {
   constructor(
     private readonly identities: InboxIdentityService,
+    private readonly agentIdentities: InboxAgentIdentityService,
     private readonly conversations: InboxConversationService,
     private readonly messages: InboxMessageService,
     private readonly memberships: InboxMembershipService,
+    private readonly agentDispatcher: InboxAgentDispatcherService,
     private readonly events: InboxEventService
   ) {}
 
@@ -29,6 +33,27 @@ export class InboxController {
   async listParticipants(@DecodedToken() token: AppToken, @OrgId() requestedOrgId?: string, @Query('search') search = '', @Query('limit') limit = '20') {
     const actor = await this.identities.resolveActor(token, requestedOrgId);
     return this.identities.searchOrganizationUsers(actor.orgId, actor.userRefId, search, Number(limit));
+  }
+
+  @Get('agents')
+  async listAgents(@DecodedToken() token: AppToken, @OrgId() requestedOrgId?: string, @Query('search') search = '', @Query('limit') limit = '20') {
+    const actor = await this.identities.resolveActor(token, requestedOrgId);
+    return this.agentIdentities.searchAvailableAgents(actor.orgId, search, Number(limit));
+  }
+
+  @Post('conversations/agent')
+  async createAgentConversation(@DecodedToken() token: AppToken, @Body() dto: CreateAgentConversationDto, @OrgId() requestedOrgId?: string) {
+    const actor = await this.identities.resolveActor(token, requestedOrgId);
+    if (!dto?.agenticProfileId?.trim()) throw new BadRequestException('agenticProfileId is required');
+    const agent = await this.agentIdentities.resolveInternal(actor.orgId, dto.agenticProfileId);
+    // The user opened this thread, so the user owns it and gets its own membership back.
+    return this.conversations.getOrCreateAgent(
+      actor.orgId,
+      agent.participant,
+      actor.participant,
+      { ...agent.agentContext, agentMode: 'conversational' },
+      actor.userRefId
+    );
   }
 
   @Post('conversations/direct')
@@ -73,7 +98,13 @@ export class InboxController {
   @Post('conversations/:conversationId/messages')
   async sendMessage(@DecodedToken() token: AppToken, @Param('conversationId') conversationId: string, @Body() dto: SendInboxMessageDto, @OrgId() requestedOrgId?: string) {
     const actor = await this.identities.resolveActor(token, requestedOrgId);
-    return this.messages.send(actor.orgId, conversationId, actor.userRefId, dto);
+    const result = await this.messages.send(actor.orgId, conversationId, actor.userRefId, dto);
+    // The reply runs detached: the POST returns as soon as the user's own message is durable, and
+    // the agent's answer arrives later over SSE like any other message.
+    if (result.agentResponseExpected) {
+      void this.agentDispatcher.dispatch(actor.orgId, conversationId, result.message.id, actor.participant.displayName);
+    }
+    return result;
   }
 
   @Post('conversations/:conversationId/read')
