@@ -7,6 +7,7 @@ import { Subject, filter } from 'rxjs';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { IAgenticHeartbeat, IAgenticProfile } from '../agentic-profile/models/agentic-profile.models';
 import { AcpBridgeService, AcpEngine } from '../local-agent/acp-bridge.service';
+import { DEFAULT_ACP_ENGINE, asAcpEngine } from '../common/acp-engines';
 import { LocalAgentChatService } from '../local-agent/local-agent-chat.service';
 import { WorkspaceService } from '../workspaces/services/workspace.service';
 import { AgenticHeartbeatRunDocument, AgenticHeartbeatRunEntity, HeartbeatRunTrigger, IHeartbeatToolCall } from './schemas/agentic-heartbeat-run.schema';
@@ -155,7 +156,10 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
       enabled: !!config.enabled,
       cronExpression: config.cronExpression?.trim() || undefined,
       timezone: config.timezone?.trim() || DEFAULT_HEARTBEAT_TIMEZONE,
-      engine: config.engine || 'agy',
+      // Deliberately NOT defaulted to 'agy': an absent engine means "inherit the profile's
+      // acpConfig". Forcing a value here would pin every profile that ever saved a heartbeat and
+      // make the profile default unreachable for cron runs.
+      engine: asAcpEngine(config.engine),
       wakePrompt: config.wakePrompt?.trim() || undefined,
     };
 
@@ -281,7 +285,8 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     const profile = await this.findProfile(profileId, orgId);
     if (!profile) throw new Error(`AgenticProfile ${profileId} no encontrado.`);
 
-    const engine = (profile.heartbeat?.engine || 'agy') as AcpEngine;
+    // An explicit heartbeat engine overrides the profile default; absent, the cron inherits acpConfig.
+    const engine = (profile.heartbeat?.engine || profile.acpConfig?.defaultEngine || DEFAULT_ACP_ENGINE) as AcpEngine;
     const prompt = profile.heartbeat?.wakePrompt || DEFAULT_WAKE_PROMPT;
 
     const run = await this.runModel.create({
@@ -346,7 +351,18 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
       this.publishLive(runId, { type: 'status', message: `Workspace: ${(profile as any).workspaceId} (${workspaceCwd})` });
     }
 
-    for await (const event of this.acpBridge.stream(prompt, undefined, context, engine, { cwd: workspaceCwd })) {
+    // Headless runs had no model selector and relied purely on LOCAL_AGENT_*_MODEL. They now inherit
+    // the profile's default — but only when the run is on the engine that default was written for,
+    // since model ids are not portable across engines. Absent acpConfig, the env vars still apply.
+    const acpConfig = profile.acpConfig;
+    const inheritsProfileModel = !!acpConfig?.defaultEngine && engine === acpConfig.defaultEngine;
+    const runtimeOptions = {
+      cwd: workspaceCwd,
+      model: inheritsProfileModel ? acpConfig?.defaultModel : undefined,
+      reasoningEffort: inheritsProfileModel ? acpConfig?.reasoningEffort : undefined,
+    };
+
+    for await (const event of this.acpBridge.stream(prompt, undefined, context, engine, runtimeOptions)) {
       if (Date.now() > deadline) {
         error = `Heartbeat abortado: superó el límite de ${RUN_HARD_TIMEOUT_MS / 60000} minutos.`;
         if (sessionId) await this.acpBridge.cancel(sessionId).catch(() => undefined);

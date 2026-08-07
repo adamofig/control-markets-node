@@ -8,7 +8,8 @@ import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
 import { normalizeTaskPriority, DEFAULT_TASK_PRIORITY, TASK_PRIORITY_LABELS, TASK_STATUS_MARKS } from '../../agent-tasks/models/classes';
-import { AgenticContextLevel, AgenticLinkedResourceKind, ILinkedContextResource } from '../models/agentic-profile.models';
+import { AgenticContextLevel, AgenticLinkedResourceKind, IAgenticProfileAcpConfig, ILinkedContextResource } from '../models/agentic-profile.models';
+import { asAcpEngine, asReasoningEffort } from '../../common/acp-engines';
 import { buildFingerprint, hashContent } from './sync-hash.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WIKI_PROFILE_CHANGED } from '../../wiki-sync/wiki-sync.events';
@@ -87,6 +88,35 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     await this.genericModel.updateOne(query, { $set: { liveBriefing: value } }).exec();
     this.eventEmitter.emit(WIKI_PROFILE_CHANGED, { id });
     return { liveBriefing: value };
+  }
+
+  /**
+   * Updates ONLY the profile's default ACP engine/model (`acpConfig`) — the seed for new chats and
+   * cron wake-ups. Lets the detail page edit it without round-tripping the whole entity form.
+   *
+   * Every field is narrowed against the canonical unions before writing, because `updateOne` does
+   * not run Mongoose validators: an unknown engine would otherwise reach the dispatcher. `model`
+   * stays free text (the adapter's live `configOptions` are the real authority) but is trimmed and
+   * only kept when it belongs to a chosen engine — a model without an engine is unresolvable.
+   */
+  async updateAcpConfig(id: string, config: IAgenticProfileAcpConfig | undefined, orgId?: string): Promise<IAgenticProfileAcpConfig> {
+    const query: any = { id };
+    if (orgId) query.orgId = orgId;
+
+    const defaultEngine = asAcpEngine(config?.defaultEngine);
+    const sanitized: IAgenticProfileAcpConfig = {};
+    if (defaultEngine) {
+      sanitized.defaultEngine = defaultEngine;
+      const model = typeof config?.defaultModel === 'string' ? config.defaultModel.trim() : '';
+      if (model) sanitized.defaultModel = model;
+      const effort = asReasoningEffort(config?.reasoningEffort);
+      if (effort) sanitized.reasoningEffort = effort;
+    }
+
+    // An empty object is unset rather than stored: absence is what makes the server default apply.
+    const update = Object.keys(sanitized).length ? { $set: { acpConfig: sanitized } } : { $unset: { acpConfig: '' } };
+    await this.genericModel.updateOne(query, update).exec();
+    return sanitized;
   }
 
   /**

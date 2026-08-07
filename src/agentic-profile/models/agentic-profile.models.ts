@@ -1,4 +1,5 @@
 import { IAuditable } from '@dataclouder/nest-core';
+import { AcpEngine, CodexReasoningEffort } from '../../common/acp-engines';
 
 export interface IAgentCardRef {
   id: string;
@@ -43,7 +44,8 @@ export interface IAgenticProfileExploration {
   enabled: boolean;
 }
 
-export type AgenticHeartbeatEngine = 'agy' | 'claude' | 'codex';
+/** Alias kept for the heartbeat's historical field name; the union itself is canonical now. */
+export type AgenticHeartbeatEngine = AcpEngine;
 export type AgenticContextLevel = 'basic' | 'medium' | 'full';
 
 /**
@@ -81,6 +83,28 @@ export interface IAgenticHeartbeat {
   wakePrompt?: string; // custom prompt injected on wake-up; falls back to the default exploration prompt
 }
 
+/**
+ * The profile's default agentic engine — the canonical place the model lives.
+ *
+ * It seeds, it does not impose: a chat request that names its own engine/model still wins, so the
+ * header selector keeps working as a per-session override without touching the profile. The
+ * resolution order is `request → heartbeat.engine (cron only) → acpConfig → DEFAULT_ACP_ENGINE`.
+ *
+ * Two deliberate limits:
+ * - `builtin` is not selectable. It is the in-process Vercel AI harness, not an ACP engine, and its
+ *   request contract carries no model — it stays on `LOCAL_AGENT_MODEL`.
+ * - `defaultModel` and `reasoningEffort` belong to `defaultEngine`. Model ids are not portable
+ *   across engines, so switching engine in the chat falls back to that engine's adapter default
+ *   rather than carrying an invalid id over.
+ */
+export interface IAgenticProfileAcpConfig {
+  defaultEngine?: AcpEngine;
+  /** Engine-specific model id, e.g. `gemini-3.6-flash` for `agy`, `sonnet` for `claude`. */
+  defaultModel?: string;
+  /** Only `agy` and `codex` honour this; Claude Code has no effort option. */
+  reasoningEffort?: CodexReasoningEffort;
+}
+
 export interface IAgenticProfilePatDelegation {
   enabled: boolean;
   allowedUserIds: string[];
@@ -108,6 +132,7 @@ export interface IAgenticProfile {
   explorations?: IAgenticProfileExploration[];
   liveBriefing?: string;
   heartbeat?: IAgenticHeartbeat;
+  acpConfig?: IAgenticProfileAcpConfig;
   contextLevel?: AgenticContextLevel;
   delegation?: IAgenticProfileDelegation;
 

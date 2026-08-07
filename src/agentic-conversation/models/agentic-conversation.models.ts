@@ -1,6 +1,9 @@
 import { IAuditable } from '@dataclouder/nest-core';
+import { PersistedEngine } from '../../common/acp-engines';
 
-export type AgenticConversationEngine = 'builtin' | 'acp' | 'claude' | 'codex' | 'agy';
+/** Engine recorded on a stored conversation. Superset of the dispatchable ACP engines — see
+ * `common/acp-engines.ts` for why `builtin` and the retired `acp` label are part of it. */
+export type AgenticConversationEngine = PersistedEngine;
 
 export interface IAgenticTokenUsage {
   inputTokens: number;

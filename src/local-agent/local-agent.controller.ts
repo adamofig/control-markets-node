@@ -8,8 +8,9 @@ import { LocalAgentChatService, LocalAgentMessage, LocalAgentStreamEvent } from 
 import { AcpBridgeService, AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from './acp-bridge.service';
 import { AttachedSourceReport } from './attached-sources.util';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
-import { IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
+import { IAgenticProfileAcpConfig, IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
 import { WorkspaceService } from '../workspaces/services/workspace.service';
+import { asAcpEngine } from '../common/acp-engines';
 
 class LocalAgentChatRequestDto {
   messages: LocalAgentMessage[];
@@ -92,21 +93,33 @@ export class LocalAgentController {
         .catch(() => null);
     }
 
-    // A profile bound to a workspace chats from that workspace's root on this host
+    // A profile bound to a workspace chats from that workspace's root on this host, and its
+    // acpConfig is the default engine/model when the request does not name one.
     let cwd: string | undefined;
+    let acpConfig: IAgenticProfileAcpConfig | undefined;
     if (body.agenticProfileId) {
       const profile = await this.agenticProfileService
         .executeOperation({ action: 'findOne', query: { id: body.agenticProfileId } })
         .catch(() => null);
       cwd = this.workspaceService.resolveRootForHost(profile?.workspaceId) ?? undefined;
+      acpConfig = profile?.acpConfig;
     }
+
+    const engine = asAcpEngine(body.engine) ?? acpConfig?.defaultEngine ?? DEFAULT_ACP_ENGINE;
+
+    // The profile's model/effort belong to its own defaultEngine. Model ids are not portable across
+    // engines, so a request that switches engine gets that engine's adapter default instead of an id
+    // the CLI would reject.
+    const profileDefaultsApply = !!acpConfig?.defaultEngine && engine === acpConfig.defaultEngine;
+    const model = body.model?.trim() || (profileDefaultsApply ? acpConfig?.defaultModel : undefined);
+    const reasoningEffort = body.reasoningEffort ?? (profileDefaultsApply ? acpConfig?.reasoningEffort : undefined);
 
     const acpEvents = this.acpBridge.stream(
       body.message,
       body.sessionId,
       profileContext,
-      body.engine ?? DEFAULT_ACP_ENGINE,
-      { model: body.model, reasoningEffort: body.reasoningEffort, cwd },
+      engine,
+      { model, reasoningEffort, cwd },
       attached?.markdown || undefined,
     );
 

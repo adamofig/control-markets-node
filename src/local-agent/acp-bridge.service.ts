@@ -8,6 +8,7 @@ import * as os from 'os';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { LocalAgentStreamEvent } from './local-agent-chat.service';
 import { normalizeTokenUsage } from './ai-usage.util';
+import { AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from '../common/acp-engines';
 
 // @agentclientprotocol/sdk is ESM-only; the project compiles to CommonJS, so a static
 // import would become require() and fail. new Function keeps the dynamic import as-is.
@@ -17,18 +18,11 @@ const IDLE_TTL_MS = 15 * 60 * 1000;
 const PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
- * ACP agents the bridge can spawn. The protocol is agent-agnostic — only the command differs.
- *
- * `gemini` (`gemini --acp`) was removed on 2026-08-04: Google retired that client for individual
- * accounts ("This client is no longer supported for Gemini Code Assist for individuals — migrate to
- * the Antigravity suite"), so every session failed at the handshake. Antigravity (`agy`) is the
- * Google path now. See wiki `02-references/09-agentic-profile-(borges)/local-agent-acp-connectors-performance.md`.
+ * The engine union, its default and the reasoning-effort union now live in `common/acp-engines.ts`
+ * so the profile, conversation and inbox domains share one definition instead of four copies. They
+ * are re-exported here because the bridge is where most callers already import them from.
  */
-export type AcpEngine = 'claude' | 'codex' | 'agy';
-
-/** Engine used when the caller sends none, or sends one that no longer exists. */
-export const DEFAULT_ACP_ENGINE: AcpEngine = 'agy';
-export type CodexReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+export { AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from '../common/acp-engines';
 
 export interface AcpRuntimeOptions {
   model?: string;

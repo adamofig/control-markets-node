@@ -7,7 +7,7 @@ import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { AgenticContextLevel } from '../models/agentic-profile.models';
+import { AgenticContextLevel, IAgenticProfileAcpConfig } from '../models/agentic-profile.models';
 
 @ApiTags('agentic-profile')
 @Controller('api/agentic-profile')
@@ -126,6 +126,24 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
   ): Promise<{ liveBriefing: string }> {
     const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
     return this.agenticProfileService.updateLiveBriefing(id, body?.liveBriefing ?? '', resolvedOrgId);
+  }
+
+  @Put(':id/acp-config')
+  @ApiOperation({
+    summary: 'Update the profile default ACP engine/model (acpConfig)',
+    description:
+      'Seeds new chats and cron wake-ups. Sending no engine unsets the whole block so the server default applies again. Never locks a session: the chat header still overrides it per session.',
+  })
+  @ApiResponse({ status: 200, description: 'Default engine/model saved (returns the sanitized config).' })
+  @UseGuards(ProjectAuthGuard)
+  async updateAcpConfig(
+    @Param('id') id: string,
+    @Body() body: IAgenticProfileAcpConfig,
+    @OrgId() orgId?: string,
+    @DecodedToken() token?: AppToken,
+  ): Promise<IAgenticProfileAcpConfig> {
+    const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
+    return this.agenticProfileService.updateAcpConfig(id, body, resolvedOrgId);
   }
 
   @Get(':id/full-context')

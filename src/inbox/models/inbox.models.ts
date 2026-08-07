@@ -1,5 +1,6 @@
 import { IAuditable } from '@dataclouder/nest-core';
 import { IAgenticConversationInjectedContext, IAgenticConversationPermission, IAgenticConversationTool, IAgenticTokenUsage } from '../../agentic-conversation/models/agentic-conversation.models';
+import { PERSISTED_ENGINES, PersistedEngine } from '../../common/acp-engines';
 
 export const INBOX_CONVERSATION_TYPES = ['direct', 'group', 'task', 'agent'] as const;
 export type InboxConversationType = (typeof INBOX_CONVERSATION_TYPES)[number];
@@ -19,8 +20,9 @@ export type InboxContextType = (typeof INBOX_CONTEXT_TYPES)[number];
 export const INBOX_CONTEXT_RELATIONS = ['primary', 'related'] as const;
 export type InboxContextRelation = (typeof INBOX_CONTEXT_RELATIONS)[number];
 
-export const INBOX_AGENT_ENGINES = ['builtin', 'acp', 'claude', 'codex', 'agy'] as const;
-export type InboxAgentEngine = (typeof INBOX_AGENT_ENGINES)[number];
+/** Same engine labels a stored conversation may carry — see `common/acp-engines.ts`. */
+export const INBOX_AGENT_ENGINES = PERSISTED_ENGINES;
+export type InboxAgentEngine = PersistedEngine;
 
 export const INBOX_CONTENT_TYPES = ['text', 'audio', 'image', 'video', 'file', 'event'] as const;
 export type InboxContentType = (typeof INBOX_CONTENT_TYPES)[number];

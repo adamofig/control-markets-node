@@ -3,6 +3,7 @@ import { Document } from 'mongoose';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
 import { AuditDataSchema, IAuditable } from '@dataclouder/nest-core';
 import { IAgenticConversation, IAgenticConversationInjectedContext, IAgenticConversationMessage, AgenticConversationEngine, IAgenticTokenUsage } from '../models/agentic-conversation.models';
+import { PERSISTED_ENGINES } from '../../common/acp-engines';
 
 export type AgenticConversationDocument = AgenticConversationEntity & Document;
 
@@ -14,7 +15,7 @@ export class AgenticConversationEntity implements IAgenticConversation {
   @Prop({ index: true }) agentCardId?: string;
   @Prop() name?: string;
   @Prop({ type: String, required: true, enum: ['active', 'archived'], default: 'active', index: true }) status: 'active' | 'archived';
-  @Prop({ type: String, enum: ['builtin', 'acp', 'claude', 'codex', 'agy'] }) engine?: AgenticConversationEngine;
+  @Prop({ type: String, enum: PERSISTED_ENGINES }) engine?: AgenticConversationEngine;
   @Prop() acpSessionId?: string;
   @Prop({ type: [Object], required: true, default: [] }) messages: IAgenticConversationMessage[];
   @Prop({ type: Object, required: false }) usage?: IAgenticTokenUsage;

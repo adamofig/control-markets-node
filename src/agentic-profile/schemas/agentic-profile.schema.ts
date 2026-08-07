@@ -13,7 +13,9 @@ import {
   IAgenticProfileSource,
   IAgenticProfileSkill,
   IAgenticProfileTaskRef,
+  IAgenticProfileAcpConfig,
 } from '../models/agentic-profile.models';
+import { ACP_ENGINES, AcpEngine, CodexReasoningEffort, REASONING_EFFORTS } from '../../common/acp-engines';
 
 export type AgenticProfileDocument = AgenticProfileEntity & Document;
 
@@ -35,6 +37,25 @@ export class AgenticProfileDelegationEntity implements IAgenticProfileDelegation
 }
 
 const AgenticProfileDelegationSchema = SchemaFactory.createForClass(AgenticProfileDelegationEntity);
+
+/**
+ * Default engine/model for this profile. Typed (not Mixed) so Mongo rejects a retired engine id or a
+ * bogus effort at write time — the chat and the heartbeat both read this as their fallback, so a
+ * silent typo here would degrade every execution instead of failing loudly.
+ */
+@Schema({ _id: false })
+export class AgenticProfileAcpConfigEntity implements IAgenticProfileAcpConfig {
+  @Prop({ type: String, enum: ACP_ENGINES, required: false })
+  defaultEngine?: AcpEngine;
+
+  @Prop({ type: String, required: false, trim: true, maxlength: 128 })
+  defaultModel?: string;
+
+  @Prop({ type: String, enum: REASONING_EFFORTS, required: false })
+  reasoningEffort?: CodexReasoningEffort;
+}
+
+const AgenticProfileAcpConfigSchema = SchemaFactory.createForClass(AgenticProfileAcpConfigEntity);
 
 @Schema({ collection: 'agentic_profiles', timestamps: true })
 export class AgenticProfileEntity implements IAgenticProfile {
@@ -87,6 +108,10 @@ export class AgenticProfileEntity implements IAgenticProfile {
 
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   heartbeat?: IAgenticHeartbeat;
+
+  /** No default: an absent acpConfig must fall through to today's behaviour, not pin an engine. */
+  @Prop({ type: AgenticProfileAcpConfigSchema, required: false })
+  acpConfig?: IAgenticProfileAcpConfig;
 
   @Prop({ type: String, enum: ['basic', 'medium', 'full'], default: 'basic' })
   contextLevel?: AgenticContextLevel;
