@@ -30,7 +30,8 @@
     "test:agy-bridge": "RUN_AGY_E2E=1 NODE_OPTIONS=--experimental-vm-modules jest --roots '<rootDir>/src' --testPathPattern acp-bridge.agy",
     "bench:agy-turn": "node scripts/agy-acp/bench-agy-turn.mjs",
     "bench:acp-handshake": "node scripts/agy-acp/bench-acp-handshake.mjs",
-    "send:agent-message": "node scripts/send-agent-message.js"
+    "send:agent-message": "node scripts/send-agent-message.js",
+    "generate:master-token": "node scripts/generate-master-token.js"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.59.0",

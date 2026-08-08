@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Model } from 'mongoose';
 import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mongo';
@@ -8,7 +8,15 @@ import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
 import { normalizeTaskPriority, DEFAULT_TASK_PRIORITY, TASK_PRIORITY_LABELS, TASK_STATUS_MARKS } from '../../agent-tasks/models/classes';
-import { AgenticContextLevel, AgenticLinkedResourceKind, IAgenticProfileAcpConfig, ILinkedContextResource } from '../models/agentic-profile.models';
+import {
+  AgenticContextLevel,
+  AgenticLinkedResourceKind,
+  IAgenticProfileAcpConfig,
+  IAgenticProfileSkill,
+  ILinkedContextResource,
+  ISkillCatalogItem,
+  ISkillLinkInput,
+} from '../models/agentic-profile.models';
 import { asAcpEngine, asReasoningEffort } from '../../common/acp-engines';
 import { buildFingerprint, hashContent } from './sync-hash.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -198,6 +206,93 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     return entity;
   }
 
+  /**
+   * Links of one profile collection, preferring the structured `collections.<key>` array — built by
+   * the CLI from the YAML frontmatter — over the legacy `sections[n].links` produced by parsing the
+   * numbered markdown headings with regex.
+   *
+   * Both carry the same link contract (`label`, `url`, `description`, optional `content`/`relPath`),
+   * so only the origin of the array changes; nothing downstream needs to know which one was used.
+   * The fallback is what lets profiles migrate one at a time instead of in a flag day.
+   */
+  private resolveCollectionLinks(payload: any, sections: any[], key: string, legacySectionNumber: number): any[] {
+    const structured = payload?.collections?.[key];
+    if (Array.isArray(structured)) return structured;
+    const section = (sections || []).find((s: any) => s.number === legacySectionNumber);
+    return section?.links || [];
+  }
+
+  /**
+   * Every skill source of the organization, for the UI catalog that attaches skills to a profile.
+   * Read-only and org-scoped: it never reveals which other profiles use a skill.
+   */
+  async listSkillCatalog(orgId: string): Promise<ISkillCatalogItem[]> {
+    if (!orgId) return [];
+    const rows = await this.sourcesService.findSkillsByOrg(orgId);
+    return (rows || [])
+      .map((row: any) => ({
+        id: row.id || row._id?.toString(),
+        name: row.name,
+        description: row.description,
+        url: row.sourceUrl,
+        updatedAt: row.updatedAt,
+      }))
+      .filter((row: ISkillCatalogItem) => !!row.id);
+  }
+
+  /**
+   * Replaces the profile's skill refs from the UI catalog.
+   *
+   * The client sends ids and flags only — name, description and url are re-read from the source
+   * entities of the same org, so a caller cannot inject a label or reach a skill of another tenant
+   * (unknown ids are dropped silently rather than failing the whole save).
+   *
+   * `origin` is preserved for skills the markdown already declares, because the `.md` remains their
+   * source of truth; anything else is stored as `platform` so the next sync leaves it alone.
+   */
+  async updateSkillLinks(id: string, skills: ISkillLinkInput[] | undefined, orgId?: string): Promise<IAgenticProfileSkill[]> {
+    const query: any = { id };
+    if (orgId) query.orgId = orgId;
+    const profile = await this.genericModel.findOne(query).exec();
+    if (!profile) {
+      throw new NotFoundException(`AgenticProfile with ID ${id} not found`);
+    }
+
+    const requested = (skills || []).filter(skill => skill?.id);
+    const uniqueIds = [...new Set(requested.map(skill => skill.id))];
+    const entities = uniqueIds.length ? await this.sourcesService.findManyByIds(uniqueIds, profile.orgId) : [];
+    const entityById = new Map(entities.map((entity: any) => [entity.id || entity._id?.toString(), entity]));
+
+    const previousById = new Map(
+      (profile.skills || [])
+        .map((skill: any) => (typeof skill?.toObject === 'function' ? skill.toObject() : skill))
+        .filter((skill: any) => skill?.id)
+        .map((skill: any) => [skill.id, skill])
+    );
+
+    const seen = new Set<string>();
+    const resolved: IAgenticProfileSkill[] = [];
+    for (const skill of requested) {
+      if (seen.has(skill.id)) continue;
+      const entity: any = entityById.get(skill.id);
+      if (!entity) continue;
+      seen.add(skill.id);
+      const previous: any = previousById.get(skill.id);
+      resolved.push({
+        id: skill.id,
+        name: entity.name,
+        description: entity.description,
+        url: entity.sourceUrl,
+        origin: previous?.origin === 'markdown' ? 'markdown' : 'platform',
+        enabled: skill.enabled !== false,
+      });
+    }
+
+    profile.skills = resolved;
+    await profile.save();
+    return resolved;
+  }
+
   async syncFromMarkdown(payload: any, orgId: string, userEmail: string): Promise<any> {
     const { agentCardId, agenticProfileId, agentName, agentTitle, agentDescription, agentDomain, sections, workspaceId, profileRelPath } = payload;
 
@@ -327,38 +422,43 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     }
     profile.sources = resolvedSources;
 
-    // 4. Sync Skills (Section 4)
-    const sec4 = sections.find((s: any) => s.number === 4);
+    // 4. Sync Skills — YAML frontmatter `skills[]` when present, legacy Section 4 otherwise.
+    const skillLinks = this.resolveCollectionLinks(payload, sections, 'skills', 4);
+    const previousSkills: any[] = (profile.skills || []).map((skill: any) => (typeof skill?.toObject === 'function' ? skill.toObject() : skill));
+    const previousSkillById = new Map(previousSkills.filter((skill: any) => skill?.id).map((skill: any) => [skill.id, skill]));
     const resolvedSkills = [];
-    if (sec4 && sec4.links) {
-      for (const link of sec4.links) {
-        // skills act as rules
-        const skillEntity = await this.upsertSourceFromLink(link, 'skill', 'rule', orgId, userEmail, stats, workspaceId);
+    for (const link of skillLinks) {
+      // skills act as rules
+      const skillEntity = await this.upsertSourceFromLink(link, 'skill', 'rule', orgId, userEmail, stats, workspaceId);
+      const skillId = skillEntity.id || skillEntity._id?.toString();
 
-        resolvedSkills.push({
-          id: skillEntity.id || skillEntity._id?.toString(),
-          name: skillEntity.name,
-          description: skillEntity.description,
-          enabled: true,
-        });
-      }
+      resolvedSkills.push({
+        id: skillId,
+        name: skillEntity.name,
+        description: skillEntity.description,
+        url: skillEntity.sourceUrl,
+        origin: 'markdown' as const,
+        // The file wins when it states `enabled`; otherwise a UI toggle survives the next sync.
+        enabled: link.enabled !== undefined ? !!link.enabled : (previousSkillById.get(skillId)?.enabled ?? true),
+      });
     }
-    profile.skills = resolvedSkills;
+    // Skills attached from the UI catalog have no declaring file — rewriting the array wholesale
+    // would silently undo them, so they are carried over untouched.
+    const platformSkills = previousSkills.filter((skill: any) => skill?.origin === 'platform' && !resolvedSkills.some(resolved => resolved.id === skill.id));
+    profile.skills = [...resolvedSkills, ...platformSkills];
 
     // 4b. Prepare skill write-backs for local frontmatter updates
     const skillWriteBacks = [];
-    if (sec4 && sec4.links) {
-      for (let i = 0; i < sec4.links.length; i++) {
-        const link = sec4.links[i];
-        const skill = resolvedSkills[i];
-        if (skill && skill.id) {
-          skillWriteBacks.push({
-            url: link.url,
-            label: link.label,
-            sourceId: skill.id,
-            orgId,
-          });
-        }
+    for (let i = 0; i < skillLinks.length; i++) {
+      const link = skillLinks[i];
+      const skill = resolvedSkills[i];
+      if (skill && skill.id) {
+        skillWriteBacks.push({
+          url: link.url,
+          label: link.label,
+          sourceId: skill.id,
+          orgId,
+        });
       }
     }
 

@@ -7,7 +7,7 @@ import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { AgenticContextLevel, IAgenticProfileAcpConfig } from '../models/agentic-profile.models';
+import { AgenticContextLevel, IAgenticProfileAcpConfig, IAgenticProfileSkill, ISkillCatalogItem, ISkillLinkInput } from '../models/agentic-profile.models';
 
 @ApiTags('agentic-profile')
 @Controller('api/agentic-profile')
@@ -144,6 +144,36 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
   ): Promise<IAgenticProfileAcpConfig> {
     const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
     return this.agenticProfileService.updateAcpConfig(id, body, resolvedOrgId);
+  }
+
+  @Get('skills/catalog')
+  @ApiOperation({
+    summary: 'List every skill source available in the organization',
+    description: 'Feeds the profile UI so a user can check which skills an agent may use. Org-scoped and read-only.',
+  })
+  @ApiResponse({ status: 200, description: 'Returns the org skill catalog.' })
+  @UseGuards(ProjectAuthGuard)
+  async getSkillCatalog(@OrgId() orgId?: string, @DecodedToken() token?: AppToken): Promise<ISkillCatalogItem[]> {
+    const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
+    return this.agenticProfileService.listSkillCatalog(resolvedOrgId);
+  }
+
+  @Put(':id/skills')
+  @ApiOperation({
+    summary: 'Replace the skills linked to an agentic profile',
+    description:
+      'Accepts ids and enabled flags only; labels are re-read from the org sources. Skills the markdown declares keep origin "markdown" (the .md stays their source of truth), the rest are stored as "platform" and survive the next sync.',
+  })
+  @ApiResponse({ status: 200, description: 'Returns the persisted skill refs.' })
+  @UseGuards(ProjectAuthGuard)
+  async updateSkills(
+    @Param('id') id: string,
+    @Body() body: { skills: ISkillLinkInput[] },
+    @OrgId() orgId?: string,
+    @DecodedToken() token?: AppToken,
+  ): Promise<IAgenticProfileSkill[]> {
+    const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
+    return this.agenticProfileService.updateSkillLinks(id, body?.skills, resolvedOrgId);
   }
 
   @Get(':id/full-context')

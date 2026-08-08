@@ -4,6 +4,7 @@ import { UserEntity, UserSchema } from './user.entity';
 import { UserController } from './user.controller';
 import { AppUserService } from './user.service';
 import { ProjectAuthGuard } from './project-auth.guard';
+import { SystemMasterTokenService } from './system-master-token.service';
 // import { FirebaseService } from '../common/firebase.service'; // Removed local import
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
@@ -16,7 +17,7 @@ import { OrganizationModule } from '../organization/organization.module';
 @Module({
   imports: [MongooseModule.forFeature([{ name: UserEntity.name, schema: UserSchema }]), HttpModule, ConfigModule.forFeature(config), NestAuthModule, DCMongoDBModule, OrganizationModule],
   controllers: [UserController],
-  providers: [AppUserService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }],
-  exports: [AppUserService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }, MongooseModule],
+  providers: [AppUserService, SystemMasterTokenService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }],
+  exports: [AppUserService, SystemMasterTokenService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }, MongooseModule],
 })
 export class UserModule {}

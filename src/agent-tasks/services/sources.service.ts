@@ -47,6 +47,19 @@ export class SourcesService extends EntityCommunicationService<SourceDocument> {
     return this.genericModel.find({ id: { $in: ids }, ...(orgId ? { orgId } : {}) }).exec();
   }
 
+  /**
+   * Skill sources of one organization, projected without `content` — the catalog only renders labels,
+   * and a skill body is a whole `.md` file. Matches the current `kind: 'skill'` contract as well as the
+   * legacy `tag: 'rule'` rows written before `kind` existed, so skills synced earlier stay visible.
+   */
+  async findSkillsByOrg(orgId: string): Promise<SourceDocument[]> {
+    return this.genericModel
+      .find({ orgId, $or: [{ kind: 'skill' }, { tag: 'rule' }] }, { id: 1, name: 1, description: 1, sourceUrl: 1, updatedAt: 1 })
+      .sort({ name: 1 })
+      .lean()
+      .exec() as unknown as Promise<SourceDocument[]>;
+  }
+
   async save(source: ISource): Promise<SourceDocument> {
     if (source.id) {
       return this.update(source.id, source);

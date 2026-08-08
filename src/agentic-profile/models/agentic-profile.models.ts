@@ -15,11 +15,41 @@ export interface IAgenticProfileSource {
   description?: string;
 }
 
+/**
+ * Where a skill ref came from, and therefore who owns it.
+ *
+ * - `markdown`: declared in the profile `.md` (frontmatter `skills[]`, or legacy Section 4). The file
+ *   is its source of truth, so every sync rewrites the ref from the file.
+ * - `platform`: attached from the UI skill catalog. No file declares it, so the sync must leave it
+ *   alone — otherwise checking a skill in the UI would be silently undone by the next sync.
+ *
+ * Absent on refs written before the catalog existed; those are treated as `markdown`.
+ */
+export type AgenticSkillOrigin = 'markdown' | 'platform';
+
 export interface IAgenticProfileSkill {
   id: string; // references SourceEntity.id
   name?: string;
   description?: string;
   enabled: boolean;
+  /** `SourceEntity.sourceUrl` — the profile-relative `.md` path when the skill came from the wiki. */
+  url?: string;
+  origin?: AgenticSkillOrigin;
+}
+
+/** One row of the org-wide skill catalog offered by the UI to attach skills to a profile. */
+export interface ISkillCatalogItem {
+  id: string;
+  name?: string;
+  description?: string;
+  url?: string;
+  updatedAt?: string;
+}
+
+/** Body of `PUT /api/agentic-profile/:id/skills`. Only ids and flags are trusted from the client. */
+export interface ISkillLinkInput {
+  id: string;
+  enabled?: boolean;
 }
 
 export interface IAgenticProfileTaskRef {
