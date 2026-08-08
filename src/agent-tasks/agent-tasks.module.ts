@@ -20,11 +20,14 @@ import { AgentDistributionChannelService } from './services/agent-distribution-c
 import { NestAiServicesSdkModule } from '@dataclouder/nest-ai-services-sdk';
 import { NestAuthModule } from '@dataclouder/nest-auth';
 
+import { AgenticProfileEntity, AgenticProfileSchema } from '../agentic-profile/schemas/agentic-profile.schema';
+
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: AgentTaskEntity.name, schema: AgentTaskSchema }]),
     MongooseModule.forFeature([{ name: AgentJobEntity.name, schema: AgentJobSchema }]),
     MongooseModule.forFeature([{ name: SourceEntity.name, schema: SourceSchema }]),
+    MongooseModule.forFeature([{ name: AgenticProfileEntity.name, schema: AgenticProfileSchema }]),
     DCMongoDBModule,
     HttpModule,
     AgentCardsModule,

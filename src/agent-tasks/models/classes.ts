@@ -150,11 +150,30 @@ export interface IAgentTaskSettings {
   taskAttached?: Partial<IAgentTask>;
 }
 
+/**
+ * Minimal reference to the agentic profile that owns the task — the canonical assignment field.
+ * The card travels here only as `agentCardId`, so consumers resolve identity/voice without a
+ * second lookup. Mirrors `IAgenticProfileMinimal` in the Angular models.
+ */
+export interface IAgentProfileMinimal {
+  id: string;
+  name?: string;
+  title?: string;
+  /** The profile's linked card (`AgenticProfile.agentCard.id`). */
+  agentCardId?: string;
+  imageUrl?: string;
+}
+
 export interface IAgentTask extends ITask {
   prompt?: string;
   userPrompt?: string;
   agentTask?: IAgentTaskSettings;
+  /** Derived from the profile on save. Kept because execution, jobs and list views read it. */
   agentCard?: IAgentCardMinimal;
+  /** Flat indexed mirror of `agenticProfile.id`, maintained by the backend. */
+  agenticProfileId?: string;
+  /** Canonical field: the agentic profile responsible for the task. */
+  agenticProfile?: IAgentProfileMinimal;
 }
 
 /** @deprecated Use IAgentTask instead */

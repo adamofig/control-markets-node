@@ -20,11 +20,15 @@ import { taskPrompt } from '../prompts/task-prompts';
 import { AppException } from '@dataclouder/nest-core';
 import { emitWikiChangeForOperation, WIKI_TASK_CHANGED } from '../../wiki-sync/wiki-sync.events';
 
+import { AgenticProfileEntity, AgenticProfileDocument } from '../../agentic-profile/schemas/agentic-profile.schema';
+
 @Injectable()
 export class AgentTasksService extends EntityCommunicationService<AgentTaskDocument> {
   constructor(
     @InjectModel(AgentTaskEntity.name)
     agentTaskModel: Model<AgentTaskDocument>,
+    @InjectModel(AgenticProfileEntity.name)
+    private readonly agenticProfileModel: Model<AgenticProfileDocument>,
     mongoService: MongoService,
     private conversationAiService: AgentCardService,
     private httpService: HttpService,
@@ -42,6 +46,23 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
   async executeOperation(operation: any): Promise<any> {
     const result = await super.executeOperation(operation);
     emitWikiChangeForOperation(this.eventEmitter, WIKI_TASK_CHANGED, operation, result);
+    // If a task operation created/updated/deleted tasks, sync with AgenticProfile
+    if (operation.action === 'create' || operation.action === 'updateOne' || operation.action === 'updateMany') {
+      const items = Array.isArray(result) ? result : [result];
+      for (const item of items) {
+        if (item && (item.id || item._id)) {
+          await this.syncTaskWithAgenticProfile(item);
+        }
+      }
+    } else if (operation.action === 'deleteOne' || operation.action === 'deleteMany') {
+      const deletedId = operation.query?.id || operation.query?._id;
+      if (deletedId) {
+        await this.agenticProfileModel.updateMany(
+          { 'tasks.id': deletedId },
+          { $pull: { tasks: { id: deletedId } } }
+        ).exec();
+      }
+    }
     return result;
   }
 
@@ -71,26 +92,138 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     if (id) this.eventEmitter.emit(WIKI_TASK_CHANGED, { id });
   }
 
+  /** Syncs a task reference into the target AgenticProfile.tasks array in MongoDB */
+  public async syncTaskWithAgenticProfile(task: any): Promise<void> {
+    if (!task) return;
+    const taskId = task.id || task._id?.toString();
+    if (!taskId) return;
+
+    const assignedType = task.assignedType;
+    const agenticProfileId = task.agenticProfileId || task.agenticProfile?.id;
+    const agentCardId = task.agentCard?.id;
+
+    // 1. Resolve target AgenticProfile if task is assigned to an agent
+    let targetProfile: AgenticProfileDocument | null = null;
+    if (assignedType === 'agent' || (assignedType as any) === AssignedType.AGENT) {
+      if (agenticProfileId) {
+        const queryOr: any[] = [{ id: agenticProfileId }];
+        if (Types.ObjectId.isValid(agenticProfileId)) {
+          queryOr.push({ _id: new Types.ObjectId(agenticProfileId) });
+        }
+        targetProfile = await this.agenticProfileModel.findOne({ $or: queryOr }).exec();
+      }
+      if (!targetProfile && agentCardId) {
+        targetProfile = await this.agenticProfileModel.findOne({ 'agentCard.id': agentCardId }).exec();
+      }
+    }
+
+    const targetProfileId = targetProfile ? (targetProfile.id || targetProfile._id?.toString()) : null;
+
+    // 2. Remove task ref from any other profile that previously had it if the assigned profile changed
+    if (!targetProfileId) {
+      await this.agenticProfileModel.updateMany(
+        { 'tasks.id': taskId },
+        { $pull: { tasks: { id: taskId } } }
+      ).exec();
+    } else {
+      const matchQueries: any[] = [{ id: { $ne: targetProfileId } }];
+      if (Types.ObjectId.isValid(targetProfileId)) {
+        matchQueries.push({ _id: { $ne: new Types.ObjectId(targetProfileId) } });
+      }
+      await this.agenticProfileModel.updateMany(
+        { 'tasks.id': taskId, $and: matchQueries },
+        { $pull: { tasks: { id: taskId } } }
+      ).exec();
+    }
+
+    // 3. Add or update task ref in the target AgenticProfile
+    if (targetProfile) {
+      const taskRef = {
+        id: taskId,
+        name: task.name,
+        status: task.status,
+        priority: task.priority,
+        updatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : new Date().toISOString(),
+      };
+
+      const existingTasks: any[] = (targetProfile.tasks || []).map((t: any) => ({ ...t }));
+      const index = existingTasks.findIndex(t => t.id === taskId);
+      if (index >= 0) {
+        existingTasks[index] = { ...existingTasks[index], ...taskRef };
+      } else {
+        existingTasks.push(taskRef);
+      }
+      await this.agenticProfileModel.updateOne(
+        { _id: targetProfile._id },
+        { $set: { tasks: existingTasks } }
+      ).exec();
+    }
+  }
+
+  /**
+   * Normalizes the agent assignment. The agentic profile is the canonical owner of a task, so it
+   * wins when present: `agenticProfileId` and `agentCard` are re-derived from it. A payload that
+   * only carries `agentCard` (legacy records, organigram quick-add) still resolves its profile by
+   * card, so both directions converge on the same shape.
+   */
+  private async resolveAgentAssignment(dto: IAgentTask): Promise<void> {
+    const profileId = dto.agenticProfile?.id || dto.agenticProfileId;
+
+    let profile: AgenticProfileDocument | null = null;
+    if (profileId) {
+      const queryOr: any[] = [{ id: profileId }];
+      if (Types.ObjectId.isValid(profileId)) queryOr.push({ _id: new Types.ObjectId(profileId) });
+      profile = await this.agenticProfileModel.findOne({ $or: queryOr }).exec();
+    } else if (dto.agentCard?.id) {
+      profile = await this.agenticProfileModel.findOne({ 'agentCard.id': dto.agentCard.id }).exec();
+    }
+
+    if (profile) {
+      const resolvedId = profile.id || profile._id?.toString();
+      dto.agenticProfileId = resolvedId;
+      dto.agenticProfile = {
+        id: resolvedId,
+        name: profile.name || profile.agentCard?.name,
+        title: profile.title,
+        agentCardId: profile.agentCard?.id,
+        imageUrl: profile.agentCard?.imageUrl,
+      };
+      // The profile owns the card: a stale card on the task must not survive a reassignment.
+      if (profile.agentCard?.id && profile.agentCard.id !== dto.agentCard?.id) {
+        dto.agentCard = { id: profile.agentCard.id } as any;
+      }
+    }
+
+    if (dto.agentCard?.id) {
+      const agentCard = await this.conversationAiService.getConversationById(dto.agentCard.id);
+      if (agentCard) {
+        const { assets, description } = agentCard;
+        const name = agentCard?.characterCard?.data?.name || agentCard?.name || '';
+        dto.agentCard = { id: dto.agentCard.id, assets, name, description };
+      }
+    }
+  }
+
   async save(createAgentTaskDto: IAgentTask) {
     const id = createAgentTaskDto.id || createAgentTaskDto._id;
-    if (createAgentTaskDto?.agentCard?.id) {
-      const agentCard = await this.conversationAiService.getConversationById(createAgentTaskDto.agentCard.id);
-      const { assets, description } = agentCard;
-      const name = agentCard?.characterCard?.data?.name || agentCard?.name || '';
-      createAgentTaskDto.agentCard = { id: createAgentTaskDto.agentCard.id, assets, name, description };
-    }
+    await this.resolveAgentAssignment(createAgentTaskDto);
+
+    let savedTask: any;
     if (id) {
-      const updated = await this.update(id, createAgentTaskDto);
-      this.emitChanged(updated || { id });
-      return updated;
+      savedTask = await this.update(id, createAgentTaskDto);
+      this.emitChanged(savedTask || { id });
     } else {
       delete createAgentTaskDto._id;
       delete createAgentTaskDto.id;
       const createdTask = new this.genericModel(createAgentTaskDto);
-      const saved = await createdTask.save();
-      this.emitChanged(saved);
-      return saved;
+      savedTask = await createdTask.save();
+      this.emitChanged(savedTask);
     }
+
+    if (savedTask) {
+      await this.syncTaskWithAgenticProfile(savedTask);
+    }
+    return savedTask;
   }
 
   /** Replaces the full subtask list (add/edit/delete/reorder) and recalculates the parent status */

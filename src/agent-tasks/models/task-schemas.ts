@@ -36,6 +36,18 @@ export const agentCardMinimalSchema = z.object({
 });
 
 /**
+ * The agentic profile that owns the task — canonical for `assignedType === "agent"`.
+ * Query with "agenticProfileId" (flat, indexed) or "agenticProfile.id".
+ */
+export const agenticProfileMinimalSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  title: z.string().optional(),
+  agentCardId: z.string().optional().describe("The profile's linked agent card"),
+  imageUrl: z.string().optional(),
+});
+
+/**
  * assignedTo is a union — check assignedType to know which branch:
  *   assignedType === "user"  → assignedUserSchema  { userId, email, name }
  *   assignedType === "agent" → agentCardMinimalSchema  { id, name, title }
@@ -63,7 +75,9 @@ export const agentTaskSummarySchema = z.object({
   taskType: z.enum(['review_task', 'create_content', 'human_task']).optional(),
   assignedType: z.enum(['agent', 'user']).optional(),
   assignedTo: assignedToSchema.optional(),
-  agentCard: agentCardMinimalSchema.optional(),
+  agentCard: agentCardMinimalSchema.optional().describe('Derived from the agentic profile on save; do not set it by hand.'),
+  agenticProfileId: z.string().optional().describe('Flat indexed mirror of agenticProfile.id'),
+  agenticProfile: agenticProfileMinimalSchema.optional().describe('Canonical agent assignment — set this to assign a task to an agent'),
 });
 
 // ─── AgentOutcomeJob (partial — enough for MCP query guidance) ───────────────

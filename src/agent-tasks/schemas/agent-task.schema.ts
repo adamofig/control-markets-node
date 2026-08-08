@@ -9,6 +9,7 @@ import {
   CloudStorageData,
   TaskStatus,
   IAgentCardMinimal,
+  IAgentProfileMinimal,
   ISubtask,
   TaskPriority,
   DEFAULT_TASK_PRIORITY,
@@ -76,6 +77,12 @@ export class AgentTaskEntity implements IAgentTask {
 
   @Prop({ required: false, type: Object })
   agentCard: IAgentCardMinimal;
+
+  @Prop({ required: false, type: String, index: true })
+  agenticProfileId?: string;
+
+  @Prop({ required: false, type: Object })
+  agenticProfile?: IAgentProfileMinimal;
 
   // @deprecated — kept for backward compat with existing records
   @Prop({ required: false, type: Object })
