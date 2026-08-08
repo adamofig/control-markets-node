@@ -378,6 +378,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
         const job: IAgentOutcomeJob = {
           task: { id: task.id, name: task.name },
           agentCard: { id: agentCard.id, assets: agentCard.assets,  name: agentCard?.characterCard?.data?.name || agentCard.name },
+          agenticProfile: task.agenticProfile,
           messages: chatMessages as MessageAI[],
           response: response,
           responseFormat: 'text',
@@ -428,6 +429,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
       const job: IAgentOutcomeJob = {
         task: { id: task.id, name: task.name },
         agentCard: { id: agentCard.id, assets: agentCard.assets,  name: agentCard?.characterCard?.data?.name || agentCard.name },
+        agenticProfile: task.agenticProfile,
         messages: chatMessages as MessageAI[],
         // Check for now these are duplicated, response should be ai response not the object
         response: response.json,
@@ -458,6 +460,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
 
     const job: IAgentOutcomeJob = {
       task: { id: task.id, name: task.name },
+      agenticProfile: task.agenticProfile,
       messages: chatMessages,
       response: response,
       responseFormat: 'text',

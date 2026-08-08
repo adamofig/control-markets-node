@@ -199,6 +199,7 @@ export interface IAgentOutcomeJob {
   id?: string;
   task: Partial<IAgentTask>; // Relation with the task
   agentCard?: Partial<IAgentCardMinimal>; // Relation with the agent card
+  agenticProfile?: Partial<IAgentProfileMinimal>; // Relation with the assigned agentic profile
   messages: MessageAI[]; // OpenAI format for Messages Request
   response?: MessageAI; // OpenAI format for Response of the AI
   result?: any; // This is the Object result from the AI

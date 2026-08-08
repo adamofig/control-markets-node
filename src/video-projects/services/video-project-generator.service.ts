@@ -141,7 +141,7 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
     }
 
     const newAgentCardReference = { reference: new ObjectId(agentCardId), ...videoProject };
-    const result = await this.videoGeneratorModel.findOneAndUpdate(query, { $set: { agent: newAgentCardReference } }, { new: true }).exec();
+    const result = await this.videoGeneratorModel.findOneAndUpdate(query, { $set: { agentCard: newAgentCardReference } }, { new: true }).exec();
     if (!result) {
       throw new AppException({ error_message: 'Video project not found or access denied', statusCode: 404 });
     }

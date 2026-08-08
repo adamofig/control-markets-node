@@ -23,6 +23,9 @@ export class AgentJobEntity implements IAgentOutcomeJob {
   @Prop({ required: false, type: Object })
   agentCard: Partial<IAgentCard>;
 
+  @Prop({ required: false, type: Object })
+  agenticProfile?: any;
+
   @Prop({ required: false })
   messages: any[];
 
@@ -37,6 +40,12 @@ export class AgentJobEntity implements IAgentOutcomeJob {
 
   @Prop({ required: false })
   inputNodeId: string;
+
+  @Prop({ required: false, index: true })
+  orgId?: string;
+
+  @Prop({ required: false })
+  organization?: string;
 }
 
 export const AgentJobSchema = SchemaFactory.createForClass(AgentJobEntity);
