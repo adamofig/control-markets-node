@@ -39,6 +39,7 @@ import { randomUUID } from 'crypto';
 import { BlogEntryModule } from './blog-entry/blog-entry.module';
 import { UniversalModule } from './universal/universal.module';
 import { AgenticProfileModule } from './agentic-profile/agentic-profile.module';
+import { AgentSkillsModule } from './agent-skills/agent-skills.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { WikiSyncModule } from './wiki-sync/wiki-sync.module';
 import { LocalAgentModule } from './local-agent/local-agent.module';
@@ -96,6 +97,7 @@ import { InboxModule } from './inbox/inbox.module';
     BlogEntryModule,
     UniversalModule,
     AgenticProfileModule,
+    AgentSkillsModule,
     WorkspacesModule,
     WikiSyncModule,
     LocalAgentModule,

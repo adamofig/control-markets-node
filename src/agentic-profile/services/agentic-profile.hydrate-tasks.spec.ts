@@ -11,7 +11,7 @@ describe('AgenticProfileService.hydrateTaskRefs', () => {
     const agentTasksService = {
       findRefFieldsByIds: jest.fn().mockImplementation((ids: string[]) => Promise.resolve(liveTasks.filter(task => ids.includes(task.id)))),
     };
-    const service = new AgenticProfileService({} as any, {} as any, {} as any, {} as any, agentTasksService as any, {} as any);
+    const service = new AgenticProfileService({} as any, {} as any, {} as any, {} as any, agentTasksService as any, {} as any, {} as any);
     return { service, agentTasksService };
   }
 

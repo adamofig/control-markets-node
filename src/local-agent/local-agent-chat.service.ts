@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createGoogle } from '@ai-sdk/google';
 import { AppToken } from '@dataclouder/nest-auth';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
+import { SkillsService } from '../agent-skills/services/skills.service';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { normalizeTokenUsage } from './ai-usage.util';
 import { AgenticContextLevel, IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
@@ -48,6 +49,7 @@ export class LocalAgentChatService {
     private readonly agenticProfileService: AgenticProfileService,
     private readonly fsTools: FilesystemToolsService,
     private readonly keyBalancerService: KeyBalancerService,
+    private readonly skillsService: SkillsService,
   ) {}
 
   getStatus() {
@@ -104,6 +106,15 @@ export class LocalAgentChatService {
               sourceId,
               resolvedOrgId,
             ),
+          }),
+          getSkill: tool({
+            description:
+              'Load a skill, or ONE atomic capability of it. Prefer the capability slug (`bundle:capability`, e.g. `agent-profile-specs:send-inbox`) over the bundle: it returns only the documents that operation needs instead of the whole skill. `file` narrows further to a single document. Executable scripts come back as paths under `scripts`, to run from the workspace — never as content.',
+            inputSchema: z.object({
+              slugOrId: z.string().describe('Skill slug, capability slug (`bundle:capability`), or id, as listed in the profile index.'),
+              file: z.string().optional().describe('Optional: a single relative path of the skill, e.g. `reference/inbox-messaging.md`.'),
+            }),
+            execute: ({ slugOrId, file }) => this.skillsService.resolve(slugOrId, resolvedOrgId, file),
           }),
         } : {}),
       },

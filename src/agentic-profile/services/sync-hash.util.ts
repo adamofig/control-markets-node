@@ -13,7 +13,7 @@ import * as crypto from 'crypto';
  * Consequence: these keys never travel inside `content`; they must be sent out-of-band on the
  * link (see `link.status` / `link.priority` in the CLI script), or a local-only edit would be
  * skipped by the delta sync. */
-export const AUTO_FRONTMATTER_KEYS = ['taskId', 'sourceId', 'orgId', 'agenticProfileId', 'status', 'priority'];
+export const AUTO_FRONTMATTER_KEYS = ['taskId', 'sourceId', 'skillId', 'orgId', 'agenticProfileId', 'status', 'priority'];
 
 export function normalizeForHash(content: string): string {
   let text = (content ?? '').replace(/\r\n/g, '\n');

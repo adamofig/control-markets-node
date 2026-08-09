@@ -39,10 +39,15 @@ describe('AgenticProfileService context levels', () => {
       findManyByIds: jest.fn().mockImplementation((ids: string[]) => Promise.resolve(ids.map(id => resources[id]).filter(Boolean))),
     };
     const agentTasksService = { executeOperation: jest.fn().mockResolvedValue(tasks) };
+    // Skills live in their own collection now; the capability index is a second, batched lookup.
+    const skillsService = {
+      findManyByIds: jest.fn().mockImplementation((ids: string[]) => Promise.resolve(ids.map(id => resources[id]).filter(Boolean))),
+      listCapabilitiesByBundleIds: jest.fn().mockResolvedValue(new Map()),
+    };
     const agentCardService = {
       findById: jest.fn().mockResolvedValue({ characterCard: { data: { name: 'Borges', instructions: 'IDENTITY_RULES' } } }),
     };
-    return new AgenticProfileService(model as any, {} as any, agentCardService as any, sourcesService as any, agentTasksService as any, {} as any);
+    return new AgenticProfileService(model as any, {} as any, agentCardService as any, sourcesService as any, agentTasksService as any, {} as any, skillsService as any);
   }
 
   it('BASIC includes identity and resource indexes but omits heavy content and tasks', async () => {

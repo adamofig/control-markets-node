@@ -34,8 +34,12 @@ describe('AgenticProfileService.getLinkedContextResources', () => {
     const agentTasksService = {
       executeOperation: jest.fn().mockImplementation(({ query }: any) => Promise.resolve(taskDocs.filter(task => query.id.$in.includes(task.id)))),
     };
-    const service = new AgenticProfileService(model as any, {} as any, {} as any, sourcesService as any, agentTasksService as any, {} as any);
-    return { service, sourcesService, agentTasksService };
+    // Skills resolve against their own collection, so a mention of a skill is a third query.
+    const skillsService = {
+      findManyByIds: jest.fn().mockImplementation((ids: string[]) => Promise.resolve(ids.map(id => sourceDocs[id]).filter(Boolean))),
+    };
+    const service = new AgenticProfileService(model as any, {} as any, {} as any, sourcesService as any, agentTasksService as any, {} as any, skillsService as any);
+    return { service, sourcesService, agentTasksService, skillsService };
   }
 
   it('derives the kind from the profile and ignores what the client claims', async () => {
@@ -67,8 +71,8 @@ describe('AgenticProfileService.getLinkedContextResources', () => {
     expect(resolved).toEqual({ id: 'skill-off', error: 'not-linked' });
   });
 
-  it('resolves every category in at most two queries and keeps the caller order', async () => {
-    const { service, sourcesService, agentTasksService } = createService();
+  it('resolves every category in one query per collection and keeps the caller order', async () => {
+    const { service, sourcesService, agentTasksService, skillsService } = createService();
     const resolved = await service.getLinkedContextResources(
       'profile-1',
       [{ id: 'memory-1' }, { id: 'task-1' }, { id: 'exploration-1' }, { id: 'skill-1' }, { id: 'source-1' }],
@@ -77,8 +81,19 @@ describe('AgenticProfileService.getLinkedContextResources', () => {
 
     expect(resolved.map(r => r.id)).toEqual(['memory-1', 'task-1', 'exploration-1', 'skill-1', 'source-1']);
     expect(resolved.map(r => r.kind)).toEqual(['memory', 'task', 'exploration', 'skill', 'knowledge']);
+    // Three collections, three queries — never one per attachment.
     expect(sourcesService.findManyByIds).toHaveBeenCalledTimes(1);
     expect(agentTasksService.executeOperation).toHaveBeenCalledTimes(1);
+    expect(skillsService.findManyByIds).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves a skill mention through its folded alias, so a pre-migration id still attaches', async () => {
+    const { service, skillsService } = createService();
+    skillsService.findManyByIds.mockResolvedValueOnce([{ id: 'canonical', aliasIds: ['skill-1'], name: 'Plegada', content: 'SKILL_CONTENT' }]);
+
+    const [resolved] = await service.getLinkedContextResources('profile-1', [{ id: 'skill-1' }], 'org-1');
+
+    expect(resolved).toMatchObject({ id: 'skill-1', kind: 'skill', content: 'SKILL_CONTENT' });
   });
 
   it('deduplicates repeated refs so a source is never injected twice', async () => {

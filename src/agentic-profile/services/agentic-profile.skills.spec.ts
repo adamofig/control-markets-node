@@ -7,15 +7,21 @@ import { AgenticProfileService } from './agentic-profile.service';
  * otherwise checking a skill in the UI would be silently undone by the next `sync-agent-card` run.
  */
 describe('AgenticProfileService — skill links', () => {
-  function createService(overrides: { sources?: any; profile?: any } = {}) {
+  function createService(overrides: { sources?: any; skills?: any; profile?: any } = {}) {
     const sourcesService = {
       findSkillsByOrg: jest.fn().mockResolvedValue([]),
       findManyByIds: jest.fn().mockResolvedValue([]),
       ...(overrides.sources || {}),
     };
+    // Skills moved to their own collection, so the catalog and the link resolution read from here.
+    const skillsService = {
+      listCatalog: jest.fn().mockResolvedValue([]),
+      findManyByIds: jest.fn().mockResolvedValue([]),
+      ...(overrides.skills || {}),
+    };
     const findOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(overrides.profile ?? null) });
-    const service = new AgenticProfileService({ findOne } as any, {} as any, {} as any, sourcesService as any, {} as any, {} as any);
-    return { service, sourcesService, findOne };
+    const service = new AgenticProfileService({ findOne } as any, {} as any, {} as any, sourcesService as any, {} as any, {} as any, skillsService as any);
+    return { service, sourcesService, skillsService, findOne };
   }
 
   describe('resolveCollectionLinks (via the sync payload contract)', () => {
@@ -46,27 +52,41 @@ describe('AgenticProfileService — skill links', () => {
   });
 
   describe('listSkillCatalog', () => {
-    it('maps the org skill sources to catalog rows', async () => {
-      const { service, sourcesService } = createService({
-        sources: {
-          findSkillsByOrg: jest
-            .fn()
-            .mockResolvedValue([{ id: 's1', name: 'Mongo', description: 'db', sourceUrl: '../10-skills/mongo.md', updatedAt: '2026-08-08' }, { _id: { toString: () => 's2' }, name: 'Tasks' }]),
+    it('maps the org skill bundles to catalog rows, carrying their capability index', async () => {
+      const { service, skillsService } = createService({
+        skills: {
+          listCatalog: jest.fn().mockResolvedValue([
+            {
+              id: 's1',
+              slug: 'mongo-db-connection',
+              name: 'Mongo',
+              description: 'db',
+              relPath: '10-skills/01-mongo-db-connection.md',
+              updatedAt: '2026-08-08',
+              capabilities: [{ id: 'c1', slug: 'mongo-db-connection:query', name: 'Consultar' }],
+            },
+          ]),
         },
       });
 
       expect(await service.listSkillCatalog('org-1')).toEqual([
-        { id: 's1', name: 'Mongo', description: 'db', url: '../10-skills/mongo.md', updatedAt: '2026-08-08' },
-        { id: 's2', name: 'Tasks', description: undefined, url: undefined, updatedAt: undefined },
+        {
+          id: 's1',
+          name: 'Mongo',
+          description: 'db',
+          url: '10-skills/01-mongo-db-connection.md',
+          updatedAt: '2026-08-08',
+          capabilities: [{ id: 'c1', slug: 'mongo-db-connection:query', name: 'Consultar' }],
+        },
       ]);
-      expect(sourcesService.findSkillsByOrg).toHaveBeenCalledWith('org-1');
+      expect(skillsService.listCatalog).toHaveBeenCalledWith('org-1');
     });
 
     it('never queries without an org — an unscoped catalog would leak other tenants', async () => {
-      const { service, sourcesService } = createService();
+      const { service, skillsService } = createService();
 
       expect(await service.listSkillCatalog('')).toEqual([]);
-      expect(sourcesService.findSkillsByOrg).not.toHaveBeenCalled();
+      expect(skillsService.listCatalog).not.toHaveBeenCalled();
     });
   });
 
@@ -79,7 +99,7 @@ describe('AgenticProfileService — skill links', () => {
       const profile = createProfile([]);
       const { service } = createService({
         profile,
-        sources: { findManyByIds: jest.fn().mockResolvedValue([{ id: 's1', name: 'Real name', description: 'Real description', sourceUrl: 'skills/a.md' }]) },
+        skills: { findManyByIds: jest.fn().mockResolvedValue([{ id: 's1', name: 'Real name', description: 'Real description', relPath: 'skills/a.md' }]) },
       });
 
       const saved = await service.updateSkillLinks('p1', [{ id: 's1', enabled: true } as any], 'org-1');
@@ -90,27 +110,39 @@ describe('AgenticProfileService — skill links', () => {
 
     it('drops ids that do not resolve inside the profile organization', async () => {
       const profile = createProfile([]);
-      const { service, sourcesService } = createService({
+      const { service, skillsService } = createService({
         profile,
-        sources: { findManyByIds: jest.fn().mockResolvedValue([{ id: 's1', name: 'Mine' }]) },
+        skills: { findManyByIds: jest.fn().mockResolvedValue([{ id: 's1', name: 'Mine' }]) },
       });
 
       const saved = await service.updateSkillLinks('p1', [{ id: 's1' }, { id: 'other-org-skill' }] as any, 'org-1');
 
       expect(saved.map(skill => skill.id)).toEqual(['s1']);
-      expect(sourcesService.findManyByIds).toHaveBeenCalledWith(['s1', 'other-org-skill'], 'org-1');
+      expect(skillsService.findManyByIds).toHaveBeenCalledWith(['s1', 'other-org-skill'], 'org-1');
     });
 
     it('keeps origin "markdown" for skills the profile file declares, so the sync still owns them', async () => {
       const profile = createProfile([{ id: 's1', origin: 'markdown', enabled: true }]);
       const { service } = createService({
         profile,
-        sources: { findManyByIds: jest.fn().mockResolvedValue([{ id: 's1', name: 'Declared in the .md' }]) },
+        skills: { findManyByIds: jest.fn().mockResolvedValue([{ id: 's1', name: 'Declared in the .md' }]) },
       });
 
       const saved = await service.updateSkillLinks('p1', [{ id: 's1', enabled: false }], 'org-1');
 
       expect(saved[0]).toMatchObject({ origin: 'markdown', enabled: false });
+    });
+
+    it('heals a pre-migration reference by storing the canonical id, not the alias the client sent', async () => {
+      const profile = createProfile([]);
+      const { service } = createService({
+        profile,
+        skills: { findManyByIds: jest.fn().mockResolvedValue([{ id: 'canonical', aliasIds: ['legacy-id'], name: 'Plegada' }]) },
+      });
+
+      const saved = await service.updateSkillLinks('p1', [{ id: 'legacy-id' }] as any, 'org-1');
+
+      expect(saved.map(skill => skill.id)).toEqual(['canonical']);
     });
 
     it('rejects a profile of another organization instead of writing it', async () => {

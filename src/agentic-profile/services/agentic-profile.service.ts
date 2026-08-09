@@ -5,6 +5,7 @@ import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mong
 import { AgenticProfileDocument, AgenticProfileEntity } from '../schemas/agentic-profile.schema';
 import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { SourcesService } from '../../agent-tasks/services/sources.service';
+import { SkillsService } from '../../agent-skills/services/skills.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
 import { normalizeTaskPriority, DEFAULT_TASK_PRIORITY, TASK_PRIORITY_LABELS, TASK_STATUS_MARKS } from '../../agent-tasks/models/classes';
@@ -26,6 +27,9 @@ interface SyncStats {
   created: number;
   updated: number;
   skipped: number;
+  /** Skill folders persisted into the `skills` collection, and their atomic capabilities */
+  bundles?: number;
+  capabilities?: number;
 }
 
 @Injectable()
@@ -37,7 +41,10 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     private readonly agentCardService: AgentCardService,
     private readonly sourcesService: SourcesService,
     private readonly agentTasksService: AgentTasksService,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
+    // Only the skill-bundle branch of the markdown sync touches this, so the specs that build the
+    // service positionally pass a stub for it.
+    private readonly skillsService: SkillsService
   ) {
     super(agenticProfileModel, mongoService);
   }
@@ -228,14 +235,18 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
    */
   async listSkillCatalog(orgId: string): Promise<ISkillCatalogItem[]> {
     if (!orgId) return [];
-    const rows = await this.sourcesService.findSkillsByOrg(orgId);
+    // Bundles only. A capability is reachable through its bundle (and through `@bundle:capability`);
+    // listing all of them here would turn a 3-row picker into a 20-row one for no added choice — the
+    // profile links a *skill*, and which capability applies is decided at fetch time.
+    const rows = await this.skillsService.listCatalog(orgId);
     return (rows || [])
-      .map((row: any) => ({
-        id: row.id || row._id?.toString(),
+      .map(row => ({
+        id: row.id,
         name: row.name,
         description: row.description,
-        url: row.sourceUrl,
+        url: row.relPath,
         updatedAt: row.updatedAt,
+        capabilities: row.capabilities,
       }))
       .filter((row: ISkillCatalogItem) => !!row.id);
   }
@@ -260,8 +271,15 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
     const requested = (skills || []).filter(skill => skill?.id);
     const uniqueIds = [...new Set(requested.map(skill => skill.id))];
-    const entities = uniqueIds.length ? await this.sourcesService.findManyByIds(uniqueIds, profile.orgId) : [];
-    const entityById = new Map(entities.map((entity: any) => [entity.id || entity._id?.toString(), entity]));
+    const entities = uniqueIds.length ? await this.skillsService.findManyByIds(uniqueIds, profile.orgId) : [];
+    // A skill absorbed by the migration answers to its folded `aliasIds` too, so index both — a
+    // profile saved before the migration sends the old id and must still resolve.
+    const entityById = new Map<string, any>();
+    for (const entity of entities as any[]) {
+      const canonicalId = entity.id || entity._id?.toString();
+      entityById.set(canonicalId, entity);
+      for (const alias of entity.aliasIds || []) entityById.set(alias, entity);
+    }
 
     const previousById = new Map(
       (profile.skills || [])
@@ -278,11 +296,13 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       if (!entity) continue;
       seen.add(skill.id);
       const previous: any = previousById.get(skill.id);
+      // Normalize to the canonical id: an alias resolves today, but storing it would keep the old
+      // reference alive forever instead of healing it on the first save.
       resolved.push({
-        id: skill.id,
+        id: entity.id || entity._id?.toString(),
         name: entity.name,
         description: entity.description,
-        url: entity.sourceUrl,
+        url: entity.relPath || entity.sourceUrl,
         origin: previous?.origin === 'markdown' ? 'markdown' : 'platform',
         enabled: skill.enabled !== false,
       });
@@ -427,16 +447,42 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     const previousSkills: any[] = (profile.skills || []).map((skill: any) => (typeof skill?.toObject === 'function' ? skill.toObject() : skill));
     const previousSkillById = new Map(previousSkills.filter((skill: any) => skill?.id).map((skill: any) => [skill.id, skill]));
     const resolvedSkills = [];
+    // Bundle ids, keyed by the link url, so the write-back can hand `skillId` back to the `.md`.
+    const bundleIdByUrl = new Map<string, string>();
     for (const link of skillLinks) {
-      // skills act as rules
-      const skillEntity = await this.upsertSourceFromLink(link, 'skill', 'rule', orgId, userEmail, stats, workspaceId);
-      const skillId = skillEntity.id || skillEntity._id?.toString();
+      // Skills live in their own collection now — `upsertSourceFromLink` is no longer called for
+      // them, so `sources` stops accumulating skill rows.
+      //
+      // A skill declared without an expandable bundle (a link the CLI could not read, or an older
+      // client that predates this contract) is skipped rather than silently written to `sources`:
+      // resurrecting the old storage for it would put the profile back on the path the migration
+      // just cleaned up, and the loud warning is what surfaces the stale client.
+      if (!link.bundle?.slug) {
+        console.warn(`Skill link "${link.url}" arrived without a bundle — skipped. Re-run sync-agent-card.js from an up-to-date checkout.`);
+        stats.skipped++;
+        continue;
+      }
+
+      let skillId: string;
+      try {
+        const result = await this.skillsService.upsertBundle(link.bundle, orgId, workspaceId);
+        skillId = result.skillId;
+        bundleIdByUrl.set(link.url, skillId);
+        stats.bundles = (stats.bundles || 0) + 1;
+        stats.capabilities = (stats.capabilities || 0) + result.capabilities;
+        if (result.created) stats.created++;
+        else stats.updated++;
+      } catch (err) {
+        // A malformed bundle must not abort the whole profile sync — every other section is valid.
+        console.error(`Skill bundle "${link.bundle.slug}" failed to sync: ${err.message}`);
+        continue;
+      }
 
       resolvedSkills.push({
         id: skillId,
-        name: skillEntity.name,
-        description: skillEntity.description,
-        url: skillEntity.sourceUrl,
+        name: link.bundle.name || link.label,
+        description: link.bundle.description || link.description,
+        url: link.url,
         origin: 'markdown' as const,
         // The file wins when it states `enabled`; otherwise a UI toggle survives the next sync.
         enabled: link.enabled !== undefined ? !!link.enabled : (previousSkillById.get(skillId)?.enabled ?? true),
@@ -447,19 +493,22 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     const platformSkills = previousSkills.filter((skill: any) => skill?.origin === 'platform' && !resolvedSkills.some(resolved => resolved.id === skill.id));
     profile.skills = [...resolvedSkills, ...platformSkills];
 
-    // 4b. Prepare skill write-backs for local frontmatter updates
+    // 4b. Prepare skill write-backs for local frontmatter updates.
+    // Keyed by url, never by index: a skill can be skipped or fail, and positional pairing would
+    // then write one skill's id into a different skill's file.
     const skillWriteBacks = [];
-    for (let i = 0; i < skillLinks.length; i++) {
-      const link = skillLinks[i];
-      const skill = resolvedSkills[i];
-      if (skill && skill.id) {
-        skillWriteBacks.push({
-          url: link.url,
-          label: link.label,
-          sourceId: skill.id,
-          orgId,
-        });
-      }
+    for (const link of skillLinks) {
+      const skillId = bundleIdByUrl.get(link.url);
+      if (!skillId) continue;
+      skillWriteBacks.push({
+        url: link.url,
+        label: link.label,
+        // `sourceId` is kept for backwards compatibility with `.md` files already carrying it; both
+        // now hold the same value, since the migration preserved the id.
+        sourceId: skillId,
+        skillId,
+        orgId,
+      });
     }
 
     // 5. Sync Explorations (Section 5)
@@ -754,7 +803,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     // Query Source, Skill, Task, Memory, and Exploration entities
     const [sources, skills, tasks, memories, explorations] = await Promise.all([
       sourceIds.length > 0 ? this.sourcesService.findManyByIds(sourceIds, orgId) : Promise.resolve([]),
-      skillIds.length > 0 ? this.sourcesService.findManyByIds(skillIds, orgId) : Promise.resolve([]),
+      skillIds.length > 0 ? this.skillsService.findManyByIds(skillIds, orgId) : Promise.resolve([]),
       taskIds.length > 0
         ? this.agentTasksService.executeOperation({
             action: 'find',
@@ -808,16 +857,38 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
     md += `## 4. Skills (Skills)\n\n`;
     if (skills && skills.length > 0) {
+      // The capability index is what makes the granular fetch usable: without it the agent knows a
+      // skill exists but not that it can ask for one operation of it. One line per capability is a
+      // cheap price for turning an all-or-nothing pull into a targeted one.
+      const capabilityIndex = await this.skillsService.listCapabilitiesByBundleIds(
+        skills.map((sk: any) => sk.id || sk._id?.toString()).filter(Boolean),
+        orgId
+      );
+
       for (const sk of skills) {
+        const skillId = sk.id || sk._id?.toString() || '';
         md += `### Skill: ${sk.name || 'Sin título'}\n`;
         if (sk.description) {
           md += `> Descripción: ${sk.description}\n\n`;
         }
-        md += `- ID: \`${sk.id || sk._id?.toString() || ''}\`\n`;
-        if (sk.sourceUrl) md += `- Ruta/URL: ${sk.sourceUrl}\n`;
+        md += `- ID: \`${skillId}\`\n`;
+        if (sk.slug) md += `- Slug: \`${sk.slug}\`\n`;
+        if (sk.relPath || sk.sourceUrl) md += `- Ruta/URL: ${sk.relPath || sk.sourceUrl}\n`;
+
+        const capabilities = capabilityIndex.get(skillId) || [];
+        if (capabilities.length > 0) {
+          md += `- Capacidades:\n`;
+          for (const capability of capabilities) {
+            const triggers = capability.triggers?.length ? ` _(${capability.triggers.join(', ')})_` : '';
+            md += `  - \`${capability.slug}\` — ${capability.name || capability.slug}${triggers}\n`;
+          }
+        }
         md += `\n`;
+
         if (level === 'full') md += sk.content ? `${sk.content}\n\n` : `*(Contenido vacío)*\n\n`;
-        else md += `> Contenido disponible bajo demanda con \`getProfileSource\`.\n\n`;
+        else if (capabilities.length > 0) {
+          md += `> Pedí solo lo que necesites con \`getSkill('<slug de la capacidad>')\`, o la skill completa con \`getSkill('${sk.slug || skillId}')\`.\n\n`;
+        } else md += `> Contenido disponible bajo demanda con \`getSkill('${sk.slug || skillId}')\`.\n\n`;
         md += `---\n\n`;
       }
     } else {
@@ -926,16 +997,19 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
     const kindById = this.buildLinkedKindMap(profile);
     const sourceLikeIds: string[] = [];
+    const skillIds: string[] = [];
     const taskIds: string[] = [];
     for (const id of requestedIds) {
       const kind = kindById.get(id);
       if (!kind) continue;
       if (kind === 'task') taskIds.push(id);
+      else if (kind === 'skill') skillIds.push(id);
       else sourceLikeIds.push(id);
     }
 
-    const [sources, tasks] = await Promise.all([
+    const [sources, skills, tasks] = await Promise.all([
       sourceLikeIds.length > 0 ? this.sourcesService.findManyByIds(sourceLikeIds, orgId) : Promise.resolve([]),
+      skillIds.length > 0 ? this.skillsService.findManyByIds(skillIds, orgId) : Promise.resolve([]),
       taskIds.length > 0
         ? this.agentTasksService.executeOperation({ action: 'find', query: { id: { $in: taskIds }, ...(orgId ? { orgId } : {}) } })
         : Promise.resolve([]),
@@ -943,12 +1017,18 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
     const sourceById = new Map<string, any>((sources || []).map((doc: any) => [doc.id, doc]));
     const taskById = new Map<string, any>((Array.isArray(tasks) ? tasks : []).map((doc: any) => [doc.id, doc]));
+    // Skills answer to their folded aliases too, so a mention carrying a pre-migration id resolves.
+    const skillById = new Map<string, any>();
+    for (const doc of (skills || []) as any[]) {
+      skillById.set(doc.id, doc);
+      for (const alias of doc.aliasIds || []) skillById.set(alias, doc);
+    }
 
     return requestedIds.map((id): ILinkedContextResource => {
       const kind = kindById.get(id);
       if (!kind) return { id, error: 'not-linked' };
 
-      const doc = kind === 'task' ? taskById.get(id) : sourceById.get(id);
+      const doc = kind === 'task' ? taskById.get(id) : kind === 'skill' ? skillById.get(id) : sourceById.get(id);
       if (!doc) return { id, kind, error: 'not-found' };
 
       return {
@@ -956,7 +1036,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         kind,
         name: doc.name,
         description: doc.description,
-        sourceUrl: doc.sourceUrl,
+        sourceUrl: doc.relPath || doc.sourceUrl,
         content: doc.content,
         ...(kind === 'task' ? { status: doc.status } : {}),
       };

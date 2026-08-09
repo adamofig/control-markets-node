@@ -8,7 +8,7 @@ import { AgenticProfileService } from './agentic-profile.service';
 describe('AgenticProfileService.updateAcpConfig', () => {
   function createService() {
     const updateOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }) });
-    const service = new AgenticProfileService({ updateOne } as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const service = new AgenticProfileService({ updateOne } as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     return { service, updateOne };
   }
 

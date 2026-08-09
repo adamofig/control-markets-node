@@ -43,7 +43,9 @@ export interface ISkillCatalogItem {
   name?: string;
   description?: string;
   url?: string;
-  updatedAt?: string;
+  updatedAt?: string | Date;
+  /** Atomic operations of this skill — lets the UI show what a bundle can actually do */
+  capabilities?: Array<{ id: string; slug: string; name?: string; description?: string; triggers?: string[] }>;
 }
 
 /** Body of `PUT /api/agentic-profile/:id/skills`. Only ids and flags are trusted from the client. */
