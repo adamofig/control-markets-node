@@ -30,13 +30,16 @@ const AgentCardReferenceSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/**
+ * Hard relation towards `video_scenes`: only the link and the array position are
+ * stored. Scene data (name, status, media, audio) is resolved at read time by
+ * `VideoGeneratorService.hydrateVideoScenes` so it is never stale.
+ * Legacy snapshot fields (name/description/imageUrl) are dropped on the next write.
+ */
 const VideoSceneReferenceSchema = new mongoose.Schema(
   {
     id: String,
     reference: { type: mongoose.Schema.Types.ObjectId, ref: 'VideoSceneEntity' },
-    name: String,
-    description: String,
-    imageUrl: String,
   },
   { _id: false }
 );

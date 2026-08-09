@@ -40,12 +40,43 @@ export interface IScene {
   visualStyle?: string;
 }
 
+/**
+ * Hard relation towards `video_scenes`. Stores only the link and the position
+ * (array order === playback order). Everything the UI shows is resolved at read
+ * time by `hydrateVideoScenes`, so it can never go stale.
+ */
 export interface IVideoSceneRef {
   id: string;
   reference?: any;
-  name: string;
+}
+
+/**
+ * Read-only projection of a video scene, resolved on every single-document read
+ * of a video project. Never persisted — see `toVideoSceneSummary`.
+ */
+export interface IVideoSceneSummary {
+  id: string;
+  /** true when the referenced scene no longer exists (or belongs to another org) */
+  missing?: boolean;
+
+  name?: string;
   description?: string;
-  imageUrl?: string;
+  status?: string;
+  durationSec?: number;
+  mediaType?: string;
+  aspectRatio?: string;
+
+  thumbnailUrl?: string;
+  hasImage?: boolean;
+  hasVideo?: boolean;
+  videoUrl?: string;
+
+  hasSpeech?: boolean;
+  speechUrl?: string;
+  speechDurationSec?: number;
+  hasCaptions?: boolean;
+
+  updatedAt?: Date | string;
 }
 
 export interface IVideoBrief {

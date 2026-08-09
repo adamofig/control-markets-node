@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 import { VideoGeneratorEntity, VideoGeneratorDocument } from '../schemas/video-project.entity';
 import { CreateVideoGeneratorDto, IVideoProjectGenerator, UpdateVideoGeneratorDto } from '../models/video-project.models';
 import { FiltersConfig, flattenObject, IQueryResponse, MongoService } from '@dataclouder/nest-mongo';
@@ -10,11 +10,15 @@ import { AgentCardService } from '@dataclouder/nest-agent-cards';
 import { EntityCommunicationService } from '@dataclouder/nest-mongo';
 import { CloudStorageService } from '@dataclouder/nest-storage';
 import { AppException } from '@dataclouder/nest-core';
+import { VideoSceneEntity, VideoSceneDocument } from '../../video-scene/schemas/video-scene.schema';
+import { VIDEO_SCENE_SUMMARY_PROJECTION, toVideoSceneSummary } from './video-scene-summary.mapper';
 @Injectable()
 export class VideoGeneratorService extends EntityCommunicationService<VideoGeneratorDocument> {
   constructor(
     @InjectModel(VideoGeneratorEntity.name)
     protected videoGeneratorModel: Model<VideoGeneratorDocument>,
+    @InjectModel(VideoSceneEntity.name)
+    protected videoSceneModel: Model<VideoSceneDocument>,
     protected mongoService: MongoService,
     private sourceService: SourcesService,
     private agentCardService: AgentCardService,
@@ -23,58 +27,77 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
     super(videoGeneratorModel, mongoService);
   }
 
-  // async create(createVideoGeneratorDto: CreateVideoGeneratorDto): Promise<VideoGeneratorEntity> {
-  //   const createdVideoGenerator = new this.videoGeneratorModel(createVideoGeneratorDto);
-  //   return await createdVideoGenerator.save();
-  // }
+  /**
+   * `videoScene` is a hard relation: the project stores only ids and their order.
+   * Single-document reads get the linked scenes resolved here so the project view
+   * always reflects the current state of each scene (status, audio, media).
+   *
+   * Deliberately skipped for `find` — the project list does not render scene data
+   * and hydrating there would mean one extra query per project.
+   */
+  override async executeOperation(operation: any): Promise<any> {
+    // Reads return hydrated summaries; make sure a round-tripped project never
+    // persists them back into the document. The controller may have already moved
+    // part of the payload under `$set`, so both levels are sanitized.
+    const isWrite = ['create', 'updateOne', 'updateMany', 'partialUpdate'].includes(operation?.action);
+    if (isWrite && operation.payload) {
+      operation.payload = this.stripSceneSummaries(operation.payload);
+      if (operation.payload.$set) {
+        operation.payload.$set = this.stripSceneSummaries(operation.payload.$set);
+      }
+    }
 
-  // async queryUsingFiltersConfig(filterConfig: FiltersConfig): Promise<IQueryResponse<VideoGeneratorEntity>> {
-  //   return await this.mongoService.queryUsingFiltersConfig(filterConfig, this.videoGeneratorModel);
-  // }
+    const result = await super.executeOperation(operation);
+    if (operation?.action !== 'findOne' || !result) {
+      return result;
+    }
+    return this.hydrateVideoScenes(result, operation?.query?.orgId);
+  }
 
-  // async findAll(): Promise<VideoGeneratorEntity[]> {
-  //   return await this.videoGeneratorModel.find().exec();
-  // }
+  /**
+   * Reduces any `videoScene` array in a write payload back to bare `{ id }`
+   * references. Only the link and the order are persisted.
+   */
+  private stripSceneSummaries<T extends Record<string, any>>(payload: T): T {
+    if (!payload || !Array.isArray(payload.videoScene)) {
+      return payload;
+    }
+    return {
+      ...payload,
+      videoScene: payload.videoScene.filter(ref => ref?.id).map(ref => ({ id: ref.id })),
+    };
+  }
 
-  // async save(videoProject: IVideoProjectGenerator) {
-  //   // TODO: test not sure if this is correct
-  //   const id = videoProject.id || videoProject['_id'];
-  //   if (id) {
-  //     return this.update(id, videoProject);
-  //   } else {
-  //     delete videoProject['_id'];
-  //     delete videoProject.id;
-  //     const createdVideoGenerator = new this.videoGeneratorModel(videoProject);
-  //     return createdVideoGenerator.save();
-  //   }
-  // }
+  /**
+   * Replaces `videoScene` refs with freshly read `IVideoSceneSummary` objects,
+   * preserving the order stored in the project.
+   */
+  async hydrateVideoScenes(project: any, orgId?: string): Promise<any> {
+    const plain = typeof project?.toObject === 'function' ? project.toObject() : project;
+    const refs = plain?.videoScene;
+    if (!Array.isArray(refs) || refs.length === 0) {
+      return plain;
+    }
 
-  // async findOne(id: string): Promise<VideoGeneratorEntity> {
-  //   // Tecnica avanzada, es parte de mi estrategia hibrida. todo lo que este dentro de ref va a representar el objecto consultado relacionado.
-  //   // interpola el ref con el objecto consultado.
-  //   //     "ref": {
-  //   //     "_id": "67c7e9c86acc89e9b0842e94",
-  //   //     "description": "",
-  //   //     "name": "Dwayne Johnson - You're Welcome",
-  //   //     "content": "So what I believe\nyou were trying to say is &amp;quot;thank you.&amp;quot; &amp;quot;Thank you&amp;quot;?\nYou&amp;#39;re welcome. What? No, no, no. I-I didn&amp;#39;t...\nI wasn&amp;#39;t... Why would I ever... (chuckling):\nOkay, okay. ♪ I see what&amp;#39;s\nhappening, yeah ♪ ♪ You&amp;#39;re face to face with\ngreatness and it&amp;#39;s strange ♪ ♪ You don&amp;#39;t even\nknow how you feel ♪ ♪ It&amp;#39;s adorable ♪ ♪ Well, it&amp;#39;s nice to see\nthat humans never change ♪ ♪ Open your eyes ♪ (shrieks) ♪ Let&amp;#39;s begin ♪ ♪ Yes, it&amp;#39;s really me ♪ ♪ It&amp;#39;s Maui, breathe it in ♪ ♪ I know it&amp;#39;s a lot ♪ ♪ The hair, the bod ♪ ♪ When you&amp;#39;re staring\nat a demigod ♪ ♪ What can I say except\nyou&amp;#39;re welcome? ♪ ♪ For the tides,\nthe sun, the sky? ♪ ♪ Hey, it&amp;#39;s okay, it&amp;#39;s\nokay-- you&amp;#39;re welcome ♪ ♪ I&amp;#39;m just an\nordinary demi-guy ♪ ♪ Hey, what has two thumbs\nand pulled up the sky ♪ ♪ When you were\nwaddling yea high? ♪ ♪ This guy ♪ ♪ When the nights\ngot cold, who stole ♪ ♪ You fire from down below? ♪ ♪ You&amp;#39;re looking at him, yo ♪ ♪ Oh, also I lassoed the sun ♪ ♪ You&amp;#39;re welcome ♪ ♪ To stretch your days ♪ ♪ And bring you fun ♪ ♪ Also I harnessed the breeze ♪ ♪ You&amp;#39;re welcome ♪ ♪ To fill your sails ♪ ♪ And shake your trees ♪ ♪ So what can I say\nexcept you&amp;#39;re welcome? ♪ ♪ For the islands\nI pulled from the sea ♪ ♪ There&amp;#39;s no need to pray,\nit&amp;#39;s okay, you&amp;#39;re welcome ♪ ♪ Ha, I guess it&amp;#39;s just\nmy way of being me ♪ ♪ You&amp;#39;re welcome!\nYou&amp;#39;re welcome! ♪ ♪ Well, come to think of it... ♪ ♪ Kid, honestly,\nI could go on and on ♪ ♪ I could explain every\nnatural phenomenon ♪ ♪ The tide? The grass?\nThe ground? ♪ ♪ Oh, that was Maui\njust messing around ♪ ♪ I killed an eel,\nI buried its guts ♪ ♪ Sprouted a tree,\nnow you got coconuts ♪ ♪ What&amp;#39;s the lesson?\nWhat is the takeaway? ♪ ♪ Don&amp;#39;t mess with Maui\nwhen he&amp;#39;s on a breakaway ♪ ♪ And the tapestry\nhere in my skin ♪ ♪ Is a map of\nthe victories I win ♪ ♪ Look where I&amp;#39;ve been\nI make everything happen ♪ ♪ Look at that mean mini-Maui\njust tickety-tappin&amp;#39;! ♪ ♪ Heh heh heh heh heh heh hey! ♪ ♪ Well, anyway, let me say ♪ ♪ You&amp;#39;re welcome ♪ ♪ &lt;font color=&quot;#FFFFFF&quot;&gt;&lt;i&gt;You&amp;#39;re welcome&lt;/i&gt; ♪&lt;/font&gt; ♪ For the wonderful\nworld you know ♪ ♪ Hey, it&amp;#39;s okay, it&amp;#39;s okay ♪ ♪ You&amp;#39;re welcome ♪ ♪ &lt;font color=&quot;#FFFFFF&quot;&gt;&lt;i&gt;You&amp;#39;re welcome&lt;/i&gt; ♪&lt;/font&gt; ♪ Well, come to think\nof it, I gotta go ♪ ♪ Hey, it&amp;#39;s your day to say ♪ ♪ You&amp;#39;re welcome ♪ ♪ &lt;font color=&quot;#FFFFFF&quot;&gt;&lt;i&gt;You&amp;#39;re welcome&lt;/i&gt; ♪&lt;/font&gt; ♪ &amp;#39;Cause I&amp;#39;m gonna\nneed that boat ♪ ♪ I&amp;#39;m sailing away, away ♪ ♪ You&amp;#39;re welcome ♪ ♪ &lt;font color=&quot;#FFFFFF&quot;&gt;&lt;i&gt;You&amp;#39;re welcome&lt;/i&gt; ♪&lt;/font&gt; ♪ &amp;#39;Cause Maui can do\neverything but float ♪ ♪ &lt;font color=&quot;#FFFFFF&quot;&gt;&lt;i&gt;You&amp;#39;re welcome&lt;/i&gt; ♪&lt;/font&gt; ♪ You&amp;#39;re welcome ♪ ♪ &lt;font color=&quot;#FFFFFF&quot;&gt;&lt;i&gt;You&amp;#39;re welcome&lt;/i&gt; ♪&lt;/font&gt; ♪ You&amp;#39;re welcome! ♪ Huh? And thank you! Hey!"
-  //   // }
+    const ids = refs.map(ref => ref?.id).filter((id): id is string => !!id && isValidObjectId(id));
+    if (ids.length === 0) {
+      return { ...plain, videoScene: refs.map(ref => toVideoSceneSummary(ref?.id)) };
+    }
 
-  //   return await this.videoGeneratorModel
-  //     .findById(id)
-  //     .populate({
-  //       path: 'sources.reference',
-  //       model: 'SourceEntity',
-  //       select: 'name description content type video thumbnail',
-  //     })
-  //     .exec();
-  // }
+    const match: any = { _id: { $in: ids.map(id => new ObjectId(id)) } };
+    if (orgId) {
+      match.orgId = orgId;
+    }
 
-  // Implementar el otro método update solo lo que le mando. y ver como estandarizar.
-  // async update(id: string, updateVideoGeneratorDto: UpdateVideoGeneratorDto): Promise<VideoGeneratorEntity> {
-  //   console.log(id, updateVideoGeneratorDto);
-  //   // by default update only updates what is present in updateObject
-  //   return await this.videoGeneratorModel.findByIdAndUpdate(id, updateVideoGeneratorDto, { new: true }).exec();
-  // }
+    const scenes = await this.videoSceneModel.aggregate([{ $match: match }, { $project: VIDEO_SCENE_SUMMARY_PROJECTION }]).exec();
+    const byId = new Map(scenes.map(scene => [String(scene._id), scene]));
+
+    return {
+      ...plain,
+      videoScene: refs.map(ref => toVideoSceneSummary(ref?.id, byId.get(String(ref?.id)))),
+    };
+  }
+
 
   /**
    * Updates only the properties that are present in the update object
@@ -90,7 +113,7 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
   ): Promise<VideoGeneratorEntity> {
     // Convert nested objects to dot notation eg. { "video.captions.remotion": captions.captions }
     // This way you can only remove properties that are present in the update object
-    const flattenedUpdates = flattenObject(partialUpdates);
+    const flattenedUpdates = flattenObject(this.stripSceneSummaries(partialUpdates));
     const query: any = { _id: id };
     if (orgId) {
       query.orgId = orgId;
