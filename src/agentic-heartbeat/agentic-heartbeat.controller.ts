@@ -4,10 +4,13 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
 import { OrgId } from '../common/org-id.decorator';
 import { ProjectAuthGuard } from '../user/project-auth.guard';
+import { AppGuard } from '@dataclouder/nest-core';
 import { AgenticHeartbeatService } from './agentic-heartbeat.service';
 import { IAgenticHeartbeat } from '../agentic-profile/models/agentic-profile.models';
 
+/** F10: per-method guards collapsed into one at class level. */
 @ApiTags('agentic-heartbeat')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/agentic-profile/:id/heartbeat')
 export class AgenticHeartbeatController {
   constructor(private readonly heartbeatService: AgenticHeartbeatService) {}
@@ -19,7 +22,6 @@ export class AgenticHeartbeatController {
   @Put()
   @ApiOperation({ summary: 'Update the heartbeat (cron) config of an agentic profile and reschedule it' })
   @ApiResponse({ status: 200, description: 'Heartbeat config saved and cron rescheduled.' })
-  @UseGuards(ProjectAuthGuard)
   async updateHeartbeat(
     @Param('id') id: string,
     @Body() config: IAgenticHeartbeat,
@@ -32,7 +34,6 @@ export class AgenticHeartbeatController {
   @Post('run')
   @ApiOperation({ summary: 'Wake the agent now (manual heartbeat run, executes in background)' })
   @ApiResponse({ status: 201, description: 'Run started; returns the run id.' })
-  @UseGuards(ProjectAuthGuard)
   async runNow(
     @Param('id') id: string,
     @OrgId() orgId?: string,
@@ -43,7 +44,6 @@ export class AgenticHeartbeatController {
 
   @Get('runs')
   @ApiOperation({ summary: 'List the latest heartbeat runs of an agentic profile' })
-  @UseGuards(ProjectAuthGuard)
   async listRuns(
     @Param('id') id: string,
     @OrgId() orgId?: string,
@@ -54,7 +54,6 @@ export class AgenticHeartbeatController {
 
   @Get('runs/:runId/live')
   @ApiOperation({ summary: 'SSE stream of a heartbeat run in real time (replays buffered events, then follows until finish)' })
-  @UseGuards(ProjectAuthGuard)
   async streamRunLive(@Param('runId') runId: string, @Res() res: FastifyReply) {
     res.raw.setHeader('Content-Type', 'text/event-stream');
     res.raw.setHeader('Cache-Control', 'no-cache');
@@ -74,7 +73,6 @@ export class AgenticHeartbeatController {
 
   @Get('runs/:runId')
   @ApiOperation({ summary: 'Get one heartbeat run with its full output' })
-  @UseGuards(ProjectAuthGuard)
   async getRun(
     @Param('runId') runId: string,
     @OrgId() orgId?: string,
@@ -85,13 +83,13 @@ export class AgenticHeartbeatController {
 }
 
 @ApiTags('agentic-heartbeat')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/agentic-profile/heartbeats')
 export class AgenticHeartbeatGlobalController {
   constructor(private readonly heartbeatService: AgenticHeartbeatService) {}
 
   @Get('live-stream')
   @ApiOperation({ summary: 'Global SSE stream of heartbeat activity for the active organization' })
-  @UseGuards(ProjectAuthGuard)
   async streamGlobal(
     @Req() request: any,
     @Res() res: FastifyReply,

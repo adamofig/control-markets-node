@@ -1,9 +1,11 @@
 import { Injectable, ExecutionContext, Logger, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthGuard, FirebaseService, PermissionClaim, PlanType, RolClaim, RolType } from '@dataclouder/nest-auth';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
 import { UserEntity } from './user.entity';
 import { SYSTEM_PRINCIPAL_EMAIL, SYSTEM_PRINCIPAL_ID, SystemMasterTokenService } from './system-master-token.service';
+import { IS_PUBLIC_KEY } from 'src/auth/public.decorator';
 
 @Injectable()
 export class ProjectAuthGuard extends AuthGuard {
@@ -13,11 +15,20 @@ export class ProjectAuthGuard extends AuthGuard {
     fbService: FirebaseService,
     @InjectModel(UserEntity.name) private userModel: Model<UserEntity>,
     private readonly masterToken: SystemMasterTokenService,
+    private readonly reflector?: Reflector,
   ) {
     super(fbService);
   }
 
   override async canActivate(context: ExecutionContext): Promise<boolean> {
+    // `@Public()` is checked before anything else so the exception behaves identically whether this
+    // guard runs locally (F10) or as APP_GUARD (F12). The reflector is optional because the guard is
+    // also instantiated by hand in specs; without it nothing is public, which is the safe default.
+    const isPublic = this.reflector?.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()]);
+    if (isPublic) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
 

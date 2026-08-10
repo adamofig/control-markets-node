@@ -6,9 +6,12 @@ import { SkillsService } from '../services/skills.service';
 import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
+import { AppGuard } from '@dataclouder/nest-core';
 import { IResolvedSkill, ISkillCatalogEntry } from '../models/skill.models';
 
+/** F10: class-level guard — the three routes below were guarded, the inherited CRUD ones were not. */
 @ApiTags('skills')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/skills')
 export class SkillsController extends EntityMongoController<SkillDocument> {
   constructor(private readonly skillsService: SkillsService) {
@@ -21,7 +24,6 @@ export class SkillsController extends EntityMongoController<SkillDocument> {
     description: 'Enforces orgId on every Skill database operation.',
   })
   @ApiResponse({ status: 200, description: 'The operation was successful.' })
-  @UseGuards(ProjectAuthGuard)
   override async executeOperation(@Body() operationDto: any, @DecodedToken() token?: AppToken, @OrgId() orgId?: string): Promise<any> {
     const resolvedOrgId = this.resolveOrgId(orgId, token);
     const userEmail = token?.email;
@@ -55,7 +57,6 @@ export class SkillsController extends EntityMongoController<SkillDocument> {
     description: 'Metadata only — never returns skill bodies. Feeds the profile UI and the `@` autocomplete.',
   })
   @ApiResponse({ status: 200, description: 'Returns the org skill catalog.' })
-  @UseGuards(ProjectAuthGuard)
   async getCatalog(@OrgId() orgId?: string, @DecodedToken() token?: AppToken): Promise<ISkillCatalogEntry[]> {
     return this.skillsService.listCatalog(this.resolveOrgId(orgId, token));
   }
@@ -68,7 +69,6 @@ export class SkillsController extends EntityMongoController<SkillDocument> {
   })
   @ApiResponse({ status: 200, description: 'Returns the resolved skill content.' })
   @ApiResponse({ status: 404, description: 'Unknown slug/id, or a file that does not belong to the skill.' })
-  @UseGuards(ProjectAuthGuard)
   async resolveSkill(
     @Param('slugOrId') slugOrId: string,
     @Query('file') file?: string,

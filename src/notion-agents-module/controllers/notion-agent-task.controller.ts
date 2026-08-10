@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { NotionConversationService } from '../notion-conversation.service';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AgentCardService } from '@dataclouder/nest-agent-cards';
 // import { NotionWritesService } from 'libs/nest-notion/src/services/notion-writes.service';
 // import { NotionWritesService } from 'src/notion-module/services/notion-writes.service';
 @ApiTags('Notion Agent Tasks')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/notion-agent-tasks')
 export class NotionAgentTaskController {
   constructor(

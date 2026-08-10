@@ -262,14 +262,24 @@ export class OrganizationService extends EntityCommunicationService<Organization
     return this.userService.updateUser(user.id, { organizations });
   }
 
-  /** The per-organization name/avatar override. Migrated here from `organizations.guests[]`. */
+  /**
+   * The per-organization name/avatar override. Migrated here from `organizations.guests[]`.
+   *
+   * Editing **your own** alias is self-service, available to every member including a Viewer — that
+   * is what F7 moved out of `guests[]`. Editing **someone else's** is administration, and until F11
+   * this method ignored the requester entirely, so any member could rename any colleague. The rule
+   * lives here, not only in the controller, because `org_operateUser` (MCP) reaches this by another path.
+   */
   public async updateMemberProfile(
     orgId: string,
     email: string,
     profile: { displayName?: string; avatar?: any },
-    _requester: IOrgOperationRequester
+    requester: IOrgOperationRequester
   ): Promise<any> {
-    const { user } = await this.getMembershipOrThrow(orgId, email);
+    const { user, membership } = await this.getMembershipOrThrow(orgId, email);
+    if (!requester.isPlatformAdmin && requester.email && requester.email !== email) {
+      await this.assertRequesterOutranks(orgId, requester, resolveOrgRole(membership));
+    }
 
     const organizations = user.organizations.map((org: IUserOrganization) => {
       if (org.orgId !== orgId) {

@@ -5,9 +5,19 @@ import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
 import { UserClaimsDto } from './admin.dto';
 import { AdminService } from './admin.service';
 import { AppAuthClaims, FirebaseService } from '@dataclouder/nest-auth';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 
+/**
+ * F10: guarded. This controller edits Firebase custom claims and deletes accounts by email — it was
+ * fully anonymous, so `POST /api/admin/claims` was a one-request path to platform admin.
+ *
+ * TODO(F11): authentication is not enough here. Every route needs a platform-admin check on top
+ * (`isPlatformAdmin` from `src/auth/platform-roles.ts`); today any authenticated user still reaches it.
+ */
 @ApiTags('admin')
 @ApiBearerAuth()
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/admin')
 @UseFilters(AllExceptionsHandler)
 export class AdminController {

@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ProjectAuthGuard } from './project-auth.guard';
 import { SYSTEM_PRINCIPAL_EMAIL, SYSTEM_PRINCIPAL_ID, SystemMasterTokenService } from './system-master-token.service';
+import { IS_PUBLIC_KEY } from 'src/auth/public.decorator';
 
 describe('ProjectAuthGuard — system master token', () => {
   const MASTER = `cm_master_${'a'.repeat(48)}`;
@@ -107,6 +108,53 @@ describe('ProjectAuthGuard — system master token', () => {
   it('does not intercept anything when the feature is disabled', async () => {
     const { guard } = createGuard({ SYSTEM_MASTER_TOKEN: undefined, SYSTEM_MASTER_USER: undefined });
     const { ctx } = contextFor({});
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+});
+
+describe('ProjectAuthGuard — @Public() routes (F10)', () => {
+  const userModel = { findOne: jest.fn() };
+
+  function contextFor(headers: Record<string, string> = {}) {
+    const request: any = { headers, method: 'GET', url: '/api/creative-flowboard/subscribe/flow-1' };
+    return {
+      request,
+      ctx: {
+        switchToHttp: () => ({ getRequest: () => request }),
+        getHandler: () => function handler() {},
+        getClass: () => class SomeController {},
+      } as any,
+    };
+  }
+
+  function guardWith(isPublic: boolean | undefined) {
+    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(isPublic) } as any;
+    const masterToken = new SystemMasterTokenService();
+    return { guard: new ProjectAuthGuard({} as any, userModel as any, masterToken, reflector), reflector };
+  }
+
+  it('lets a public route through with no credentials at all', async () => {
+    const { guard, reflector } = guardWith(true);
+    const { ctx } = contextFor();
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, expect.any(Array));
+    // The point of short-circuiting first: a public route must not pay for a database lookup either.
+    expect(userModel.findOne).not.toHaveBeenCalled();
+  });
+
+  it('still rejects an unauthenticated request when the route is not public', async () => {
+    const { guard } = guardWith(false);
+    const { ctx } = contextFor();
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('fails closed when no reflector was injected — nothing is public by accident', async () => {
+    const masterToken = new SystemMasterTokenService();
+    const guard = new ProjectAuthGuard({} as any, userModel as any, masterToken);
+    const { ctx } = contextFor();
 
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
   });

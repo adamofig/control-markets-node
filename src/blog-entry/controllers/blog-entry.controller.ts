@@ -1,11 +1,19 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { ApiTags } from '@nestjs/swagger';
 import { BlogEntryService } from '../services/blog-entry.service';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { BlogEntryDocument } from '../schemas/blog-entry.schema';
 import { DecodedToken } from '@dataclouder/nest-auth';
 
+/**
+ * F10: guarded. The published blog is a **static Astro build** — it never queries this API at
+ * runtime, the sync is push-based (backend → filesystem/GitHub). So nothing public depends on
+ * these routes, while `sync-from-github` and `push-to-github` write with the server's credentials.
+ */
 @ApiTags('blog-entry')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/blog-entry')
 export class BlogEntryController extends EntityMongoController<BlogEntryDocument> {
   constructor(private readonly blogEntryService: BlogEntryService) {

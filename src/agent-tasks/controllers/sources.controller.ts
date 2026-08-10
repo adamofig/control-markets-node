@@ -1,9 +1,12 @@
-import { Controller, Get, Patch, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SourcesService } from '../services/sources.service';
 import { SourceDocument } from '../schemas/sources.schema';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/sources')
 @ApiTags('Sources')
 export class SourcesController extends EntityMongoController<SourceDocument> {

@@ -5,9 +5,13 @@ import { SocialMediaTrackerService } from '../services/social-media-tracker.serv
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { OperationDto } from '@dataclouder/nest-mongo/dist/dto/operation.dto';
 import { SocialMediaTrackerDocument } from '../schemas/social-media-tracker.schema';
-import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
+import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from '../../user/project-auth.guard';
 
+/** F10: class-level guard, replacing the Firebase-only `AuthGuard` that covered just `operation`. */
 @ApiTags('Social Media Tracker')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/social-media-tracker')
 export class SocialMediaTrackerController extends EntityMongoController<SocialMediaTrackerDocument> {
   constructor(private readonly socialMediaTrackerService: SocialMediaTrackerService) {
@@ -15,7 +19,6 @@ export class SocialMediaTrackerController extends EntityMongoController<SocialMe
   }
 
   @Post('operation')
-  @UseGuards(AuthGuard)
   async executeOperation(@Body() operationDto: OperationDto, @DecodedToken() token: AppToken): Promise<any> {
     console.log('executeOperation dto:', JSON.stringify(operationDto, null, 2));
     const result = await super.executeOperation(operationDto, token);

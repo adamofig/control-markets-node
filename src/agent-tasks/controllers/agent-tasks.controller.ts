@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { AgentTasksService } from '../services/agent-tasks.service';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AgentTaskDocument } from '../schemas/agent-task.schema';
@@ -11,6 +13,7 @@ export class UpdateSubtaskStatusDto {
 }
 
 @ApiTags('Agent Tasks')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/agent-tasks')
 export class AgentTasksController extends EntityMongoController<AgentTaskDocument> {
   constructor(private readonly agentTasksService: AgentTasksService) {

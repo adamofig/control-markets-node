@@ -3,39 +3,38 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
 import { OrgId } from '../common/org-id.decorator';
 import { ProjectAuthGuard } from '../user/project-auth.guard';
+import { AppGuard } from '@dataclouder/nest-core';
 import { MessagingOutboundService } from './services/messaging-outbound.service';
 import { ChannelType, INotifyResult } from './models/messaging.models';
 import { ChannelIdentityEntity } from './schemas/channel-identity.schema';
 
+/** F10: the seven per-method guards collapsed into one at class level — same coverage, no route can be added unguarded. */
 @ApiTags('messaging')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/messaging')
 export class MessagingController {
   constructor(private readonly outboundService: MessagingOutboundService) {}
 
   @Post('telegram/link')
   @ApiOperation({ summary: 'Genera un deep-link t.me para vincular la cuenta Telegram del usuario actual' })
-  @UseGuards(ProjectAuthGuard)
   async createTelegramLink(@OrgId() orgId: string, @DecodedToken() token: AppToken): Promise<{ linkUrl: string; expiresAt: Date }> {
     return this.outboundService.createTelegramLink(token.uid, orgId);
   }
 
   @Get('identities')
   @ApiOperation({ summary: 'Lista los canales de mensajería vinculados del usuario actual' })
-  @UseGuards(ProjectAuthGuard)
   async listIdentities(@OrgId() orgId: string, @DecodedToken() token: AppToken): Promise<ChannelIdentityEntity[]> {
     return this.outboundService.listIdentities(token.uid, orgId);
   }
 
   @Delete('identities/:id')
   @ApiOperation({ summary: 'Desvincula un canal de mensajería del usuario actual' })
-  @UseGuards(ProjectAuthGuard)
   async unlinkIdentity(@Param('id') id: string, @OrgId() orgId: string, @DecodedToken() token: AppToken): Promise<{ deleted: boolean }> {
     return this.outboundService.unlinkIdentity(id, token.uid, orgId);
   }
 
   @Post('webpush/subscribe')
   @ApiOperation({ summary: 'Registra la suscripción web push (token FCM) del dispositivo actual — idempotente por token' })
-  @UseGuards(ProjectAuthGuard)
   async subscribeWebPush(
     @Body() body: {
       token: string;
@@ -54,7 +53,6 @@ export class MessagingController {
 
   @Post('webpush/unsubscribe')
   @ApiOperation({ summary: 'Elimina la suscripción web push del dispositivo actual (por token FCM)' })
-  @UseGuards(ProjectAuthGuard)
   async unsubscribeWebPush(
     @Body() body: { token: string },
     @OrgId() orgId: string,
@@ -65,7 +63,6 @@ export class MessagingController {
 
   @Post('webpush/broadcast')
   @ApiOperation({ summary: 'Broadcast web push: scope "org" (dispositivos de la org actual) o "global" (toda la plataforma)' })
-  @UseGuards(ProjectAuthGuard)
   async broadcastWebPush(
     @Body() body: { message: string; scope?: 'org' | 'global' },
     @OrgId() orgId: string,
@@ -77,7 +74,6 @@ export class MessagingController {
 
   @Post('notify')
   @ApiOperation({ summary: 'Envía una notificación de prueba/manual a un usuario por su canal vinculado' })
-  @UseGuards(ProjectAuthGuard)
   async notify(
     @Body() body: { userId?: string; message: string; channel?: ChannelType },
     @OrgId() orgId: string,

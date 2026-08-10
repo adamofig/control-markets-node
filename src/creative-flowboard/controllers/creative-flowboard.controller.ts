@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Sse, MessageEvent, Post, Get, Put, Query, UseFilters } from '@nestjs/common';
+import { Body, Controller, Param, Sse, MessageEvent, Post, Get, Put, Query, UseFilters, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AddNodesDto, WebhookNodeDto } from '../models/creative-flowboard.dto';
 import { CreativeFlowboardService } from '../services/creative-flowboard.service';
@@ -6,13 +6,20 @@ import { FlowEventsService } from '../services/flow-events.service';
 import { Observable } from 'rxjs';
 import { CreativeFlowboardDocument } from '../schemas/creative-flowboard.schema';
 import { EntityController, EntityMongoController } from '@dataclouder/nest-mongo';
-import { AllExceptionsHandler } from '@dataclouder/nest-core';
+import { AllExceptionsHandler, AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
+import { Public } from 'src/auth/public.decorator';
 
 /**
  * Controller for handling HTTP requests related to agentFlows entities
  * Provides REST API endpoints for CRUD operations on agentFlows entities
+ *
+ * F10: class-level guard. It covers the inherited CRUD routes and the flow execution routes
+ * (`run`, `run-node`, `webhook/node`), which ran a whole flow — LLM spend included — anonymously.
+ * The single exception is the SSE stream below.
  */
 @ApiTags('CreativeFlowboard')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/creative-flowboard')
 @UseFilters(AllExceptionsHandler)
 export class CreativeFlowboardController extends EntityMongoController<CreativeFlowboardDocument> {
@@ -23,6 +30,15 @@ export class CreativeFlowboardController extends EntityMongoController<CreativeF
     super(creativeFlowboardService);
   }
 
+  /**
+   * TODO(F13): the only route of this controller left open, and it is not a design choice — the
+   * client is a browser `EventSource` ([`flow-events.service.ts`]), which cannot set an
+   * `Authorization` header. F13 migrates it to `fetch` + `getReader()` (the pattern 6 other
+   * streaming services in the frontend already use) and this `@Public()` goes away with it.
+   *
+   * Exposure while it lasts: read-only, and only for whoever already knows a flow id.
+   */
+  @Public('TODO(F13): browser EventSource cannot send Authorization. Read-only stream, needs a known flow id.')
   @Sse('subscribe/:id')
   subscribe(@Param('id') id: string): Observable<MessageEvent> {
     return new Observable(observer => {

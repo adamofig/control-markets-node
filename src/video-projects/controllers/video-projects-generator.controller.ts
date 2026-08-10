@@ -7,9 +7,12 @@ import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
+import { AppGuard } from '@dataclouder/nest-core';
 import { isPlatformAdmin } from '../../auth/platform-roles';
 
+/** F10: class-level guard — five routes were guarded one by one, the inherited CRUD ones were not. */
 @ApiTags('video-generator')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/video-generator')
 export class VideoGeneratorController extends EntityMongoController<VideoGeneratorDocument> {
   private readonly logger = new Logger('VideoGeneratorController');
@@ -24,7 +27,6 @@ export class VideoGeneratorController extends EntityMongoController<VideoGenerat
     description: 'Enforces orgId on all Video Project database operations.',
   })
   @ApiResponse({ status: 200, description: 'The operation was successful.' })
-  @UseGuards(ProjectAuthGuard)
   override async executeOperation(
     @Body() operationDto: any,
     @DecodedToken() token: AppToken,
@@ -77,7 +79,6 @@ export class VideoGeneratorController extends EntityMongoController<VideoGenerat
   }
 
   @Patch(':id')
-  @UseGuards(ProjectAuthGuard)
   @ApiOperation({ summary: 'Update a video project item' })
   @ApiResponse({ status: 200, description: 'The item has been successfully updated.', type: VideoGeneratorEntity })
   async partialUpdateGranular(
@@ -98,7 +99,6 @@ export class VideoGeneratorController extends EntityMongoController<VideoGenerat
   // }
 
   @Patch(':id/add-source/:sourceId')
-  @UseGuards(ProjectAuthGuard)
   async addSourceToProject(
     @Param('id') id: string,
     @Param('sourceId') sourceId: string,
@@ -110,7 +110,6 @@ export class VideoGeneratorController extends EntityMongoController<VideoGenerat
   }
 
   @Patch(':id/add-agent-card/:agentCardId')
-  @UseGuards(ProjectAuthGuard)
   async addAgentCardToProject(
     @Param('id') id: string,
     @Param('agentCardId') agentCardId: string,
@@ -122,7 +121,6 @@ export class VideoGeneratorController extends EntityMongoController<VideoGenerat
   }
 
   @Patch(':id/remove-source/:sourceId')
-  @UseGuards(ProjectAuthGuard)
   async removeSourceFromProject(
     @Param('id') id: string,
     @Param('sourceId') sourceId: string,

@@ -132,6 +132,24 @@ describe('OrganizationService — member invariants', () => {
     expect(updateUser).toHaveBeenCalledWith('u-member', expect.objectContaining({ organizations: [expect.objectContaining({ displayName: 'Fulano', avatar: { url: 'x' } })] }));
   });
 
+  it('lets a member edit their own alias — self-service since F7, kept intact by F11', async () => {
+    const { service, updateUser } = createService(population());
+    const asMember: IOrgOperationRequester = { email: 'member@cm.com', isPlatformAdmin: false };
+
+    await service.operateUserToOrganization(ORG_ID, { email: 'member@cm.com', operation: 'update-profile', displayName: 'Yo mismo' }, asMember);
+
+    expect(updateUser).toHaveBeenCalledWith('u-member', expect.objectContaining({ organizations: [expect.objectContaining({ displayName: 'Yo mismo' })] }));
+  });
+
+  it('refuses to rename a member of a higher rank — before F11 anyone could rename anyone', async () => {
+    const { service } = createService(population());
+    const asMember: IOrgOperationRequester = { email: 'member@cm.com', isPlatformAdmin: false };
+
+    await expect(
+      service.operateUserToOrganization(ORG_ID, { email: 'owner@cm.com', operation: 'update-profile', displayName: 'Pwned' }, asMember)
+    ).rejects.toBeDefined();
+  });
+
   it('projects members without leaking the user document', async () => {
     const users = population();
     users[2].organizations = [membership(OrgRole.Member, { displayName: 'Fulano' })];

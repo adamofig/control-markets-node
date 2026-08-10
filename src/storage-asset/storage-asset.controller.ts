@@ -4,10 +4,18 @@ import { StorageAssetService } from '@dataclouder/nest-storage';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { StorageAssetExtendedDocument } from './schemas/storage-asset-extended.schema';
 import { OrgId } from '../common/org-id.decorator';
-import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
+import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from '../user/project-auth.guard';
 import { isPlatformAdmin } from '../auth/platform-roles';
 
+/**
+ * F10: class-level guard. `operation` used `AuthGuard` (Firebase only); the class now applies
+ * `ProjectAuthGuard`, so agents with a PAT can manage their own assets, and the inherited CRUD
+ * routes stop being anonymous.
+ */
 @ApiTags('Storage Asset')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/storage-asset')
 export class StorageAssetController extends EntityMongoController<StorageAssetExtendedDocument> {
   private readonly logger = new Logger('StorageAssetController');
@@ -22,7 +30,6 @@ export class StorageAssetController extends EntityMongoController<StorageAssetEx
     description: 'Enforces orgId on all Storage Asset database operations.',
   })
   @ApiResponse({ status: 200, description: 'The operation was successful.' })
-  @UseGuards(AuthGuard)
   override async executeOperation(
     @Body() operationDto: any,
     @DecodedToken() token: AppToken,

@@ -4,17 +4,19 @@ import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { OrgId } from '../../common/org-id.decorator';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
+import { AppGuard } from '@dataclouder/nest-core';
 import { AgenticConversationDocument } from '../schemas/agentic-conversation.schema';
 import { AgenticConversationService } from '../services/agentic-conversation.service';
 
+/** F10: class-level guard — `operation` was guarded, the inherited CRUD routes were not. */
 @ApiTags('agentic-conversation')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/agentic-conversation')
 export class AgenticConversationController extends EntityMongoController<AgenticConversationDocument> {
   constructor(private readonly conversations: AgenticConversationService) { super(conversations); }
 
   @Post('operation')
   @ApiOperation({ summary: 'Execute an organization-scoped conversation database operation' })
-  @UseGuards(ProjectAuthGuard)
   override async executeOperation(@Body() dto: any, @DecodedToken() token: AppToken, @OrgId() orgId?: string): Promise<any> {
     const resolvedOrgId = orgId || token?.userId || (token as any).id || (token as any).uid;
     if (!resolvedOrgId) throw new BadRequestException('Organization context is required');

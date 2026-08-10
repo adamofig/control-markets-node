@@ -7,9 +7,9 @@ import { OrgId } from 'src/common/org-id.decorator';
 import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { AppUserService } from 'src/user/user.service';
 import { OrganizationService } from 'src/organization/services/organization.service';
-import { IUserOrganization, OrgRole, resolveOrgRole } from 'src/user/user.class';
-import { isPlatformAdmin, permissionsForRole } from './org-permissions';
+import { IUserOrganization } from 'src/user/user.class';
 import { AuthMethod, IAuthContext } from './auth-context.models';
+import { OrgContextService } from './org-context.service';
 
 /**
  * The single place the frontend asks "what can this user do here?".
@@ -26,47 +26,40 @@ import { AuthMethod, IAuthContext } from './auth-context.models';
 export class AuthContextController {
   constructor(
     private readonly userService: AppUserService,
-    private readonly organizationService: OrganizationService
+    private readonly organizationService: OrganizationService,
+    private readonly orgContext: OrgContextService
   ) {}
 
+  /**
+   * F11: the role and permissions come from `OrgContextService`, the very same resolver
+   * `OrgContextGuard` uses to decide what the server accepts. Two copies of this logic would mean a
+   * UI that renders buttons the API then rejects — the resolver is shared so they cannot drift.
+   *
+   * Only the display fields (`orgName`) are resolved here: the guard has no use for them.
+   */
   @Get('context')
   async getContext(@DecodedToken() token: AppToken, @OrgId() headerOrgId: string, @Req() request: any): Promise<IAuthContext> {
-    const user = await this.userService.findUserByEmail(token.email);
-
-    if (!user) {
-      // Authenticated against Firebase but with no account row yet (pre-`/api/init/user`).
-      return {
-        userId: null,
-        email: token.email,
-        orgId: null,
-        orgName: null,
-        role: null,
-        permissions: [],
-        isPlatformAdmin: isPlatformAdmin(token),
-        authMethod: this.authMethodOf(request),
-      };
-    }
-
     // TODO(F12): the requested orgId is trusted here. The global guard validates it against the
     // caller's membership; until then a client can name any org and the role simply resolves to null.
-    const orgId = headerOrgId || user.defaultOrgId || null;
-    const membership: IUserOrganization | undefined = user.organizations?.find((org: IUserOrganization) => org.orgId === orgId);
-
-    // The personal space is built client-side as `{ orgId: user.id }` and has no membership row;
-    // without this branch a user would be a Viewer in their own space.
-    const isPersonalSpace = !!orgId && (orgId === user._id?.toString() || orgId === user.id);
-    const role: OrgRole | null = isPersonalSpace ? OrgRole.Owner : resolveOrgRole(membership);
+    const ctx = await this.orgContext.resolve(token, headerOrgId);
+    const membership: IUserOrganization | undefined = ctx.orgId ? await this.findMembership(token, ctx.orgId) : undefined;
 
     return {
-      userId: user.id || user._id?.toString(),
-      email: user.email,
-      orgId,
-      orgName: membership?.name ?? (orgId ? await this.resolveOrgName(orgId) : null),
-      role,
-      permissions: permissionsForRole(role),
-      isPlatformAdmin: isPlatformAdmin(token),
+      userId: ctx.userId,
+      email: ctx.email,
+      orgId: ctx.orgId,
+      orgName: membership?.name ?? (ctx.orgId ? await this.resolveOrgName(ctx.orgId) : null),
+      role: ctx.role,
+      permissions: ctx.permissions,
+      isPlatformAdmin: ctx.isPlatformAdmin,
       authMethod: this.authMethodOf(request),
     };
+  }
+
+  /** Only for the organization name shown in the UI — authorization never depends on this. */
+  private async findMembership(token: AppToken, orgId: string): Promise<IUserOrganization | undefined> {
+    const user = token?.email ? await this.userService.findUserByEmail(token.email) : null;
+    return user?.organizations?.find((org: IUserOrganization) => org.orgId === orgId);
   }
 
   private async resolveOrgName(orgId: string): Promise<string | null> {

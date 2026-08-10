@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Query, Patch, UseGuards } from '@nestjs/common';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { ApiOperation, ApiResponse, ApiTags, ApiProperty } from '@nestjs/swagger';
 import { AgentDistributionChannelService } from '../services/agent-distribution-channel.service';
 import { AppException } from '@dataclouder/nest-core';
@@ -11,6 +13,7 @@ export class IPostToDistributionChannel {
   channel: string;
 }
 
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/agent-distribution-channels')
 @ApiTags('Agent Distribution Channels')
 export class AgentDistributionChannelsController {

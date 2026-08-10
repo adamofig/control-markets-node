@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { NotionConversationService } from '../notion-conversation.service';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Notion Conversation')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('notion-conversation')
 export class NotionConversationController {
   constructor(private readonly notionConversationService: NotionConversationService) {}

@@ -6,11 +6,14 @@ import { AgenticProfileService } from '../services/agentic-profile.service';
 import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
+import { AppGuard } from '@dataclouder/nest-core';
 import { isPlatformAdmin } from '../../auth/platform-roles';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { AgenticContextLevel, IAgenticProfileAcpConfig, IAgenticProfileSkill, ISkillCatalogItem, ISkillLinkInput } from '../models/agentic-profile.models';
 
+/** F10: class-level guard — six routes were guarded one by one, the inherited CRUD ones were not. */
 @ApiTags('agentic-profile')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/agentic-profile')
 export class AgenticProfileController extends EntityMongoController<AgenticProfileDocument> {
   private readonly logger = new Logger('AgenticProfileController');
@@ -28,7 +31,6 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
     description: 'Enforces orgId on all Agentic Profile database operations.',
   })
   @ApiResponse({ status: 200, description: 'The operation was successful.' })
-  @UseGuards(ProjectAuthGuard)
   override async executeOperation(
     @Body() operationDto: any,
     @DecodedToken() token: AppToken,
@@ -94,9 +96,14 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
     return Array.isArray(result) ? profiles : (profiles[0] ?? result);
   }
 
+  /**
+   * F10: no longer public. It took `orgId` and `userEmail` straight from the body with no
+   * credential, so any caller could rewrite the agent profiles of any organization.
+   * `sync-agent-card.js` now sends `CONTROL_MARKETS_TOKEN`.
+   */
   @Post('sync-markdown')
   @ApiOperation({
-    summary: 'Sync local Markdown agent profile specs to database (public)',
+    summary: 'Sync local Markdown agent profile specs to database (requires a token: PAT or master)',
   })
   @ApiResponse({ status: 200, description: 'The synchronization was successful.' })
   async syncMarkdown(@Body() payload: any): Promise<any> {
@@ -107,7 +114,7 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
 
   @Get(':id/sync-manifest')
   @ApiOperation({
-    summary: 'Sync manifest for the markdown delta push (public, same trust level as sync-markdown)',
+    summary: 'Sync manifest for the markdown delta push (same trust level as sync-markdown — token required since F10)',
     description: 'Returns sourceUrl → contentHash for every source/task of the profile so the CLI only sends changed files.',
   })
   @ApiResponse({ status: 200, description: 'Returns the manifest of synced files and their content hashes.' })
@@ -124,7 +131,6 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
     description: 'Persists the owner-written briefing and mirrors it into the local .md (Section 8) when write-back is enabled.',
   })
   @ApiResponse({ status: 200, description: 'Live briefing saved.' })
-  @UseGuards(ProjectAuthGuard)
   async updateLiveBriefing(
     @Param('id') id: string,
     @Body() body: { liveBriefing: string },
@@ -142,7 +148,6 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
       'Seeds new chats and cron wake-ups. Sending no engine unsets the whole block so the server default applies again. Never locks a session: the chat header still overrides it per session.',
   })
   @ApiResponse({ status: 200, description: 'Default engine/model saved (returns the sanitized config).' })
-  @UseGuards(ProjectAuthGuard)
   async updateAcpConfig(
     @Param('id') id: string,
     @Body() body: IAgenticProfileAcpConfig,
@@ -159,7 +164,6 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
     description: 'Feeds the profile UI so a user can check which skills an agent may use. Org-scoped and read-only.',
   })
   @ApiResponse({ status: 200, description: 'Returns the org skill catalog.' })
-  @UseGuards(ProjectAuthGuard)
   async getSkillCatalog(@OrgId() orgId?: string, @DecodedToken() token?: AppToken): Promise<ISkillCatalogItem[]> {
     const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
     return this.agenticProfileService.listSkillCatalog(resolvedOrgId);
@@ -172,7 +176,6 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
       'Accepts ids and enabled flags only; labels are re-read from the org sources. Skills the markdown declares keep origin "markdown" (the .md stays their source of truth), the rest are stored as "platform" and survive the next sync.',
   })
   @ApiResponse({ status: 200, description: 'Returns the persisted skill refs.' })
-  @UseGuards(ProjectAuthGuard)
   async updateSkills(
     @Param('id') id: string,
     @Body() body: { skills: ISkillLinkInput[] },
@@ -188,7 +191,6 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
     summary: 'Retrieve the compiled Markdown context for the agent',
   })
   @ApiResponse({ status: 200, description: 'Returns the compiled Markdown context text.' })
-  @UseGuards(ProjectAuthGuard)
   async getFullContext(
     @Param('id') id: string,
     @Query('level') level: AgenticContextLevel | undefined,

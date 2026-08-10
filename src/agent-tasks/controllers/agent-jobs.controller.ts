@@ -1,9 +1,12 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { AgentOutcomeJobService } from '../services/agent-job.service';
 import { AgentJobDocument } from '../schemas/agent-job.schema';
 import { ApiTags } from '@nestjs/swagger';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/agent-jobs')
 @ApiTags('Agent Jobs')
 export class AgentJobsController extends EntityMongoController<AgentJobDocument> {

@@ -4,12 +4,21 @@ import { VideoSceneService } from '../services/video-scene.service';
 import { VideoSceneEventsService } from '../services/video-scene-events.service';
 import { EntityController } from '@dataclouder/nest-mongo';
 import { VideoSceneDocument } from '../schemas/video-scene.schema';
-import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
+import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
+import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from 'src/user/project-auth.guard';
+import { Public } from 'src/auth/public.decorator';
 import { OrgId } from '../../common/org-id.decorator';
 import { FastifyReply } from 'fastify';
 import { Observable } from 'rxjs';
 
+/**
+ * F10: class-level guard. The render routes were guarded with `AuthGuard` (Firebase only); they now
+ * inherit `ProjectAuthGuard` from the class, which also accepts PATs — the same auth the rest of the
+ * platform uses — and the inherited CRUD routes stop being anonymous.
+ */
 @ApiTags('video-scene')
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/video-scene')
 export class VideoSceneController extends EntityController<VideoSceneDocument> {
   constructor(
@@ -19,6 +28,8 @@ export class VideoSceneController extends EntityController<VideoSceneDocument> {
     super(videoSceneService);
   }
 
+  /** TODO(F13): browser `EventSource` cannot send `Authorization` — see the twin case in `creative-flowboard`. */
+  @Public('TODO(F13): browser EventSource cannot send Authorization. Read-only stream, needs a known scene id.')
   @Sse('subscribe/:id')
   subscribe(@Param('id') id: string): Observable<MessageEvent> {
     return new Observable((observer) => {
@@ -31,6 +42,16 @@ export class VideoSceneController extends EntityController<VideoSceneDocument> {
     });
   }
 
+  /**
+   * TODO(F17): `control-render` posts here with **no credentials at all** ([`server.ts`], the
+   * `PROGRESS_CALLBACK_URL` fetch), so guarding it today would silently kill every render progress
+   * bar. Closing it means giving that microservice a credential (the `cm_master_*` token is the
+   * obvious candidate) — a cross-repo change, not a decorator.
+   *
+   * Exposure while it lasts: an anonymous caller can push a fake progress number onto the SSE
+   * stream of a scene id it already knows. It writes nothing to the database.
+   */
+  @Public('TODO(F17): control-render posts this callback without credentials. Emits an SSE progress event, persists nothing.')
   @Post('render-progress')
   @ApiOperation({ summary: 'Callback endpoint to receive rendering progress updates from control-render microservice' })
   async renderProgress(
@@ -41,7 +62,6 @@ export class VideoSceneController extends EntityController<VideoSceneDocument> {
   }
 
   @Post('render-download')
-  @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Render video scene and download it directly' })
   async renderDownload(
@@ -62,7 +82,6 @@ export class VideoSceneController extends EntityController<VideoSceneDocument> {
   }
 
   @Post(':id/render')
-  @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Render video scene' })
   async render(
