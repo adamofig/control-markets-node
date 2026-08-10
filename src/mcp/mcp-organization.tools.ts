@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Tool } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { OrganizationService } from '../organization/services/organization.service';
+import { OrgUserOperation } from '../organization/models/organization-member.models';
+import { OrgRole } from '../user/user.class';
 
 const preprocessJson = (val: unknown) => {
   if (typeof val === 'string') {
@@ -45,11 +47,12 @@ export class McpOrganizationTools {
 Key fields:
   name       — Human-readable org name (Personal Spaces use the owner's email as name).
   type       — "personal" for a user's default space, otherwise a custom string.
-  guests     — Array of { userId, email } objects representing org members.
   socialNetworks — Array of { type, account } for linked social accounts.
   description, image — Optional metadata.
+  guests     — DEPRECATED mirror of the member list, removed in F16. Do NOT read it: membership and
+               roles live in users.organizations[]. Use org_getMembers / org_findByUser instead.
 
-Dot-notation for nested queries: "guests.email", "guests.userId", "socialNetworks.type".
+Dot-notation for nested queries: "socialNetworks.type".
 Use org_getMembers / org_operateUser for member management — they handle the nested logic for you.`,
     parameters: operationSchema,
   })
@@ -60,51 +63,66 @@ Use org_getMembers / org_operateUser for member management — they handle the n
 
   @Tool({
     name: 'org_getMembers',
-    description: `Return all members (guests) of a specific organization.
-Provide the organization's MongoDB _id. Returns the guests array with userId and email for each member.`,
+    description: `Return all members of a specific organization, with their role.
+Provide the organization's MongoDB _id. Returns { userId, email, fullName, displayName, role, status }
+for each member, resolved from users.organizations[] — the source of truth, not the deprecated guests array.`,
     parameters: z.object({
       orgId: z.string().describe('MongoDB _id of the organization.'),
     }),
   })
   async getMembers({ orgId }: { orgId: string }) {
-    const result = await this.organizationService.executeOperation({
-      action: 'findOne',
-      query: { _id: orgId },
-      projection: { name: 1, type: 1, guests: 1 },
-    });
+    const result = await this.organizationService.getMembers(orgId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
   @Tool({
     name: 'org_findByUser',
     description: `Find all organizations a user belongs to by their email address.
-Queries the guests array using dot-notation. Returns all matching organizations.`,
+Resolved from the user's memberships (users.organizations[]). Returns each organization with the
+role that person holds in it.`,
     parameters: z.object({
       email: z.string().describe('Email address of the user.'),
     }),
   })
   async findByUser({ email }: { email: string }) {
-    const result = await this.organizationService.executeOperation({
-      action: 'find',
-      query: { 'guests.email': email },
-      projection: { name: 1, type: 1, description: 1 },
-    });
+    const result = await this.organizationService.findOrganizationsByUserEmail(email);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
   @Tool({
     name: 'org_operateUser',
-    description: `Add or remove a user from an organization.
-  operation "add"    — Adds the user to the org's guests list and embeds the org into the user's organizations array.
-  operation "remove" — Reverts both; if the org was the user's defaultOrgId, falls back to their personal space.`,
+    description: `Manage a user's membership in an organization.
+  operation "add"            — Grants access with a role (default "member"). An email without an
+                               account is INVITED, not rejected: the membership activates on first sign-in.
+  operation "remove"         — Revokes access; if the org was the user's defaultOrgId, falls back to
+                               their personal space.
+  operation "update-role"    — Changes an existing member's role.
+  operation "update-profile" — Sets the per-organization display name override.
+
+Business invariants apply here too (they live in the service, not in a guard): the last Owner cannot
+be removed or demoted, and nobody can be granted a role above the caller's own.`,
     parameters: z.object({
       orgId: z.string().describe('MongoDB _id of the organization.'),
-      email: z.string().describe('Email of the user to add or remove.'),
-      operation: z.enum(['add', 'remove']).describe('"add" to grant access, "remove" to revoke.'),
+      email: z.string().describe('Email of the user to operate on.'),
+      operation: z.enum(['add', 'remove', 'update-role', 'update-profile']).describe('What to do with the membership.'),
+      role: z.enum(['owner', 'admin', 'member', 'viewer']).optional().describe('Role for "add" (default "member") and "update-role".'),
+      displayName: z.string().optional().describe('Per-organization name override, for "update-profile".'),
     }),
   })
-  async operateUser({ orgId, email, operation }: { orgId: string; email: string; operation: 'add' | 'remove' }) {
-    const result = await this.organizationService.operateUserToOrganization(orgId, { email, operation });
+  async operateUser({
+    orgId,
+    email,
+    operation,
+    role,
+    displayName,
+  }: {
+    orgId: string;
+    email: string;
+    operation: OrgUserOperation;
+    role?: OrgRole;
+    displayName?: string;
+  }) {
+    const result = await this.organizationService.operateUserToOrganization(orgId, { email, operation, role, displayName });
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 }

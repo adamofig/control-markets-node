@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Logger, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { VideoGeneratorService } from '../services/video-project-generator.service';
 import { IVideoProjectGenerator } from '../models/video-project.models';
@@ -7,10 +7,13 @@ import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
+import { isPlatformAdmin } from '../../auth/platform-roles';
 
 @ApiTags('video-generator')
 @Controller('api/video-generator')
 export class VideoGeneratorController extends EntityMongoController<VideoGeneratorDocument> {
+  private readonly logger = new Logger('VideoGeneratorController');
+
   constructor(private readonly videoGeneratorService: VideoGeneratorService) {
     super(videoGeneratorService);
   }
@@ -28,9 +31,13 @@ export class VideoGeneratorController extends EntityMongoController<VideoGenerat
     @OrgId() orgId?: string,
   ): Promise<any> {
     const userEmail = token?.email;
-    const isAdmin = token?.roles?.admin || token?.claims?.roles?.admin;
-    const isBypass = isAdmin && operationDto.options?.adminBypass;
+    const isBypass = isPlatformAdmin(token) && operationDto.options?.adminBypass;
     const resolvedOrgId = isBypass ? undefined : (orgId || token?.userId || (token as any).id || (token as any).uid);
+
+    if (isBypass) {
+      // Dropping the tenant filter must never happen silently.
+      this.logger.warn(`[ADMIN_BYPASS] video-generator ${operationDto.action} | actor=${userEmail ?? '-'} | requestedOrgId=${orgId ?? '-'}`);
+    }
 
     if (operationDto.payload) {
       if (operationDto.action === 'create') {

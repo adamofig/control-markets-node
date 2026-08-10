@@ -9,7 +9,6 @@ import { NestCoreModule } from '@dataclouder/nest-core';
 import { AppController } from './app.controller';
 import envVariables from './config/environment';
 import { UserModule } from './user/user.module';
-import { TestModule } from './test/test.module';
 
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
@@ -19,6 +18,7 @@ import { VideoGeneratorModule } from './video-projects/video-project-generator.m
 import { VideoSceneModule } from './video-scene/video-scene.module';
 import { NotionAgentsModule } from './notion-agents-module/notion-agents.module';
 import { InitModule } from './init/init.module';
+import { AuthContextModule } from './auth/auth.module';
 import { DeckCommanderModule } from './deck-commander/deck-commander.module';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { CreativeFlowboardModule } from './creative-flowboard/creative-flowboard.module';
@@ -59,7 +59,6 @@ import { InboxModule } from './inbox/inbox.module';
     ServeStaticModule.forRoot({ rootPath: join(__dirname, '..', 'public'), serveRoot: '/public/', serveStaticOptions: { index: false } }),
     UserModule,
     NestCoreModule,
-    TestModule,
     AgentCardsModule,
     NestAiServicesSdkModule.forRoot({
       apiBaseUrl: process.env.AI_SERVICES_HOST || 'https://api.dataclouder.com',
@@ -72,6 +71,7 @@ import { InboxModule } from './inbox/inbox.module';
     VideoGeneratorModule,
     VideoSceneModule,
     InitModule,
+    AuthContextModule,
     DeckCommanderModule,
     ConversationRuleModule,
     OrganizationModule,

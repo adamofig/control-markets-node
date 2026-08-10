@@ -63,4 +63,10 @@ export const UserSchema = SchemaFactory.createForClass(UserEntity);
 addIdAfterSave(UserSchema);
 UserSchema.index({ id: 1 });
 UserSchema.index({ token: 1 }, { unique: true, sparse: true });
+// Equality lookups that run on nearly every request (`findUserByEmail` in init/user/recent-resources,
+// and the auth guard resolving a caller by fbId). Without these they are collection scans.
+UserSchema.index({ fbId: 1 });
+UserSchema.index({ email: 1 });
+// Backs the members table: users.find({ 'organizations.orgId': orgId }).
+UserSchema.index({ 'organizations.orgId': 1 });
 UserSchema.index({ email: 'text', 'personalData.firstname': 'text', 'personalData.lastname': 'text', 'personalData.emotionalName': 'text' });

@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Post, Body, UseGuards, Get, Param, Query, Put } from '@nestjs/common';
+import { BadRequestException, Controller, Post, Body, Logger, UseGuards, Get, Param, Query, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { AgenticProfileDocument } from '../schemas/agentic-profile.schema';
@@ -6,12 +6,15 @@ import { AgenticProfileService } from '../services/agentic-profile.service';
 import { OrgId } from '../../common/org-id.decorator';
 import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../../user/project-auth.guard';
+import { isPlatformAdmin } from '../../auth/platform-roles';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { AgenticContextLevel, IAgenticProfileAcpConfig, IAgenticProfileSkill, ISkillCatalogItem, ISkillLinkInput } from '../models/agentic-profile.models';
 
 @ApiTags('agentic-profile')
 @Controller('api/agentic-profile')
 export class AgenticProfileController extends EntityMongoController<AgenticProfileDocument> {
+  private readonly logger = new Logger('AgenticProfileController');
+
   constructor(
     private readonly agenticProfileService: AgenticProfileService,
     private readonly schedulerRegistry: SchedulerRegistry,
@@ -32,9 +35,13 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
     @OrgId() orgId?: string,
   ): Promise<any> {
     const userEmail = token?.email;
-    const isAdmin = token?.roles?.admin || token?.claims?.roles?.admin;
-    const isBypass = isAdmin && operationDto.options?.adminBypass;
+    const isBypass = isPlatformAdmin(token) && operationDto.options?.adminBypass;
     const resolvedOrgId = isBypass ? undefined : (orgId || token?.userId || (token as any).id || (token as any).uid);
+
+    if (isBypass) {
+      // Dropping the tenant filter must never happen silently.
+      this.logger.warn(`[ADMIN_BYPASS] agentic-profile ${operationDto.action} | actor=${userEmail ?? '-'} | requestedOrgId=${orgId ?? '-'}`);
+    }
 
     if (operationDto.payload) {
       if (operationDto.action === 'create') {

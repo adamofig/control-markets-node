@@ -85,15 +85,20 @@ export class ChatService {
     if (toolsEnabled && allows('task.create')) {
       tools.getOrgMembers = tool({
         description:
-          'Get all members of the current organization. Returns a list of guests with userId and email. Call this first when the user mentions a person by name to resolve who to assign a task to.',
+          'Get all members of the current organization. Returns userId, email and the name to address each person by. Call this first when the user mentions a person by name to resolve who to assign a task to.',
         inputSchema: z.object({}),
         execute: async () => {
-          const org = await this.organizationService.executeOperation({
-            action: 'findOne',
-            query: { _id: resolvedOrgId },
-            projection: { name: 1, guests: 1 },
-          });
-          return (org as any)?.guests ?? [];
+          // F7: la lista sale de `users.organizations[]`. Antes leía `organization.guests[]`, que se
+          // poblaba sin nombre, así que resolver "asignale esto a Fulano" dependía de que alguien lo
+          // hubiera escrito a mano en el formulario de la organización.
+          const members = await this.organizationService.getMembers(resolvedOrgId, token?.email);
+          return members.map(member => ({
+            userId: member.userId,
+            email: member.email,
+            name: member.displayName || member.fullName,
+            role: member.role,
+            status: member.status,
+          }));
         },
       });
 

@@ -31,19 +31,16 @@ export class UserController extends EntityController<UserEntity> {
   @Get('/logged')
   async getLoggedUserDataOrRegister(@DecodedToken() token: AppToken, @Res({ passthrough: true }) res): Promise<any> {
     console.log('Getting user Data', token.uid);
-    const user = await this.userService.findUserByEmail(token.email);
+    const { user, created } = await this.userService.findOrRegisterWithToken(token);
 
-    if (user) {
-      return user;
-    } else {
-      res.status(AppHttpCode.GoodRefreshToken);
-      // This 2 should be toguether user and organization, if i need to refactor create ainit
-      const user = await this.userService.registerWithToken(token);
-      const organization = await this.organizationService.save({ name: user.email, description: user.email, type: 'personal' }, user.id);
-      user.defaultOrgId = organization.id;
-      await user.save();
+    if (!created) {
       return user;
     }
+
+    res.status(AppHttpCode.GoodRefreshToken);
+    // This 2 should be toguether user and organization, if i need to refactor create ainit
+    const organization = await this.organizationService.save({ name: user.email, description: user.email, type: 'personal' }, user.id);
+    return this.userService.updateUser(user.id, { defaultOrgId: organization.id });
   }
 
   @Post('/regenerate-token')

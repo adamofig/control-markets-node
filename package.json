@@ -31,7 +31,9 @@
     "bench:agy-turn": "node scripts/agy-acp/bench-agy-turn.mjs",
     "bench:acp-handshake": "node scripts/agy-acp/bench-acp-handshake.mjs",
     "send:agent-message": "node scripts/send-agent-message.js",
-    "generate:master-token": "node scripts/generate-master-token.js"
+    "generate:master-token": "node scripts/generate-master-token.js",
+    "migrate:org-roles": "ts-node -r tsconfig-paths/register scripts/migrate-org-roles.ts",
+    "cleanup:orphan-orgs": "ts-node -r tsconfig-paths/register scripts/cleanup-orphan-orgs.ts"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.59.0",
@@ -132,6 +134,9 @@
       "ts"
     ],
     "rootDir": ".",
+    "modulePaths": [
+      "<rootDir>"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"

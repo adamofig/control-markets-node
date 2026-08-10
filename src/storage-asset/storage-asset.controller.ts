@@ -1,14 +1,17 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Logger, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { StorageAssetService } from '@dataclouder/nest-storage';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { StorageAssetExtendedDocument } from './schemas/storage-asset-extended.schema';
 import { OrgId } from '../common/org-id.decorator';
 import { AppToken, AuthGuard, DecodedToken } from '@dataclouder/nest-auth';
+import { isPlatformAdmin } from '../auth/platform-roles';
 
 @ApiTags('Storage Asset')
 @Controller('api/storage-asset')
 export class StorageAssetController extends EntityMongoController<StorageAssetExtendedDocument> {
+  private readonly logger = new Logger('StorageAssetController');
+
   constructor(protected readonly storageAssetService: StorageAssetService) {
     super(storageAssetService as any);
   }
@@ -26,9 +29,13 @@ export class StorageAssetController extends EntityMongoController<StorageAssetEx
     @OrgId() orgId?: string,
   ): Promise<any> {
     const userEmail = token?.email;
-    const isAdmin = token?.roles?.admin || token?.claims?.roles?.admin;
-    const isBypass = isAdmin && operationDto.options?.adminBypass;
+    const isBypass = isPlatformAdmin(token) && operationDto.options?.adminBypass;
     const resolvedOrgId = isBypass ? undefined : (orgId || token?.userId || (token as any).id || (token as any).uid);
+
+    if (isBypass) {
+      // Dropping the tenant filter must never happen silently.
+      this.logger.warn(`[ADMIN_BYPASS] storage-asset ${operationDto.action} | actor=${userEmail ?? '-'} | requestedOrgId=${orgId ?? '-'}`);
+    }
 
     if (operationDto.payload) {
       if (operationDto.action === 'create') {

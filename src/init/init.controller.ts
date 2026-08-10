@@ -24,12 +24,13 @@ export class InitController {
   @Get('/')
   async getLoggedUserDataOrRegister(@DecodedToken() token: AppToken, @Res({ passthrough: true }) res): Promise<any> {
     console.log('Getting Data', token);
-    let user = await this.userService.findUserByEmail(token.email);
+    // Resolves the account and hydrates a pending invitation (a shell document with no fbId) if one exists.
+    const resolved = await this.userService.findOrRegisterWithToken(token);
+    let user = resolved.user;
 
-    if (!user) {
+    if (resolved.created) {
       console.log('First time registered', token.uid);
       res.status(AppHttpCode.GoodRefreshToken);
-      user = await this.userService.registerWithToken(token);
     }
 
     // Proactively initialize the personal organization if it doesn't exist yet

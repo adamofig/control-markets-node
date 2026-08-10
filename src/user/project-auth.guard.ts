@@ -49,6 +49,7 @@ export class ProjectAuthGuard extends AuthGuard {
         };
         request.user = user;
         request.orgId = user.defaultOrgId;
+        request.authMethod = 'pat';
         return true;
       }
     }
@@ -57,6 +58,7 @@ export class ProjectAuthGuard extends AuthGuard {
       throw new UnauthorizedException('Authentication token is required');
     }
 
+    request.authMethod = 'firebase';
     return super.canActivate(context);
   }
 
@@ -72,6 +74,7 @@ export class ProjectAuthGuard extends AuthGuard {
   private async applyMasterContext(request: any): Promise<void> {
     const userRef = (request.headers['x-system-user'] as string)?.trim() || this.masterToken.defaultUserRef;
     const requestedOrgId = (request.headers['x-org-id'] as string)?.trim();
+    request.authMethod = 'master';
 
     const user = userRef ? await this.findUserByRef(userRef) : null;
     if (userRef && !user) {
