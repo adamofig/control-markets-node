@@ -121,17 +121,59 @@ describe('route guard coverage (F10)', () => {
     }
   });
 
-  it('every @Public() states a reason', () => {
+  /**
+   * `@AccountScoped()` is the F12 sibling of `@Public()`: it waives the organization membership
+   * instead of the credential. It is a weaker exception, but it is still an exception, and the same
+   * rule applies — a justification that lives outside the code is a justification that rots.
+   */
+  it.each([['@Public('], ['@AccountScoped('], ['@NotOrgScoped(']])('every %s states a reason', (decorator: string) => {
     for (const file of files) {
       const source = fs.readFileSync(file, 'utf8');
       // The reason itself contains parentheses (`TODO(F13)`), so the argument runs from the first
       // `(` of the decorator to the last `)` of that line, not to the first one.
-      const publics = source.split('\n').filter(line => line.trim().startsWith('@Public('));
-      for (const line of publics) {
+      const uses = source.split('\n').filter(line => line.trim().startsWith(decorator));
+      for (const line of uses) {
         const arg = line.slice(line.indexOf('(') + 1, line.lastIndexOf(')')).trim();
-        // `Public(reason: string)` is typed as required, but an empty string would still compile.
+        // The reason is typed as a required argument, but an empty string would still compile.
         expect(arg.replace(/['"`]/g, '').length).toBeGreaterThan(20);
       }
     }
+  });
+
+  /**
+   * F12 waives the membership check for the two registration endpoints and nothing else. Every route
+   * that reads or writes an organization's data must require a membership; the allowlist is written
+   * here so that widening it is a deliberate edit to a test, not a decorator nobody reviews.
+   */
+  it('only the registration endpoints are @AccountScoped', () => {
+    const scoped = files.filter(file => fs.readFileSync(file, 'utf8').includes('@AccountScoped(')).map(f => path.relative(SRC, f)).sort();
+    expect(scoped).toEqual(['init/init.controller.ts', 'user/user.controller.ts']);
+  });
+
+  /**
+   * F14a — the four collections that carry no `orgId` field. Everything else that extends an entity
+   * controller is scoped by the interceptor, which is what makes a new entity born isolated. Widening
+   * this list has to be an edit here, so it gets read.
+   */
+  it('only the collections without an orgId field are @NotOrgScoped', () => {
+    const exempt = files.filter(file => fs.readFileSync(file, 'utf8').includes('@NotOrgScoped(')).map(f => path.relative(SRC, f)).sort();
+    expect(exempt).toEqual([
+      'deck-commander/controllers/deck-commander.controller.ts',
+      'lead/controllers/lead.controller.ts',
+      'organization/controllers/organization.controller.ts',
+      'user/user.controller.ts',
+    ]);
+  });
+
+  /**
+   * The other half of the same rule: an exemption is only correct while the schema really has no
+   * `orgId`. If someone adds the field to one of those collections, the controller must stop being
+   * exempt in the same change — otherwise it silently becomes the one unscoped tenant-owning entity.
+   */
+  it.each([
+    ['lead/schemas/lead.schema.ts'],
+    ['deck-commander/schemas/deck-commander.schema.ts'],
+  ])('%s still has no orgId, which is why its controller is exempt', (relative: string) => {
+    expect(fs.readFileSync(path.join(SRC, relative), 'utf8')).not.toMatch(/\borgId\b/);
   });
 });

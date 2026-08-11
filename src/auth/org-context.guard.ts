@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { OrgRole } from 'src/user/user.class';
 import { hasOrgPermission, ORG_ROLE_RANK } from './org-permissions';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { IS_ACCOUNT_SCOPED_KEY } from './account-scoped.decorator';
 import { IOrgAuthOptions, ORG_PERMISSION_KEY, ORG_ROLE_KEY } from './org-permission.decorator';
 import { IRequestOrgContext, OrgContextService } from './org-context.service';
 
@@ -62,8 +63,27 @@ export class OrgContextGuard implements CanActivate {
     request.ctx = ctx;
 
     if (!rule) {
-      // No decorator: context only. Default-closed arrives in F12, deliberately not here.
-      return true;
+      // F12 — default closed. A route that declares no rule still requires a membership in the
+      // organization it is about to act on, which is what turns "the UI hides the button" into
+      // "the server refuses the request".
+      const accountScoped = this.reflector.getAllAndOverride<boolean>(IS_ACCOUNT_SCOPED_KEY, [context.getHandler(), context.getClass()]);
+      if (accountScoped) {
+        return true;
+      }
+      if (ctx.isPlatformAdmin || ctx.role) {
+        return true;
+      }
+
+      // Reaching here without a token means `ProjectAuthGuard` did not run first — on a non-`@Public`
+      // route it would have thrown 401. Denying rather than passing keeps a registration-order
+      // mistake from silently turning the default-closed branch into a default-open one.
+      const denial = request.decodedToken ? 'no membership in the requested organization' : 'unauthenticated request reached the org guard';
+
+      if (this.isLogOnly()) {
+        this.logger.warn(`[SECURITY_LOG_ONLY] ${request.method} ${request.url} | actor=${ctx.email ?? '-'} | orgId=${ctx.orgId ?? '-'} | would deny: ${denial}`);
+        return true;
+      }
+      throw new ForbiddenException(this.denyMessage(ctx, 'an active membership'));
     }
 
     if (ctx.isPlatformAdmin) {
@@ -83,6 +103,21 @@ export class OrgContextGuard implements CanActivate {
       throw new ForbiddenException(this.denyMessage(ctx, `the '${roleRule.role}' role or above`));
     }
     return true;
+  }
+
+  /**
+   * `SECURITY_GUARD_LOG_ONLY=true` is the rollout step from doc 06 §F12: run the default-closed
+   * branch for a few days logging what it *would* have refused, then read the log and switch it on.
+   *
+   * It covers **only** the default-closed branch, never `@OrgPermission` / `@RequireOrgRole`. Those
+   * rules shipped in F11 and are already load-bearing; letting an env var switch them off would turn
+   * a rollout knob into a way to disable authorization that is in production today.
+   *
+   * Read per request on purpose: flipping it must not require a redeploy of a system that is, by
+   * construction, in the middle of being locked down.
+   */
+  private isLogOnly(): boolean {
+    return process.env.SECURITY_GUARD_LOG_ONLY === 'true';
   }
 
   /**

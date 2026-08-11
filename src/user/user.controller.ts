@@ -12,8 +12,11 @@ import { AppToken, AuthGuard } from '@dataclouder/nest-auth';
 import { AppGuard } from '@dataclouder/nest-core';
 import { EntityController } from '@dataclouder/nest-mongo';
 import { OrganizationService } from 'src/organization/services/organization.service';
+import { AccountScoped } from 'src/auth/account-scoped.decorator';
+import { NotOrgScoped } from 'src/auth/not-org-scoped.decorator';
 
 @ApiTags('user')
+@NotOrgScoped('The users collection has no orgId field: membership lives in organizations[].orgId, so filtering by orgId returns nothing. Scoping user reads is F17 work, not a field rewrite.')
 @ApiBearerAuth()
 @UseGuards(AppGuard, AuthGuard)
 @Controller('api/user')
@@ -28,6 +31,7 @@ export class UserController extends EntityController<UserEntity> {
   }
 
   // This is replace by the one in init.controller
+  @AccountScoped('Legacy twin of GET /api/init/user: it also registers the account and its personal organization, so it cannot require a membership that does not exist yet.')
   @Get('/logged')
   async getLoggedUserDataOrRegister(@DecodedToken() token: AppToken, @Res({ passthrough: true }) res): Promise<any> {
     console.log('Getting user Data', token.uid);

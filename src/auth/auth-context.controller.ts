@@ -1,6 +1,10 @@
 import { Controller, Get, Req, UseFilters, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AllExceptionsHandler, AppGuard } from '@dataclouder/nest-core';
+import { AppGuard } from '@dataclouder/nest-core';
+// The local filter, not the one from `@dataclouder/nest-core`: that one has no `HttpException`
+// branch, so it answers every 401 and every F12 403 with a 500. The endpoint that tells the
+// frontend what the user may do is the last place that can afford an unreadable status code.
+import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
 import { AppToken } from '@dataclouder/nest-auth';
 import { DecodedToken } from 'src/common/token.decorator';
 import { OrgId } from 'src/common/org-id.decorator';
@@ -39,8 +43,7 @@ export class AuthContextController {
    */
   @Get('context')
   async getContext(@DecodedToken() token: AppToken, @OrgId() headerOrgId: string, @Req() request: any): Promise<IAuthContext> {
-    // TODO(F12): the requested orgId is trusted here. The global guard validates it against the
-    // caller's membership; until then a client can name any org and the role simply resolves to null.
+    // F12: The requested orgId is validated against the caller's membership by OrgContextGuard / OrgContextService.
     const ctx = await this.orgContext.resolve(token, headerOrgId);
     const membership: IUserOrganization | undefined = ctx.orgId ? await this.findMembership(token, ctx.orgId) : undefined;
 

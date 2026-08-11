@@ -30,6 +30,15 @@ export class ProjectAuthGuard extends AuthGuard {
     }
 
     const request = context.switchToHttp().getRequest();
+
+    // F12 — this guard now runs twice on most routes: once globally as `APP_GUARD`, once from the
+    // `@UseGuards(AppGuard, ProjectAuthGuard)` that F10 put on 26 controllers (kept, so the guard
+    // survives anyone removing the global registration). Authenticating twice means a second
+    // Firebase verification, or a second Mongo lookup on the PAT branch, for every request.
+    if (request.authMethod && request.decodedToken) {
+      return true;
+    }
+
     const authHeader = request.headers.authorization;
 
     let token: string | undefined;
@@ -59,6 +68,12 @@ export class ProjectAuthGuard extends AuthGuard {
           claims: user.claims,
         };
         request.user = user;
+        // Stays `defaultOrgId` on purpose. Doc 06 §F12 asked the PAT branch to start honouring
+        // `x-org-id` when the holder is a member — that now happens one guard later, in
+        // `OrgContextGuard`, which prefers the header and validates it against Mongo before
+        // `@OrgId()` reads it. Honouring the header *here* would hand out an unvalidated org, which
+        // is the exact hole F12 exists to close. This value is only the fallback for the handful of
+        // `@Public()` routes, where no context is ever resolved.
         request.orgId = user.defaultOrgId;
         request.authMethod = 'pat';
         return true;

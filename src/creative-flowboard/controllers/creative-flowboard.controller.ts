@@ -6,7 +6,10 @@ import { FlowEventsService } from '../services/flow-events.service';
 import { Observable } from 'rxjs';
 import { CreativeFlowboardDocument } from '../schemas/creative-flowboard.schema';
 import { EntityController, EntityMongoController } from '@dataclouder/nest-mongo';
-import { AllExceptionsHandler, AppGuard } from '@dataclouder/nest-core';
+import { AppGuard } from '@dataclouder/nest-core';
+// The local filter, not the one from `@dataclouder/nest-core`: that one has no `HttpException`
+// branch, so every 401 and every F12 403 left here as a 500.
+import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
 import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { Public } from 'src/auth/public.decorator';
 

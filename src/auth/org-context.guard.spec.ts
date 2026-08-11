@@ -4,6 +4,7 @@ import { OrgContextService } from './org-context.service';
 import { OrgRole } from 'src/user/user.class';
 import { ORG_PERMISSION_KEY, ORG_ROLE_KEY } from './org-permission.decorator';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { IS_ACCOUNT_SCOPED_KEY } from './account-scoped.decorator';
 
 /**
  * F11 — the tests that give the frontend gating its backing. Every "the UI hides this button" claim
@@ -93,7 +94,7 @@ describe('OrgContextGuard (F11)', () => {
     await expect(ownerGuard.canActivate(contextFor(OWNER.email, { orgId: 'org-a' }).ctx)).resolves.toBe(true);
   });
 
-  it('populates req.ctx and allows the request when the route carries no rule (F12 closes this)', async () => {
+  it('populates req.ctx and allows the request when the route carries no rule but the caller is a member', async () => {
     const guard = build(VIEWER, {});
     const { request, ctx } = contextFor(VIEWER.email, {}, { 'x-org-id': 'org-a' });
 
@@ -107,5 +108,104 @@ describe('OrgContextGuard (F11)', () => {
     const { ctx } = contextFor('nobody@cm.com');
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+});
+
+/**
+ * F12 — the default-closed branch. These are the cases that separate "authenticated" from
+ * "authorized to be in this organization" on the ~180 routes that carry no `@OrgPermission`.
+ */
+describe('OrgContextGuard (F12 default-closed)', () => {
+  const MEMBER = { _id: { toString: () => 'user-m' }, id: 'user-m', email: 'm@cm.com', defaultOrgId: 'org-a', organizations: [{ orgId: 'org-a', name: 'A', role: OrgRole.Member }] };
+  const OUTSIDER = { _id: { toString: () => 'user-out' }, id: 'user-out', email: 'out@cm.com', defaultOrgId: 'org-z', organizations: [{ orgId: 'org-z', name: 'Z', role: OrgRole.Owner }] };
+
+  function build(user: any, metadata: Record<string, any> = {}) {
+    const userService = { findUserByEmail: jest.fn().mockResolvedValue(user) } as any;
+    const reflector = { getAllAndOverride: jest.fn((key: string) => metadata[key]) } as any;
+    return new OrgContextGuard(reflector, new OrgContextService(userService));
+  }
+
+  function plainRequest(email: string | null, headers: Record<string, string> = {}, claims: any = {}) {
+    const request: any = {
+      headers,
+      params: {},
+      method: 'POST',
+      url: '/api/agent-tasks/query',
+      decodedToken: email ? { email, ...claims } : undefined,
+    };
+    return { request, ctx: { switchToHttp: () => ({ getRequest: () => request }), getHandler: () => () => undefined, getClass: () => class {} } as any };
+  }
+
+  afterEach(() => {
+    delete process.env.SECURITY_GUARD_LOG_ONLY;
+  });
+
+  it('refuses an authenticated caller who is not a member of the organization they asked for', async () => {
+    const guard = build(OUTSIDER);
+    const { ctx } = plainRequest(OUTSIDER.email, { 'x-org-id': 'org-a' });
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('refuses a Firebase user who has no account row yet — the pre-registration state', async () => {
+    const guard = build(null);
+    const { ctx } = plainRequest('brand-new@cm.com');
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lets that same user through on an @AccountScoped route, or registration could never happen', async () => {
+    const guard = build(null, { [IS_ACCOUNT_SCOPED_KEY]: true });
+    const { request, ctx } = plainRequest('brand-new@cm.com');
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(request.ctx.role).toBeNull();
+  });
+
+  it('lets a member through and leaves the resolved context on the request', async () => {
+    const guard = build(MEMBER);
+    const { request, ctx } = plainRequest(MEMBER.email, { 'x-org-id': 'org-a' });
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(request.ctx.orgId).toBe('org-a');
+    expect(request.ctx.role).toBe(OrgRole.Member);
+  });
+
+  it('falls back to defaultOrgId when no organization is named', async () => {
+    const guard = build(MEMBER);
+    const { request, ctx } = plainRequest(MEMBER.email);
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(request.ctx.orgId).toBe('org-a');
+  });
+
+  it('lets a platform admin through with no membership at all', async () => {
+    const guard = build(OUTSIDER);
+    const { ctx } = plainRequest(OUTSIDER.email, { 'x-org-id': 'org-a' }, { roles: { admin: null } });
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it('refuses a request that arrives with no token — ProjectAuthGuard must have run first', async () => {
+    const guard = build(null);
+    const { ctx } = plainRequest(null);
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('only logs, never blocks, while SECURITY_GUARD_LOG_ONLY is on', async () => {
+    process.env.SECURITY_GUARD_LOG_ONLY = 'true';
+    const guard = build(OUTSIDER);
+    const { ctx } = plainRequest(OUTSIDER.email, { 'x-org-id': 'org-a' });
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it('does NOT let log-only mode switch off the F11 rules that are already in production', async () => {
+    process.env.SECURITY_GUARD_LOG_ONLY = 'true';
+    const guard = build(OUTSIDER, { [ORG_PERMISSION_KEY]: { permission: 'members:manage', orgIdParam: 'orgId' } });
+    const { ctx } = plainRequest(OUTSIDER.email, { 'x-org-id': 'org-a' });
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

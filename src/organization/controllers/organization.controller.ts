@@ -14,6 +14,7 @@ import { OrgContextGuard } from 'src/auth/org-context.guard';
 import { OrgPermission } from 'src/auth/org-permission.decorator';
 import { OrgContextService } from 'src/auth/org-context.service';
 import { hasOrgPermission } from 'src/auth/org-permissions';
+import { NotOrgScoped } from 'src/auth/not-org-scoped.decorator';
 
 class AddUserToOrganizationDto {
   email: string;
@@ -31,6 +32,7 @@ class AddUserToOrganizationDto {
  * (F12/F14a).
  */
 @ApiTags('organization')
+@NotOrgScoped('An organization is identified by its own _id, not by an orgId field. This controller is already authorized per role by the F11 rules, which is the check that belongs here.')
 @ApiBearerAuth()
 @UseGuards(AppGuard, ProjectAuthGuard, OrgContextGuard)
 @Controller('api/organization') // NOT ENDPOINT Father will tell

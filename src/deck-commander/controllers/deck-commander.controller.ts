@@ -11,8 +11,10 @@ import { DeckCommanderDocument } from '../schemas/deck-commander.schema';
 import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { DecodedToken } from 'src/common/token.decorator';
 import { isPlatformAdmin } from 'src/auth/platform-roles';
+import { NotOrgScoped } from 'src/auth/not-org-scoped.decorator';
 
 @ApiTags('deck-commander')
+@NotOrgScoped('deck-commander.schema.ts stores no orgId. The controller is already gated behind isPlatformAdmin by F10, which is a stricter check than any org scope.')
 @UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/deck-commander') // NOT ENDPOINT Father will tell
 export class DeckCommanderController extends EntityMongoController<DeckCommanderDocument> {
