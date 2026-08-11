@@ -460,7 +460,8 @@ function buildAgyArgs(session, userPrompt) {
 
   if (session.modeId !== DEFAULT_MODE_ID) args.push('--mode', session.modeId);
 
-  for (const dir of session.additionalDirectories) args.push('--add-dir', dir);
+  const dirs = new Set([session.cwd, ...(session.additionalDirectories || [])].filter(Boolean));
+  for (const dir of dirs) args.push('--add-dir', dir);
 
   // CM-P4: agy's default print timeout is 5m, shorter than the backend's 15m heartbeat budget,
   // so a long autonomous turn would be truncated by the CLI before the backend gives up.

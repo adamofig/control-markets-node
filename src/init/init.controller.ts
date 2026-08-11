@@ -1,8 +1,7 @@
 import { AppException, AppGuard } from '@dataclouder/nest-core';
 // The local filter, not the one from `@dataclouder/nest-core`: that one has no `HttpException`
 // branch, so a 401 on the login bootstrap reached the browser as a 500.
-import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
-import { Controller, Get, Param, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { DecodedIdToken } from 'firebase-admin/auth';
 import { AppHttpCode } from 'src/common/app-enums';
@@ -18,7 +17,6 @@ import { AccountScoped } from 'src/auth/account-scoped.decorator';
 @AccountScoped('This is the endpoint that creates the account and its personal organization. A first-time user has no users row and therefore no membership, so requiring one here would 403 the only request that could ever grant them one.')
 @UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/init/user')
-@UseFilters(AllExceptionsHandler)
 export class InitController {
   constructor(
     private userService: AppUserService,

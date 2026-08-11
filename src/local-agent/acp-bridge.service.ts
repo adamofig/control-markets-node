@@ -424,6 +424,9 @@ export class AcpBridgeService implements OnModuleDestroy {
       throw new Error(`Workspace root used as cwd does not exist: ${cwd}`);
     }
 
+    this.logger.log(`[ACP Session Spawn] Engine '${resolvedEngine}' starting in CWD '${cwd}' (workspaceId override: ${runtimeOptions.cwd ? 'YES' : 'NO (fallback to roots[0])'})`);
+    onProgress?.(`Iniciando motor ${resolvedEngine} en workspace: ${cwd}...`);
+
     // Strip env vars that would push the CLI off personal auth or crash it (see EngineConfig.stripEnv).
     const env = { ...process.env };
     for (const key of config.stripEnv) delete env[key];

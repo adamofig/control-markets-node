@@ -24,6 +24,15 @@ import { RolType } from '@dataclouder/nest-auth';
  * That truthiness test, used elsewhere in this repo, is inverted in BOTH directions: it reads the
  * permanent grant (`null`) as "not an admin", and an EXPIRED grant (a past date, still truthy) as
  * a valid one. Presence plus expiry is the only correct test.
+ *
+ * ## Por qué esto NO es duplicación de `hasRolClaim` de `@dataclouder/nest-auth`
+ *
+ * Desde `nest-auth@1.1.1` la librería exporta `hasRolClaim(roles, rol)`, que es esta misma lógica —
+ * salió de acá, junto con el arreglo de `validateAdminRol`. **No borrar esta función para "unificar".**
+ * Hace una cosa más que la de la librería, y es la que importa: acepta el token entero y busca los roles
+ * en `token.roles` **o** en `token.claims.roles`, porque en Control Markets llegan por los dos caminos
+ * según venga de Firebase o de la rama de PAT de `ProjectAuthGuard`. La de la librería recibe ya el
+ * `RolClaim` y no sabe nada de eso, que es lo correcto para una librería.
  */
 export function hasPlatformRole(token: any, rol: RolType): boolean {
   const roles = token?.roles ?? token?.claims?.roles;

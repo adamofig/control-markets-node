@@ -10,7 +10,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import config from '../config/environment';
 import { AuthGuard, NestAuthModule } from '@dataclouder/nest-auth';
-import { DCMongoDBModule } from '@dataclouder/nest-mongo';
+import { DC_ENTITY_GUARD, DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { OrganizationModule } from '../organization/organization.module';
 
 /**
@@ -21,12 +21,45 @@ import { OrganizationModule } from '../organization/organization.module';
  * ever ran first, `request.decodedToken` would be undefined and every `req.ctx` would resolve to an
  * anonymous context — failing open on default-closed routes and denying every `@OrgPermission`.
  * Registering both in one `providers` array is what makes that order explicit and stable.
+ *
+ * ---
+ *
+ * ## `DC_ENTITY_GUARD` — quién autentica las rutas genéricas de `@dataclouder/nest-mongo`
+ *
+ * `EntityMongoController.executeOperation` y las 8 rutas de `EntityController` llevan un guard puesto
+ * **dentro de la librería**. Hasta `nest-mongo@1.2.1` ese guard era el `AuthGuard` de Firebase, fijo, y
+ * no había forma de cambiarlo desde acá: `@UseGuards(Clase)` no se resuelve por token de DI — Nest
+ * registra un injectable cuyo `metatype` **es** la clase y la instancia desde ahí (`Module.addInjectable`),
+ * así que el `{ provide: AuthGuard, useClass: ProjectAuthGuard }` de abajo **nunca lo tocaba**. Resultado:
+ * ningún `cm_pat_*` ni el token maestro podían usar `POST /api/<entidad>/operation` en los 10
+ * controladores que no sobreescriben el método.
+ *
+ * La librería ahora declara un guard delegador y pregunta por este token. `useExisting` y no `useClass`
+ * a propósito: queremos **la misma instancia** que ya resuelve el resto de la app, no una segunda con su
+ * propia conexión al modelo de usuarios.
+ *
+ * El alias `AuthGuard` de abajo alcanzaría — `EntityGuard` lo busca como segundo nivel de resolución —
+ * pero depender de eso es depender de un alias que existe para otra cosa y que alguien puede borrar sin
+ * saber qué rompe. El binding explícito es la declaración de intención.
  */
 @Global()
 @Module({
   imports: [MongooseModule.forFeature([{ name: UserEntity.name, schema: UserSchema }]), HttpModule, ConfigModule.forFeature(config), NestAuthModule, DCMongoDBModule, OrganizationModule],
   controllers: [UserController],
-  providers: [AppUserService, SystemMasterTokenService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }],
-  exports: [AppUserService, SystemMasterTokenService, ProjectAuthGuard, { provide: AuthGuard, useClass: ProjectAuthGuard }, MongooseModule],
+  providers: [
+    AppUserService,
+    SystemMasterTokenService,
+    ProjectAuthGuard,
+    { provide: AuthGuard, useClass: ProjectAuthGuard },
+    { provide: DC_ENTITY_GUARD, useExisting: ProjectAuthGuard },
+  ],
+  exports: [
+    AppUserService,
+    SystemMasterTokenService,
+    ProjectAuthGuard,
+    { provide: AuthGuard, useClass: ProjectAuthGuard },
+    { provide: DC_ENTITY_GUARD, useExisting: ProjectAuthGuard },
+    MongooseModule,
+  ],
 })
 export class UserModule {}

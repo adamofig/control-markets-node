@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Sse, MessageEvent, Post, Get, Put, Query, UseFilters, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Sse, MessageEvent, Post, Get, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AddNodesDto, WebhookNodeDto } from '../models/creative-flowboard.dto';
 import { CreativeFlowboardService } from '../services/creative-flowboard.service';
@@ -9,7 +9,6 @@ import { EntityController, EntityMongoController } from '@dataclouder/nest-mongo
 import { AppGuard } from '@dataclouder/nest-core';
 // The local filter, not the one from `@dataclouder/nest-core`: that one has no `HttpException`
 // branch, so every 401 and every F12 403 left here as a 500.
-import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
 import { ProjectAuthGuard } from 'src/user/project-auth.guard';
 import { Public } from 'src/auth/public.decorator';
 
@@ -24,7 +23,6 @@ import { Public } from 'src/auth/public.decorator';
 @ApiTags('CreativeFlowboard')
 @UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/creative-flowboard')
-@UseFilters(AllExceptionsHandler)
 export class CreativeFlowboardController extends EntityMongoController<CreativeFlowboardDocument> {
   constructor(
     private readonly creativeFlowboardService: CreativeFlowboardService,

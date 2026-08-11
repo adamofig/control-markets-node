@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AppToken, AuthGuard } from '@dataclouder/nest-auth';
+import { AppToken } from '@dataclouder/nest-auth';
 import { AppGuard } from '@dataclouder/nest-core';
+import { ProjectAuthGuard } from '../user/project-auth.guard';
 import { FastifyReply } from 'fastify';
 import { DecodedToken } from '../common/token.decorator';
 import { LocalAgentChatService, LocalAgentMessage, LocalAgentStreamEvent } from './local-agent-chat.service';
@@ -39,9 +40,14 @@ class AcpPermissionRequestDto {
 
 @ApiTags('Local Agent')
 @ApiBearerAuth()
-@UseGuards(AppGuard, AuthGuard)
+// `ProjectAuthGuard`, no el `AuthGuard` de la librería: este controlador ES el endpoint de los agentes
+// CLI (`agy`, `claude`, `codex`) por ACP, o sea justo los clientes headless que se autentican con un
+// `cm_pat_*`. Con el guard de Firebase el guard global autenticaba el PAT y este lo rechazaba después.
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/local-agent')
 export class LocalAgentController {
+  private readonly logger = new Logger(LocalAgentController.name);
+
   constructor(
     private readonly localAgentChatService: LocalAgentChatService,
     private readonly acpBridge: AcpBridgeService,
@@ -103,6 +109,9 @@ export class LocalAgentController {
         .catch(() => null);
       cwd = this.workspaceService.resolveRootForHost(profile?.workspaceId) ?? undefined;
       acpConfig = profile?.acpConfig;
+      this.logger.log(`[ACP Stream] AgenticProfile '${profile?.name || body.agenticProfileId}' workspaceId='${profile?.workspaceId}' -> resolved CWD='${cwd ?? 'fallback'}'`);
+    } else {
+      this.logger.log(`[ACP Stream] Request has no agenticProfileId; CWD will fallback to default workspace root.`);
     }
 
     const engine = asAcpEngine(body.engine) ?? acpConfig?.defaultEngine ?? DEFAULT_ACP_ENGINE;

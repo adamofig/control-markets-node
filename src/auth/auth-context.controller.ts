@@ -1,10 +1,9 @@
-import { Controller, Get, Req, UseFilters, UseGuards } from '@nestjs/common';
+import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AppGuard } from '@dataclouder/nest-core';
 // The local filter, not the one from `@dataclouder/nest-core`: that one has no `HttpException`
 // branch, so it answers every 401 and every F12 403 with a 500. The endpoint that tells the
 // frontend what the user may do is the last place that can afford an unreadable status code.
-import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
 import { AppToken } from '@dataclouder/nest-auth';
 import { DecodedToken } from 'src/common/token.decorator';
 import { OrgId } from 'src/common/org-id.decorator';
@@ -26,7 +25,6 @@ import { OrgContextService } from './org-context.service';
 @ApiBearerAuth()
 @UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/auth')
-@UseFilters(AllExceptionsHandler)
 export class AuthContextController {
   constructor(
     private readonly userService: AppUserService,

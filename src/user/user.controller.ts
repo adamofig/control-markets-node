@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Post, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Res, UseGuards } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { UserEntity } from './user.entity';
@@ -7,10 +7,10 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DecodedToken } from 'src/common/token.decorator';
 import { AppUserService } from './user.service';
 import { AppHttpCode } from 'src/common/app-enums';
-import { AllExceptionsHandler } from 'src/common/exception-hanlder.filter';
-import { AppToken, AuthGuard } from '@dataclouder/nest-auth';
+import { AppToken } from '@dataclouder/nest-auth';
 import { AppGuard } from '@dataclouder/nest-core';
 import { EntityController } from '@dataclouder/nest-mongo';
+import { ProjectAuthGuard } from './project-auth.guard';
 import { OrganizationService } from 'src/organization/services/organization.service';
 import { AccountScoped } from 'src/auth/account-scoped.decorator';
 import { NotOrgScoped } from 'src/auth/not-org-scoped.decorator';
@@ -18,9 +18,11 @@ import { NotOrgScoped } from 'src/auth/not-org-scoped.decorator';
 @ApiTags('user')
 @NotOrgScoped('The users collection has no orgId field: membership lives in organizations[].orgId, so filtering by orgId returns nothing. Scoping user reads is F17 work, not a field rewrite.')
 @ApiBearerAuth()
-@UseGuards(AppGuard, AuthGuard)
+// El guard de clase reemplaza al que `EntityController` trae desde `nest-mongo@1.2.1`, así que las 8
+// rutas heredadas quedan con este y no con el de la librería. `ProjectAuthGuard` en vez del `AuthGuard`
+// de Firebase: si no, el guard global autentica un `cm_pat_*` y este lo rechaza un guard después.
+@UseGuards(AppGuard, ProjectAuthGuard)
 @Controller('api/user')
-@UseFilters(AllExceptionsHandler)
 export class UserController extends EntityController<UserEntity> {
   constructor(
     @InjectModel(UserEntity.name) private userModel: Model<UserEntity>,
