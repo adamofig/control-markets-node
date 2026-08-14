@@ -6,7 +6,13 @@ import { IScenePipelineOptions } from '../../video-scene/models/scene-pipeline.m
 import { VideoGeneratorService } from '../services/video-project-generator.service';
 import { VideoProjectEventsService } from '../services/video-project-events.service';
 import { IProjectPipelineStart, VideoProjectPipelineService } from '../services/video-project-pipeline.service';
-import { ISyncSceneReferencesResult, IVideoProjectGenerator } from '../models/video-project.models';
+import {
+  IProjectRenderOptions,
+  IProjectRenderStart,
+  ISyncSceneReferencesResult,
+  IVideoProjectGenerator,
+} from '../models/video-project.models';
+import { VideoProjectRenderService } from '../services/video-project-render.service';
 import { VideoGeneratorDocument, VideoGeneratorEntity } from '../schemas/video-project.entity';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { OrgId } from '../../common/org-id.decorator';
@@ -26,6 +32,7 @@ export class VideoGeneratorController extends EntityMongoController<VideoGenerat
     private readonly videoGeneratorService: VideoGeneratorService,
     private readonly videoProjectPipelineService: VideoProjectPipelineService,
     private readonly videoProjectEventsService: VideoProjectEventsService,
+    private readonly videoProjectRenderService: VideoProjectRenderService,
   ) {
     super(videoGeneratorService);
   }
@@ -73,6 +80,65 @@ export class VideoGeneratorController extends EntityMongoController<VideoGenerat
   ): Promise<ISyncSceneReferencesResult> {
     const resolvedOrgId = orgId || token?.userId || (token as any).id || (token as any).uid;
     return this.videoGeneratorService.syncReferencesToScenes(id, resolvedOrgId);
+  }
+
+  /**
+   * Une los MP4 ya renderizados de cada escena en el video final — **modo rápido**.
+   *
+   * No renderiza nada: FFmpeg pega los clips (segundos). Falla de entrada si alguna escena no tiene
+   * `renderStorage`. Responde apenas arranca; el avance sale por `subscribe/:id`.
+   */
+  @Post(':id/concat')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fast-join the already rendered scene clips into the project final video (background)' })
+  async concatFinalVideo(
+    @Param('id') id: string,
+    @Body() body: IProjectRenderOptions,
+    @DecodedToken() token: AppToken,
+    @OrgId() orgId?: string,
+  ): Promise<IProjectRenderStart> {
+    return this.videoProjectRenderService.startFinalRender(id, 'concat', this.resolveOrgId(token, orgId), this.buildAuditable(token), body || {});
+  }
+
+  /**
+   * Renderiza el video final completo con Remotion — **modo cinemático**.
+   *
+   * Recompone todas las escenas con transiciones y música de fondo. Cuesta lo mismo que renderizar
+   * cada escena otra vez (minutos). Responde apenas arranca; el avance sale por `subscribe/:id`.
+   */
+  @Post(':id/render-master')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Render the whole project as one Remotion composition with transitions and BGM (background)' })
+  async renderMaster(
+    @Param('id') id: string,
+    @Body() body: IProjectRenderOptions,
+    @DecodedToken() token: AppToken,
+    @OrgId() orgId?: string,
+  ): Promise<IProjectRenderStart> {
+    return this.videoProjectRenderService.startFinalRender(id, 'master', this.resolveOrgId(token, orgId), this.buildAuditable(token), body || {});
+  }
+
+
+  @Public('control-render posts this callback without credentials. Emits an SSE progress event, persists nothing.')
+  @Post('render-progress')
+  @ApiOperation({ summary: 'Callback endpoint for final-video render progress coming from control-render' })
+  async renderProgress(@Body() body: { projectId: string; mode?: string; progress?: number; stage?: string }): Promise<any> {
+    this.videoProjectRenderService.emitProgress(body.projectId, body);
+    return { ok: true };
+  }
+
+  private resolveOrgId(token: AppToken, orgId?: string): string {
+    return orgId || token?.userId || (token as any).id || (token as any).uid;
+  }
+
+  private buildAuditable(token: AppToken) {
+    const now = new Date();
+    return {
+      createdBy: token?.email || 'system',
+      createdAt: now,
+      updatedBy: token?.email || 'system',
+      updatedAt: now,
+    };
   }
 
   /** TODO(F13): igual que en video-scene — `EventSource` del browser no manda `Authorization`. */

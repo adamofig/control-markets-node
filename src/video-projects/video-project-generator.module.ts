@@ -13,6 +13,9 @@ import { AgentsModule } from 'src/agent-tasks/agent-tasks.module';
 import { AgentCardsModule } from '@dataclouder/nest-agent-cards';
 import { NestStorageModule } from '@dataclouder/nest-storage';
 import { NestAuthModule } from '@dataclouder/nest-auth';
+import { HttpModule } from '@nestjs/axios';
+import { VideoProjectRenderService } from './services/video-project-render.service';
+import { StorageAssetOverrideModule } from '../storage-asset/storage-asset-override.module';
 
 @Module({
   imports: [
@@ -27,11 +30,15 @@ import { NestAuthModule } from '@dataclouder/nest-auth';
     AgentCardsModule,
     NestStorageModule,
     NestAuthModule,
+    // Habla con `control-render` (concat y render maestro del video final).
+    HttpModule,
+    // El `StorageAssetService` sobre el schema extendido, el mismo que usa el render por escena.
+    StorageAssetOverrideModule,
     // Da acceso a `ScenePipelineService`: el proyecto orquesta, la escena sabe generarse.
     VideoSceneModule,
   ],
   controllers: [VideoGeneratorController],
-  providers: [VideoGeneratorService, VideoProjectPipelineService, VideoProjectEventsService],
+  providers: [VideoGeneratorService, VideoProjectPipelineService, VideoProjectEventsService, VideoProjectRenderService],
   exports: [VideoGeneratorService],
 })
 export class VideoGeneratorModule {}

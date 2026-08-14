@@ -109,6 +109,33 @@ export interface IVideoBrief {
   pace?: 'short' | 'medium' | 'long' | null;
 }
 
+/**
+ * Cómo se arma el video final:
+ * - `concat`: FFmpeg pega los MP4 ya renderizados de cada escena. Segundos, sin transiciones.
+ * - `master`: Remotion recompone todo con transiciones y música. Minutos.
+ */
+export type ProjectRenderMode = 'concat' | 'master';
+
+export interface IProjectRenderOptions {
+  /** Por defecto se toma de `brief.aspectRatio`, o del de la primera escena. */
+  aspectRatio?: '9:16' | '16:9' | '1:1' | '4:3' | '3:4';
+  /** Sólo modo `master`: música de fondo global. */
+  musicUrl?: string;
+  /** 0–1. Bajo a propósito: la voz en off manda. */
+  musicVolume?: number;
+  /** Sólo modo `master`. `none` desactiva el solape entre escenas. */
+  transitionType?: 'none' | 'fade' | 'slide' | 'wipe' | 'flip';
+  transitionDurationSec?: number;
+}
+
+/** Respuesta inmediata del render final: el trabajo sigue en background, el avance va por SSE. */
+export interface IProjectRenderStart {
+  status: 'started';
+  projectId: string;
+  mode: ProjectRenderMode;
+  scenes: number;
+}
+
 export interface IVideoProjectGenerator {
   id: string;
   orgId?: string;
@@ -127,6 +154,12 @@ export interface IVideoProjectGenerator {
   sources?: Partial<ISource>[];
   compositionPlan?: { overlays: IOverlayPlan[] };
   dialogs?: IDialog[];
+
+  /** MP4 final del proyecto (referencia suave al `storage_assets` subido a `rendered-projects/`). */
+  renderStorage?: any;
+  renderStatus?: 'idle' | 'rendering' | 'ready' | 'failed';
+  renderMode?: ProjectRenderMode;
+  renderedAt?: string;
 }
 
 export interface IFragmentExtraction {

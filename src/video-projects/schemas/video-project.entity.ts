@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { IAssets, IDialog, IOverlayPlan, IScene, IVideoBrief, IVideoProjectGenerator } from '../models/video-project.models';
+import { IAssets, IDialog, IOverlayPlan, IScene, IVideoBrief, IVideoProjectGenerator, ProjectRenderMode } from '../models/video-project.models';
 import * as mongoose from 'mongoose';
 import { ISource, IMinimalSource } from 'src/agent-tasks/models/classes';
 import { addIdAfterSave } from '@dataclouder/nest-mongo';
@@ -99,6 +99,19 @@ export class VideoGeneratorEntity implements IVideoProjectGenerator {
 
   @Prop({ required: false })
   img: string;
+
+  /** MP4 final del proyecto: referencia suave al `storage_assets`, igual que `scene.renderStorage`. */
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  renderStorage: any;
+
+  @Prop({ type: String, required: false })
+  renderStatus: 'idle' | 'rendering' | 'ready' | 'failed';
+
+  @Prop({ type: String, required: false })
+  renderMode: ProjectRenderMode;
+
+  @Prop({ type: String, required: false })
+  renderedAt: string;
 }
 
 export const VideoGeneratorSchema = SchemaFactory.createForClass(VideoGeneratorEntity);
