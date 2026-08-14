@@ -35,6 +35,10 @@ export class VideoSceneEntity implements IVideoScene {
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   videoStorage: any;
 
+  /** Salida del render final (`control-render`). Separado de `videoStorage`, que es el fondo de entrada. */
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  renderStorage: any;
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
   imagePrompt: string;
 

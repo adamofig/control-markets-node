@@ -2,6 +2,8 @@ import { Controller, Post, Param, UseGuards, Body, Res, Sse, MessageEvent } from
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VideoSceneService } from '../services/video-scene.service';
 import { VideoSceneEventsService } from '../services/video-scene-events.service';
+import { ScenePipelineService } from '../services/scene-pipeline.service';
+import { IScenePipelineOptions, IScenePipelineResult } from '../models/scene-pipeline.models';
 import { EntityController } from '@dataclouder/nest-mongo';
 import { VideoSceneDocument } from '../schemas/video-scene.schema';
 import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
@@ -24,6 +26,7 @@ export class VideoSceneController extends EntityController<VideoSceneDocument> {
   constructor(
     private readonly videoSceneService: VideoSceneService,
     private readonly videoSceneEventsService: VideoSceneEventsService,
+    private readonly scenePipelineService: ScenePipelineService,
   ) {
     super(videoSceneService);
   }
@@ -79,6 +82,29 @@ export class VideoSceneController extends EntityController<VideoSceneDocument> {
         details: error.message,
       });
     }
+  }
+
+  /**
+   * Completa la escena sola: voz → captions → fondo → render, saltando lo que ya existe.
+   * Es la misma operación que corre el botón del proyecto, para una escena.
+   */
+  @Post(':id/auto-generate')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate the scene missing media (speech, captions, background) and render it' })
+  async autoGenerate(
+    @Param('id') id: string,
+    @Body() body: IScenePipelineOptions,
+    @OrgId() orgId: string | undefined,
+    @DecodedToken() token: AppToken
+  ): Promise<IScenePipelineResult> {
+    const now = new Date();
+    const auditable = {
+      createdBy: token?.email || 'system',
+      createdAt: now,
+      updatedBy: token?.email || 'system',
+      updatedAt: now,
+    };
+    return this.scenePipelineService.autoComplete(id, orgId, auditable, body || {});
   }
 
   @Post(':id/render')

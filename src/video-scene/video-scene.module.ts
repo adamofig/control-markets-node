@@ -3,6 +3,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { VideoSceneController } from './controllers/video-scene.controller';
 import { VideoSceneService } from './services/video-scene.service';
 import { VideoSceneEventsService } from './services/video-scene-events.service';
+import { ScenePipelineService } from './services/scene-pipeline.service';
+import { SceneMediaService } from './services/scene-media.service';
 import { VideoSceneEntity, VideoSceneSchema } from './schemas/video-scene.schema';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { NestAuthModule } from '@dataclouder/nest-auth';
@@ -20,7 +22,7 @@ import { StorageAssetOverrideModule } from '../storage-asset/storage-asset-overr
     StorageAssetOverrideModule,
   ],
   controllers: [VideoSceneController],
-  providers: [VideoSceneService, VideoSceneEventsService],
-  exports: [VideoSceneService, VideoSceneEventsService],
+  providers: [VideoSceneService, VideoSceneEventsService, SceneMediaService, ScenePipelineService],
+  exports: [VideoSceneService, VideoSceneEventsService, ScenePipelineService],
 })
 export class VideoSceneModule {}

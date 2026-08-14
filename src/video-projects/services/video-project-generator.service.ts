@@ -2,7 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 import { VideoGeneratorEntity, VideoGeneratorDocument } from '../schemas/video-project.entity';
-import { CreateVideoGeneratorDto, IVideoProjectGenerator, UpdateVideoGeneratorDto } from '../models/video-project.models';
+import {
+  CreateVideoGeneratorDto,
+  ISyncSceneReferencesResult,
+  IVideoProjectGenerator,
+  UpdateVideoGeneratorDto,
+} from '../models/video-project.models';
 import { FiltersConfig, flattenObject, IQueryResponse, MongoService } from '@dataclouder/nest-mongo';
 import { ObjectId } from 'mongodb';
 import { SourcesService } from '../../agent-tasks/services/sources.service';
@@ -98,6 +103,72 @@ export class VideoGeneratorService extends EntityCommunicationService<VideoGener
     };
   }
 
+
+  /**
+   * Propaga la tarjeta de agente y las referencias de imagen del proyecto a **todas** sus escenas.
+   *
+   * Las escenas copian estos datos una sola vez, cuando se crean (`generateScenesWithAI`), así que
+   * editar el proyecto después las dejaba desactualizadas. Esto las sobreescribe a mano.
+   *
+   * Es un **overwrite**, no un merge: si el proyecto ya no tiene tarjeta o referencias, se quitan
+   * también de las escenas — así el proyecto es siempre la fuente de verdad. Se copia el mismo
+   * snapshot (`imageRefs` apunta a los `storage_assets` que ya existen), no se crean assets nuevos.
+   */
+  async syncReferencesToScenes(projectId: string, orgId?: string): Promise<ISyncSceneReferencesResult> {
+    const query: any = { _id: projectId };
+    if (orgId) {
+      query.orgId = orgId;
+    }
+
+    const project = await this.videoGeneratorModel.findOne(query, { videoScene: 1, agentCard: 1, imageRefs: 1 }).lean().exec();
+    if (!project) {
+      throw new AppException({ error_message: 'Video project not found or access denied', statusCode: 404 });
+    }
+
+    const agentCard = (project as any).agentCard || null;
+    const imageRefs: any[] = Array.isArray((project as any).imageRefs) ? (project as any).imageRefs : [];
+    const ids = ((project as any).videoScene ?? [])
+      .map((ref: any) => ref?.id)
+      .filter((id: any): id is string => !!id && isValidObjectId(id));
+
+    const result: ISyncSceneReferencesResult = {
+      total: ids.length,
+      matched: 0,
+      updated: 0,
+      agentCardId: agentCard?.id ?? null,
+      imageRefs: imageRefs.length,
+    };
+    if (ids.length === 0) {
+      return result;
+    }
+
+    const set: any = {};
+    const unset: any = {};
+    if (agentCard) {
+      set.agentCard = agentCard;
+    } else {
+      unset.agentCard = '';
+    }
+    if (imageRefs.length) {
+      set.imageRefs = imageRefs;
+    } else {
+      unset.imageRefs = '';
+    }
+
+    const update: any = {};
+    if (Object.keys(set).length) update.$set = set;
+    if (Object.keys(unset).length) update.$unset = unset;
+
+    const match: any = { _id: { $in: ids.map(id => new ObjectId(id)) } };
+    if (orgId) {
+      match.orgId = orgId;
+    }
+
+    const writeResult = await this.videoSceneModel.updateMany(match, update).exec();
+    result.matched = writeResult.matchedCount ?? 0;
+    result.updated = writeResult.modifiedCount ?? 0;
+    return result;
+  }
 
   /**
    * Updates only the properties that are present in the update object

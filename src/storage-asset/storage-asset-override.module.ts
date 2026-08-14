@@ -19,6 +19,6 @@ import { StorageAssetController } from './storage-asset.controller';
   ],
   controllers: [StorageAssetController, StorageAssetCaptionsController],
   providers: [StorageAssetService, StorageAssetCaptionsService],
-  exports: [StorageAssetService],
+  exports: [StorageAssetService, StorageAssetCaptionsService],
 })
 export class StorageAssetOverrideModule {}

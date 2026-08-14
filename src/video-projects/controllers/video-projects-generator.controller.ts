@@ -1,7 +1,12 @@
-import { Body, Controller, Logger, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Body, Controller, Logger, MessageEvent, Param, Patch, Post, Sse, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Observable } from 'rxjs';
+import { Public } from '../../auth/public.decorator';
+import { IScenePipelineOptions } from '../../video-scene/models/scene-pipeline.models';
 import { VideoGeneratorService } from '../services/video-project-generator.service';
-import { IVideoProjectGenerator } from '../models/video-project.models';
+import { VideoProjectEventsService } from '../services/video-project-events.service';
+import { IProjectPipelineStart, VideoProjectPipelineService } from '../services/video-project-pipeline.service';
+import { ISyncSceneReferencesResult, IVideoProjectGenerator } from '../models/video-project.models';
 import { VideoGeneratorDocument, VideoGeneratorEntity } from '../schemas/video-project.entity';
 import { EntityMongoController } from '@dataclouder/nest-mongo';
 import { OrgId } from '../../common/org-id.decorator';
@@ -17,8 +22,68 @@ import { isPlatformAdmin } from '../../auth/platform-roles';
 export class VideoGeneratorController extends EntityMongoController<VideoGeneratorDocument> {
   private readonly logger = new Logger('VideoGeneratorController');
 
-  constructor(private readonly videoGeneratorService: VideoGeneratorService) {
+  constructor(
+    private readonly videoGeneratorService: VideoGeneratorService,
+    private readonly videoProjectPipelineService: VideoProjectPipelineService,
+    private readonly videoProjectEventsService: VideoProjectEventsService,
+  ) {
     super(videoGeneratorService);
+  }
+
+  /**
+   * Completa la media faltante de todas las escenas del proyecto y las renderiza.
+   *
+   * Responde apenas arranca (el trabajo dura minutos); el avance sale por `subscribe/:id`.
+   * Por defecto sólo genera lo que falta — `force: true` regenera todo y **vuelve a gastar IA**.
+   */
+  @Post(':id/generate-all')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate missing media for every scene of the project and render them (background)' })
+  async generateAll(
+    @Param('id') id: string,
+    @Body() body: IScenePipelineOptions,
+    @DecodedToken() token: AppToken,
+    @OrgId() orgId?: string,
+  ): Promise<IProjectPipelineStart> {
+    const resolvedOrgId = orgId || token?.userId || (token as any).id || (token as any).uid;
+    const now = new Date();
+    const auditable = {
+      createdBy: token?.email || 'system',
+      createdAt: now,
+      updatedBy: token?.email || 'system',
+      updatedAt: now,
+    };
+    return this.videoProjectPipelineService.startGenerateAll(id, resolvedOrgId, auditable, body || {});
+  }
+
+  /**
+   * Copia la tarjeta de agente y las referencias de imagen del proyecto a todas sus escenas.
+   *
+   * Sobreescribe (no mergea) y no genera media: es sólo propagar el snapshot que las escenas
+   * copiaron al crearse. Barato y repetible.
+   */
+  @Post(':id/sync-references')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Overwrite every linked scene's agent card and image references with the project's" })
+  @ApiResponse({ status: 200, description: 'References propagated to the linked scenes.' })
+  async syncReferences(
+    @Param('id') id: string,
+    @DecodedToken() token: AppToken,
+    @OrgId() orgId?: string,
+  ): Promise<ISyncSceneReferencesResult> {
+    const resolvedOrgId = orgId || token?.userId || (token as any).id || (token as any).uid;
+    return this.videoGeneratorService.syncReferencesToScenes(id, resolvedOrgId);
+  }
+
+  /** TODO(F13): igual que en video-scene — `EventSource` del browser no manda `Authorization`. */
+  @Public('TODO(F13): browser EventSource cannot send Authorization. Read-only stream, needs a known project id.')
+  @Sse('subscribe/:id')
+  subscribe(@Param('id') id: string): Observable<MessageEvent> {
+    return new Observable(observer => {
+      const handler = (data: any) => observer.next({ data });
+      this.videoProjectEventsService.subscribe(id, handler);
+      return () => this.videoProjectEventsService.unsubscribe(id, handler);
+    });
   }
 
   @Post('operation')

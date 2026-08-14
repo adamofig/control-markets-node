@@ -33,6 +33,7 @@
     "send:agent-message": "node scripts/send-agent-message.js",
     "generate:master-token": "node scripts/generate-master-token.js",
     "migrate:org-roles": "ts-node -r tsconfig-paths/register scripts/migrate-org-roles.ts",
+    "migrate:scene-render": "ts-node -r tsconfig-paths/register scripts/migrate-scene-render-storage.ts",
     "cleanup:orphan-orgs": "ts-node -r tsconfig-paths/register scripts/cleanup-orphan-orgs.ts"
   },
   "dependencies": {

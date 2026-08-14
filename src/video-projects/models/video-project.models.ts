@@ -68,8 +68,13 @@ export interface IVideoSceneSummary {
 
   thumbnailUrl?: string;
   hasImage?: boolean;
+  /** Fondo de video de la escena (entrada del render), no el MP4 final. */
   hasVideo?: boolean;
   videoUrl?: string;
+
+  /** MP4 final renderizado por `control-render` (`scene.renderStorage`). */
+  hasRender?: boolean;
+  renderUrl?: string;
 
   hasSpeech?: boolean;
   speechUrl?: string;
@@ -77,6 +82,23 @@ export interface IVideoSceneSummary {
   hasCaptions?: boolean;
 
   updatedAt?: Date | string;
+}
+
+/**
+ * Resultado de propagar las referencias del proyecto (tarjeta de agente + referencias de imagen)
+ * a sus escenas. `updated` cuenta sólo las escenas que realmente cambiaron en Mongo.
+ */
+export interface ISyncSceneReferencesResult {
+  /** Escenas enlazadas al proyecto */
+  total: number;
+  /** Escenas alcanzadas por el update (existen y pertenecen a la org) */
+  matched: number;
+  /** Escenas cuyo documento cambió */
+  updated: number;
+  /** Id de la tarjeta propagada, o `null` si el proyecto no tiene y se quitó de las escenas */
+  agentCardId: string | null;
+  /** Cantidad de referencias de imagen propagadas (0 = se quitaron de las escenas) */
+  imageRefs: number;
 }
 
 export interface IVideoBrief {

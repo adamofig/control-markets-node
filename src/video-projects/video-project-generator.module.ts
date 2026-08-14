@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { VideoGeneratorController } from './controllers/video-projects-generator.controller';
 import { VideoGeneratorService } from './services/video-project-generator.service';
+import { VideoProjectPipelineService } from './services/video-project-pipeline.service';
+import { VideoProjectEventsService } from './services/video-project-events.service';
+import { VideoSceneModule } from '../video-scene/video-scene.module';
 import { VideoGeneratorEntity, VideoGeneratorSchema } from './schemas/video-project.entity';
 import { DCMongoDBModule } from '@dataclouder/nest-mongo';
 import { SourceEntity, SourceSchema } from 'src/agent-tasks/schemas/sources.schema';
@@ -24,9 +27,11 @@ import { NestAuthModule } from '@dataclouder/nest-auth';
     AgentCardsModule,
     NestStorageModule,
     NestAuthModule,
+    // Da acceso a `ScenePipelineService`: el proyecto orquesta, la escena sabe generarse.
+    VideoSceneModule,
   ],
   controllers: [VideoGeneratorController],
-  providers: [VideoGeneratorService],
+  providers: [VideoGeneratorService, VideoProjectPipelineService, VideoProjectEventsService],
   exports: [VideoGeneratorService],
 })
 export class VideoGeneratorModule {}

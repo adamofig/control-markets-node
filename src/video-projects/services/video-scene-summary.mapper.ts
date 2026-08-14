@@ -23,6 +23,8 @@ export const VIDEO_SCENE_SUMMARY_PROJECTION = {
   updatedAt: 1,
   imageUrl: '$imageStorage.storage.url',
   videoUrl: '$videoStorage.storage.url',
+  /** MP4 final de `control-render`; `videoUrl` es sólo el fondo. Ver `renderStorage` en la escena. */
+  renderUrl: '$renderStorage.storage.url',
   speechUrl: '$speechStorage.storage.url',
   speechDurationSec: '$speechStorage.generationMetadata.transcription.duration',
   captionsCount: {
@@ -45,6 +47,7 @@ export function toVideoSceneSummary(id: string, raw?: any): IVideoSceneSummary {
 
   const imageUrl: string | undefined = raw.imageUrl || undefined;
   const videoUrl: string | undefined = raw.videoUrl || undefined;
+  const renderUrl: string | undefined = raw.renderUrl || undefined;
   const speechUrl: string | undefined = raw.speechUrl || undefined;
 
   return {
@@ -60,6 +63,9 @@ export function toVideoSceneSummary(id: string, raw?: any): IVideoSceneSummary {
     hasImage: !!imageUrl,
     hasVideo: !!videoUrl,
     videoUrl,
+
+    hasRender: !!renderUrl,
+    renderUrl,
 
     hasSpeech: !!speechUrl,
     speechUrl,

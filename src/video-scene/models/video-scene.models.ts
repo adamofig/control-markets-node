@@ -33,7 +33,15 @@ export interface IVideoScene {
   speechStorage?: Partial<IStorageAsset>
 
   videoPrompt?: string;
+  /** Video de **fondo** de la escena (generado por Veo/Comfy o elegido a mano). Es una entrada del render. */
   videoStorage?: Partial<IStorageAsset>
+
+  /**
+   * MP4 **resultante** del render final en `control-render`. Es la salida del pipeline, no una entrada:
+   * nunca se usa como fondo. Vivía en `videoStorage`, lo que pisaba el fondo y hacía que un segundo
+   * render se auto-incrustara (`SceneComposition.tsx` cae a `videoStorage` cuando no hay imagen).
+   */
+  renderStorage?: Partial<IStorageAsset>
 
   imagePrompt?: string;
   imageStorage?: Partial<IStorageAsset>
