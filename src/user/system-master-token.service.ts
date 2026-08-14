@@ -34,7 +34,14 @@ export class SystemMasterTokenService implements OnModuleInit {
   public readonly defaultUserRef?: string;
 
   constructor() {
-    const configured = (process.env.SYSTEM_MASTER_TOKEN ?? '')
+    const rawTokens = [
+      process.env.CONTROL_MASTER_TOKEN,
+      process.env.SYSTEM_MASTER_TOKEN,
+    ]
+      .filter(Boolean)
+      .join(',');
+
+    const configured = rawTokens
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
@@ -51,7 +58,7 @@ export class SystemMasterTokenService implements OnModuleInit {
     }
 
     if (!this.isEnabled) {
-      this.logger.log('Disabled — set SYSTEM_MASTER_TOKEN to enable platform-level authentication.');
+      this.logger.log('Disabled — set CONTROL_MASTER_TOKEN (or SYSTEM_MASTER_TOKEN) to enable platform-level authentication.');
       return;
     }
 

@@ -270,12 +270,72 @@ function extractAgentCard(filePath: string): ExtractedAgent {
   };
 }
 
+function loadEnv(targetPath?: string): void {
+  const startDirs = [
+    targetPath ? (fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory() ? targetPath : path.dirname(targetPath)) : null,
+    process.cwd(),
+    __dirname,
+  ].filter(Boolean) as string[];
+
+  const searched = new Set<string>();
+  const foundFiles: string[] = [];
+
+  for (const startDir of startDirs) {
+    let current = path.resolve(startDir);
+    while (current && !searched.has(current)) {
+      searched.add(current);
+      const candidate = path.join(current, '.env');
+      if (fs.existsSync(candidate)) {
+        foundFiles.push(candidate);
+      }
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+
+  for (const envFile of foundFiles) {
+    try {
+      const content = fs.readFileSync(envFile, 'utf-8');
+      for (const line of content.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const equalIdx = trimmed.indexOf('=');
+        if (equalIdx === -1) continue;
+        const key = trimmed.slice(0, equalIdx).trim();
+        let val = trimmed.slice(equalIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (key && process.env[key] === undefined) {
+          process.env[key] = val;
+        }
+      }
+    } catch (err: any) {
+      console.warn(`Warning: Could not read .env at ${envFile}: ${err.message}`);
+    }
+  }
+}
+
+function resolveSyncToken(): string {
+  return (
+    process.env.CONTROL_MASTER_TOKEN ||
+    process.env.CONTROL_MARKETS_PAT ||
+    process.env.CONTROL_MARKETS_TOKEN ||
+    process.env.SYSTEM_MASTER_TOKEN ||
+    process.env.CM_PAT ||
+    ''
+  ).trim();
+}
+
 async function main() {
   const filePath = process.argv[2];
   if (!filePath) {
     console.error('Usage: npx ts-node sync-agent-card.ts <path-to-agent-card.md>');
     process.exit(1);
   }
+
+  loadEnv(path.resolve(filePath));
 
   try {
     console.log(`Parsing Agent spec: ${filePath}`);
@@ -309,11 +369,17 @@ async function main() {
     const baseUrl = process.env.CONTROL_MARKETS_BACKEND_URL || 'https://local-back.control.markets';
     console.log(`Endpoint: ${baseUrl}/api/agentic-profile/sync-markdown`);
 
+    const token = resolveSyncToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${baseUrl}/api/agentic-profile/sync-markdown`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify(agentData)
     });
 

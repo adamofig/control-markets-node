@@ -14,7 +14,8 @@ const { randomBytes } = require('crypto');
 const token = `cm_master_${randomBytes(14).toString('hex')}`;
 
 console.log('\nSystem Master Token generated. Store it in your server environment:\n');
-console.log(`SYSTEM_MASTER_TOKEN=${token}`);
+console.log(`CONTROL_MASTER_TOKEN=${token}`);
+console.log('# (Legacy alias: SYSTEM_MASTER_TOKEN=...)');
 console.log('# SYSTEM_MASTER_USER=adamo.figueroa@gmail.com   # identity the token acts as by default\n');
 console.log('Callers send it as:  Authorization: Bearer <token>   (or  x-api-key: <token>)');
 console.log('Optional headers:    x-org-id: <orgId>              x-system-user: <email|userId>\n');

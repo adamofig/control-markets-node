@@ -56,6 +56,17 @@ describe('ProjectAuthGuard — system master token', () => {
     expect(request.orgId).toBe('org-polilan');
   });
 
+  it('authenticates via CONTROL_MASTER_TOKEN as canonical variable', async () => {
+    const { guard, userModel } = createGuard({ CONTROL_MASTER_TOKEN: MASTER, SYSTEM_MASTER_USER: owner.email });
+    const { request, ctx } = contextFor({ authorization: `Bearer ${MASTER}`, 'x-org-id': 'org-polilan' });
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(userModel.findOne).toHaveBeenCalledWith({ email: owner.email });
+    expect(request.decodedToken.email).toBe(owner.email);
+    expect(request.decodedToken.isMaster).toBe(true);
+    expect(request.orgId).toBe('org-polilan');
+  });
+
   it('falls back to the user default org when no x-org-id is sent', async () => {
     const { guard } = createGuard({ SYSTEM_MASTER_TOKEN: MASTER, SYSTEM_MASTER_USER: owner.email });
     const { request, ctx } = contextFor({ 'x-api-key': MASTER });
