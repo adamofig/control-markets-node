@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { SHARED_CATALOG_CONTROLLERS } from './shared-catalog';
 
 /**
  * The test that keeps F10 from rotting.
@@ -163,6 +164,27 @@ describe('route guard coverage (F10)', () => {
       'organization/controllers/organization.controller.ts',
       'user/user.controller.ts',
     ]);
+  });
+
+  /**
+   * F14a's shared-catalog registry is the other exemption, and the weaker one: it widens *reads* on a
+   * collection that does carry `orgId`. It cannot be a decorator because the controller lives in
+   * `node_modules`, so the list is asserted here for the same reason `@NotOrgScoped` is — widening it
+   * has to be read by someone.
+   */
+  it('only agent_cards is a shared catalog', () => {
+    expect([...SHARED_CATALOG_CONTROLLERS.keys()].map(c => c.name).sort()).toEqual(['AgentCardsController']);
+  });
+
+  /**
+   * Same shape as "every @Public(/@NotOrgScoped( states a reason" above — a reason is only worth
+   * requiring if something checks it says more than nothing. The read/write asymmetry itself is
+   * proven behaviourally in org-scope.interceptor.spec.ts (updateOne/deleteOne stay strict), which is
+   * the right place for it: a test that greps the interceptor's source for a specific expression would
+   * break on any refactor that preserves behaviour, for no real reason.
+   */
+  it.each([...SHARED_CATALOG_CONTROLLERS])('%s states a reason', (_controller, rule) => {
+    expect(rule.reason.length).toBeGreaterThan(20);
   });
 
   /**

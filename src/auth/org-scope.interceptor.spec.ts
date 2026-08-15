@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { firstValueFrom, of } from 'rxjs';
 import { EntityController, EntityMongoController } from '@dataclouder/nest-mongo';
+import { AgentCardsController } from '@dataclouder/nest-agent-cards';
 import { OrgScopeInterceptor } from './org-scope.interceptor';
 import { IS_NOT_ORG_SCOPED_KEY } from './not-org-scoped.decorator';
 import { IRequestOrgContext } from './org-context.service';
@@ -182,6 +183,56 @@ describe('OrgScopeInterceptor (F14a)', () => {
       });
 
       await expect(firstValueFrom(result)).resolves.toEqual([{ id: '1', orgId: ORG_A }, { id: '3' }]);
+    });
+  });
+
+  /**
+   * The shared-catalog half of F14a. `agent_cards` is the collection it exists for: the stock voices and
+   * characters have to reach every organization's agent picker, while staying unwritable from outside.
+   */
+  describe('shared catalogs (agent_cards)', () => {
+    it('reads the union of my organization and the shared rows instead of my organization alone', async () => {
+      const { request } = run({ controller: AgentCardsController, body: { action: 'find', query: {} } });
+
+      expect(request.body.query).toEqual({ $or: [{ orgId: ORG_A }, { 'manageable.isPublic': true }, { orgId: null }] });
+    });
+
+    it('keeps the rest of the client filter under the union so the UI filters still narrow', async () => {
+      const { request } = run({ controller: AgentCardsController, body: { action: 'find', query: { 'manageable.isPublic': true } } });
+
+      expect(request.body.query).toEqual({
+        $and: [{ $or: [{ orgId: ORG_A }, { 'manageable.isPublic': true }, { orgId: null }] }, { 'manageable.isPublic': true }],
+      });
+    });
+
+    it('still refuses a client that asserts another organization', async () => {
+      const { request } = run({ controller: AgentCardsController, body: { action: 'find', query: { orgId: ORG_B } } });
+
+      expect(request.body.query).toEqual({ $or: [{ orgId: ORG_A }, { 'manageable.isPublic': true }, { orgId: null }] });
+    });
+
+    it('prepends the union to an aggregate, which is what the list page runs', async () => {
+      const { request } = run({ controller: AgentCardsController, body: { action: 'aggregate', payload: [{ $limit: 20 }] } });
+
+      expect(request.body.payload[0]).toEqual({ $match: { $or: [{ orgId: ORG_A }, { 'manageable.isPublic': true }, { orgId: null }] } });
+    });
+
+    it('does NOT widen a write — a public card of another org stays unwritable', async () => {
+      const { request } = run({ controller: AgentCardsController, body: { action: 'updateOne', query: { _id: 'card-1' }, payload: { $set: { name: 'x' } } } });
+
+      expect(request.body.query).toEqual({ _id: 'card-1', orgId: ORG_A });
+    });
+
+    it('does NOT widen a delete either', async () => {
+      const { request } = run({ controller: AgentCardsController, body: { action: 'deleteOne', query: { _id: 'card-1' } } });
+
+      expect(request.body.query).toEqual({ _id: 'card-1', orgId: ORG_A });
+    });
+
+    it('stamps my organization on a clone, which is the Fork flow', async () => {
+      const { request } = run({ controller: AgentCardsController, body: { action: 'clone', query: { _id: 'card-1' }, payload: {} } });
+
+      expect(request.body.payload.orgId).toBe(ORG_A);
     });
   });
 

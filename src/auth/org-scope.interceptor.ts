@@ -6,6 +6,7 @@ import { EntityController, EntityMongoController } from '@dataclouder/nest-mongo
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { IS_NOT_ORG_SCOPED_KEY } from './not-org-scoped.decorator';
 import { IRequestOrgContext } from './org-context.service';
+import { ISharedCatalogRule, SHARED_CATALOG_CONTROLLERS } from './shared-catalog';
 
 /**
  * F14a — **the `orgId` belongs to the server.**
@@ -49,6 +50,13 @@ import { IRequestOrgContext } from './org-context.service';
  * `PUT /:id` and `partialUpdate` remain open: refusing them needs the document to be read before the
  * write, which an interceptor cannot do without the model. They are written down in doc 06 §F14a rather
  * than left for someone to discover.
+ *
+ * ## Shared catalogs
+ *
+ * A few collections are org-owned for writing but partly shared for reading — `agent_cards` is the one
+ * today. For the controllers listed in `shared-catalog.ts` the **read** filter becomes the union
+ * `{ $or: [{ orgId }, ...sharedFilters] }` instead of the bare `{ orgId }`; every write action keeps the
+ * strict filter. See `shared-catalog.ts` for why that list is a registry and not a decorator.
  */
 @Injectable()
 export class OrgScopeInterceptor implements NestInterceptor {
@@ -60,6 +68,8 @@ export class OrgScopeInterceptor implements NestInterceptor {
   private static readonly CREATE_ACTIONS = new Set(['create', 'clone']);
   /** Actions whose `payload` is a Mongo update document — strip a foreign org, never write ours in. */
   private static readonly UPDATE_ACTIONS = new Set(['updateOne', 'updateMany', 'partialUpdate']);
+  /** The subset of `FILTER_ACTIONS` that only reads, and is therefore what a shared catalog widens. */
+  private static readonly READ_ACTIONS = new Set(['find', 'findOne']);
 
   constructor(private readonly reflector: Reflector) {}
 
@@ -90,35 +100,36 @@ export class OrgScopeInterceptor implements NestInterceptor {
     }
 
     const handler = context.getHandler().name;
-    this.scopeRequest(handler, request, ctx);
+    const shared = SHARED_CATALOG_CONTROLLERS.get(controller);
+    this.scopeRequest(handler, request, ctx, shared);
 
     if (handler === 'findAll' || handler === 'findOne') {
-      return next.handle().pipe(map(response => this.scopeResponse(handler, response, ctx, request)));
+      return next.handle().pipe(map(response => this.scopeResponse(handler, response, ctx, request, shared)));
     }
     return next.handle();
   }
 
-  private scopeRequest(handler: string, request: any, ctx: IRequestOrgContext): void {
+  private scopeRequest(handler: string, request: any, ctx: IRequestOrgContext, shared?: ISharedCatalogRule): void {
     const body = request.body;
 
     switch (handler) {
       case 'executeOperation':
-        this.scopeOperation(body, ctx, request);
+        this.scopeOperation(body, ctx, request, shared);
         break;
       case 'executeBatch':
         for (const operation of body?.operations ?? []) {
-          this.scopeOperation(operation, ctx, request);
+          this.scopeOperation(operation, ctx, request, shared);
         }
         break;
       case 'query':
         // `FiltersConfig.filters` is what `queryUsingFiltersConfig` turns into the Mongo filter.
         if (body) {
-          body.filters = this.forceOrgId(body.filters, ctx, request, 'query.filters');
+          body.filters = this.scopeFilter(body.filters, ctx, request, 'query.filters', shared);
         }
         break;
       case 'findOneByQuery':
         if (body) {
-          body.query = this.forceOrgId(body.query, ctx, request, 'find-one.query');
+          body.query = this.scopeFilter(body.query, ctx, request, 'find-one.query', shared);
         }
         break;
       case 'save':
@@ -136,7 +147,7 @@ export class OrgScopeInterceptor implements NestInterceptor {
     }
   }
 
-  private scopeOperation(operation: any, ctx: IRequestOrgContext, request: any): void {
+  private scopeOperation(operation: any, ctx: IRequestOrgContext, request: any, shared?: ISharedCatalogRule): void {
     if (!operation || typeof operation !== 'object') return;
 
     // The platform-admin escape hatch that `/page/admin/admin-entities` uses to list across organizations.
@@ -150,14 +161,16 @@ export class OrgScopeInterceptor implements NestInterceptor {
 
     if (action === 'aggregate') {
       // An arbitrary pipeline can read anything in the collection, so the scope goes in front of its first
-      // stage where nothing can have widened it yet.
+      // stage where nothing can have widened it yet. A later client `$match` can only narrow it, which is
+      // exactly how the frontend's "Mi Organización" / "Catálogo Público" filters are meant to work.
       const pipeline = Array.isArray(operation.payload) ? operation.payload : [];
-      operation.payload = [{ $match: { orgId: ctx.orgId } }, ...pipeline];
+      operation.payload = [{ $match: this.readScope(ctx, shared) }, ...pipeline];
       return;
     }
 
     if (OrgScopeInterceptor.FILTER_ACTIONS.has(action)) {
-      operation.query = this.forceOrgId(operation.query, ctx, request, `operation(${action}).query`);
+      const readOnly = OrgScopeInterceptor.READ_ACTIONS.has(action);
+      operation.query = this.scopeFilter(operation.query, ctx, request, `operation(${action}).query`, readOnly ? shared : undefined);
     }
     if (OrgScopeInterceptor.CREATE_ACTIONS.has(action)) {
       operation.payload = operation.payload ?? {};
@@ -168,15 +181,40 @@ export class OrgScopeInterceptor implements NestInterceptor {
     }
   }
 
-  /** Overwrites the filter's `orgId` with the resolved one, whatever the client sent. */
-  private forceOrgId(target: any, ctx: IRequestOrgContext, request: any, where: string): any {
+  /**
+   * The filter the server is willing to run: `{ orgId }` normally, and the union with the shared rows when
+   * the collection is a catalog. Reads and writes call this with and without `shared`, which is the single
+   * place the read/write asymmetry is expressed.
+   */
+  private readScope(ctx: IRequestOrgContext, shared?: ISharedCatalogRule): Record<string, any> {
+    if (!shared) return { orgId: ctx.orgId };
+    return { $or: [{ orgId: ctx.orgId }, ...shared.sharedFilters] };
+  }
+
+  /**
+   * Replaces whatever the client asked for with the scope the server resolved.
+   *
+   * Without `shared` this overwrites `orgId` in place, as it always has. With it, a foreign `orgId` is
+   * **removed** rather than overwritten and the client's remaining filter is `$and`-ed under the union — the
+   * client can still narrow ("Mi Organización", "Catálogo Público"), it just cannot widen past the union.
+   */
+  private scopeFilter(target: any, ctx: IRequestOrgContext, request: any, where: string, shared?: ISharedCatalogRule): any {
     const filter = target && typeof target === 'object' && !Array.isArray(target) ? target : {};
     if (filter.orgId !== undefined && filter.orgId !== ctx.orgId) {
       this.report(request, ctx, where, filter.orgId);
     }
     if (this.isLogOnly()) return target;
-    filter.orgId = ctx.orgId;
-    return filter;
+
+    if (!shared) {
+      filter.orgId = ctx.orgId;
+      return filter;
+    }
+
+    if (filter.orgId !== undefined && filter.orgId !== ctx.orgId) {
+      delete filter.orgId;
+    }
+    const scope = this.readScope(ctx, shared);
+    return Object.keys(filter).length > 0 ? { $and: [scope, filter] } : scope;
   }
 
   /** Stamps the org on a document being written. */
@@ -206,13 +244,15 @@ export class OrgScopeInterceptor implements NestInterceptor {
 
   /**
    * The two id-addressed reads. A document without an `orgId` is not org-scoped (leads, and anything the
-   * exemption list would have covered anyway) and is returned untouched.
+   * exemption list would have covered anyway) and is returned untouched. On a shared catalog the rows the
+   * whole platform may read pass as well — otherwise opening a public agent card would 403 on its own
+   * details page.
    */
-  private scopeResponse(handler: string, response: any, ctx: IRequestOrgContext, request: any): any {
+  private scopeResponse(handler: string, response: any, ctx: IRequestOrgContext, request: any, shared?: ISharedCatalogRule): any {
     if (ctx.isPlatformAdmin) return response;
 
     if (handler === 'findAll' && Array.isArray(response)) {
-      const kept = response.filter(row => row?.orgId === undefined || row.orgId === ctx.orgId);
+      const kept = response.filter(row => row?.orgId === undefined || row.orgId === ctx.orgId || !!shared?.isShared(row));
       if (kept.length !== response.length) {
         this.logger.warn(`[ORG_SCOPE_RESPONSE] ${request.method} ${request.url} | actor=${ctx.email} | dropped ${response.length - kept.length} rows outside org ${ctx.orgId}`);
       }
@@ -221,7 +261,7 @@ export class OrgScopeInterceptor implements NestInterceptor {
 
     if (handler === 'findOne' && response && typeof response === 'object') {
       const orgId = (response as any).orgId;
-      if (orgId !== undefined && orgId !== ctx.orgId) {
+      if (orgId !== undefined && orgId !== ctx.orgId && !shared?.isShared(response)) {
         this.report(request, ctx, 'response(findOne)', orgId);
         if (!this.isLogOnly()) {
           throw new ForbiddenException(`This document belongs to another organization.`);
