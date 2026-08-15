@@ -42,6 +42,17 @@ export class AgenticHeartbeatRunEntity {
   @Prop({ required: false })
   output?: string;
 
+  /**
+   * Rastro de razonamiento del turno: los bloques de pensamiento del modelo y la justificación de
+   * cada herramienta, en orden.
+   *
+   * Se persiste porque un despertar autónomo no tiene a nadie mirando el SSE en vivo: sin esto, la
+   * única pregunta que importa cuando una corrida sale mal —por qué el agente tomó ese camino— sólo
+   * se podía responder leyendo los archivos privados de la CLI en la máquina donde corrió.
+   */
+  @Prop({ required: false })
+  reasoning?: string;
+
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false, default: [] })
   toolCalls?: IHeartbeatToolCall[];
 

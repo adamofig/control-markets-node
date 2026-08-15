@@ -52,8 +52,8 @@ describeE2E('AcpBridgeService · agy engine (E2E, requires local agy)', () => {
     const session = events.find(e => e.type === 'session') as any;
     expect(session?.sessionId).toBeTruthy();
     // The UI renders these, so they must be the adapter's negotiated values, not echoes of the
-    // request (which asked for neither): agy defaults to gemini-3.6-flash at high effort.
-    expect(session?.model).toBe('gemini-3.6-flash');
+    // request (which asked for neither): agy defaults to gemini-3.7-flash at high effort.
+    expect(session?.model).toBe('gemini-3.7-flash');
     expect(session?.reasoningEffort).toBe('high');
 
     const text = events
@@ -116,5 +116,23 @@ describeE2E('AcpBridgeService · agy engine (E2E, requires local agy)', () => {
 
     expect(second.some(e => e.type === 'tool-call')).toBe(true);
     expect(second.some(e => e.type === 'tool-result')).toBe(true);
+
+    // CM-P7: the adapter recovers the reasoning from the CLI's on-disk transcript and the bridge
+    // must surface it as `reasoning-delta` — that event is what ends up in
+    // `agentic_conversations.messages[].reasoning`, i.e. why the agent took the path it took.
+    const reasoning = second
+      .filter((e): e is Extract<LocalAgentStreamEvent, { type: 'reasoning-delta' }> => e.type === 'reasoning-delta')
+      .map(e => e.text)
+      .join('');
+    // A turn with tools always carries at least the per-call rationale; the `thinking` block itself
+    // is sporadic, so asserting on it would make this test flaky against the model's own whim.
+    expect(reasoning).toMatch(/🔧 Paso \d+ · `\w+`/);
+
+    // The first turn's trace must not leak into the second: the transcript file is shared by the
+    // whole conversation, so a tail that restarted at byte 0 would replay it on every turn.
+    const firstReasoning = first
+      .filter((e): e is Extract<LocalAgentStreamEvent, { type: 'reasoning-delta' }> => e.type === 'reasoning-delta')
+      .map(e => e.text);
+    expect(firstReasoning.filter(block => reasoning.includes(block))).toEqual([]);
   }, 300_000);
 });

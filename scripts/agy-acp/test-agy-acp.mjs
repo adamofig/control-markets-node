@@ -157,6 +157,14 @@ async function main() {
     check('emitió tool_call_update', toolUpdates.length > 0, toolUpdates.map(t => t.status).join(', '));
     check('la herramienta leyó el archivo real', /ZANZIBAR-77/i.test(textOf(a.events)), JSON.stringify(textOf(a.events).slice(0, 120)));
 
+    // CM-P7: el razonamiento no viaja por stream-json, se recupera de la transcripción en disco.
+    // Un turno con herramientas siempre trae al menos la justificación de la llamada (`toolAction`);
+    // el bloque `thinking` es esporádico, así que no se puede exigir.
+    const thoughts = a.events.filter(e => e.sessionUpdate === 'agent_thought_chunk');
+    const thoughtText = thoughts.map(e => e.content?.text ?? '').join('');
+    check('emitió agent_thought_chunk (CM-P7)', thoughts.length > 0, `${thoughts.length} bloques`);
+    check('el rastro justifica la herramienta', /🔧 Paso \d+ · `\w+`/.test(thoughtText), thoughtText.split('\n')[0]?.slice(0, 90));
+
     if (!QUICK) {
       // --- T8 cancelación ---------------------------------------------------
       console.log('\nT8 · cancelación a mitad de turno');

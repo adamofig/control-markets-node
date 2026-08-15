@@ -339,6 +339,7 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     });
 
     let output = '';
+    let reasoning = '';
     let error: string | undefined;
     const toolCalls: IHeartbeatToolCall[] = [];
     let sessionId: string | undefined;
@@ -378,6 +379,9 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
           this.publishLive(runId, { type: 'text-delta', text: event.text });
           break;
         case 'reasoning-delta':
+          // Mismo tope que `output`: un turno largo con razonamiento verboso no debe hacer crecer
+          // el documento de la corrida sin límite.
+          if (reasoning.length < MAX_OUTPUT_CHARS) reasoning += event.text;
           this.publishLive(runId, { type: 'thought-delta', text: event.text });
           break;
         case 'tool-call':
@@ -418,8 +422,10 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
       }
     }
 
-    await this.finishRun(run, error ? 'failed' : 'completed', output, toolCalls, error, runUsage);
-    this.logger.log(`💓 Heartbeat finished for ${profileId}: ${error ? `FAILED (${error})` : `${output.length} chars, ${toolCalls.length} tool call(s)`}`);
+    await this.finishRun(run, error ? 'failed' : 'completed', output, toolCalls, error, runUsage, reasoning);
+    this.logger.log(
+      `💓 Heartbeat finished for ${profileId}: ${error ? `FAILED (${error})` : `${output.length} chars, ${toolCalls.length} tool call(s), ${reasoning.length} chars de razonamiento`}`,
+    );
   }
 
   private async finishRun(
@@ -429,10 +435,12 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     toolCalls?: IHeartbeatToolCall[],
     error?: string,
     usage?: any,
+    reasoning?: string,
   ): Promise<void> {
     const finishedAt = new Date();
     run.status = status;
     if (output !== undefined) run.output = output;
+    if (reasoning) run.reasoning = reasoning;
     if (toolCalls?.length) run.toolCalls = toolCalls;
     if (error) run.error = error;
     if (usage !== undefined) run.usage = usage;

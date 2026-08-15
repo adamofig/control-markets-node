@@ -17,6 +17,9 @@
  *   CM-P3  `agy` binary resolution (PATH scan + `AGY_ACP_AGY_BIN` + ~/.local/bin fallback).
  *   CM-P4  `--print-timeout` aligned with the heartbeat hard timeout (`AGY_ACP_PRINT_TIMEOUT`).
  *   CM-P5  Default model/effort seeded from env (`AGY_ACP_MODEL` / `AGY_ACP_EFFORT`).
+ *   CM-P6  `session.cwd` always included in `--add-dir` (otherwise agy works in its scratch dir).
+ *   CM-P7  Reasoning recovered from the forensic transcript on disk and emitted as
+ *          `agent_thought_chunk` — stream-json carries no thinking (see transcript-tail.mjs).
  *
  * Runs on the backend's own `@agentclientprotocol/sdk` (resolved from ../../node_modules), so it
  * needs no build step and no separate install.
@@ -29,8 +32,9 @@ import { existsSync, accessSync, constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import crypto from 'node:crypto';
+import { createTranscriptTail, TRANSCRIPT_TAIL_DISABLED, TRANSCRIPT_THOUGHTS_ONLY } from './transcript-tail.mjs';
 
-const VERSION = '0.2.2-cm.1';
+const VERSION = '0.2.2-cm.2';
 
 if (process.argv.includes('--version') || process.argv.includes('-v') || process.argv.includes('version')) {
   process.stdout.write(`${VERSION}\n`);
@@ -87,6 +91,7 @@ logDebug('using agy binary:', AGY_BIN);
 const EFFORTS = ['low', 'medium', 'high'];
 
 const MODELS = [
+  { base: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', contextWindow: 1_000_000, supportsEffort: true, defaultEffort: 'high' },
   { base: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', contextWindow: 1_000_000, supportsEffort: true, defaultEffort: 'high' },
   { base: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', contextWindow: 1_000_000, supportsEffort: true, defaultEffort: 'high' },
   { base: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', contextWindow: 2_000_000, supportsEffort: true, defaultEffort: 'high' },
@@ -95,7 +100,7 @@ const MODELS = [
   { base: 'claude-opus-4-6-thinking', name: 'Claude Opus 4.6 (Thinking)', contextWindow: 200_000, supportsEffort: false, defaultEffort: null },
 ];
 
-const DEFAULT_MODEL_BASE = 'gemini-3.6-flash';
+const DEFAULT_MODEL_BASE = 'gemini-3.7-flash';
 
 function findModel(base) {
   return MODELS.find(m => m.base === base);
@@ -110,6 +115,9 @@ function contextWindowFor(base) {
 // (effort baked into the name) and stored them under `modelId`.
 
 const LEGACY_MODEL_MAP = {
+  'Gemini 3.7 Flash (High)': { base: 'gemini-3.7-flash', effort: 'high' },
+  'Gemini 3.7 Flash (Medium)': { base: 'gemini-3.7-flash', effort: 'medium' },
+  'Gemini 3.7 Flash (Low)': { base: 'gemini-3.7-flash', effort: 'low' },
   'Gemini 3.6 Flash (High)': { base: 'gemini-3.6-flash', effort: 'high' },
   'Gemini 3.6 Flash (Medium)': { base: 'gemini-3.6-flash', effort: 'medium' },
   'Gemini 3.6 Flash (Low)': { base: 'gemini-3.6-flash', effort: 'low' },
@@ -598,6 +606,20 @@ const app = agent({ name: 'agy-acp' })
     const agyArgs = buildAgyArgs(session, userPrompt);
     logDebug('spawning', AGY_BIN, agyArgs.map(a => (a === userPrompt ? `<prompt:${userPrompt.length} chars>` : a)).join(' '));
 
+    // CM-P7: el pensamiento no viaja por stream-json, sólo queda en la transcripción que la CLI
+    // escribe en disco mientras corre. El tailer la sigue en paralelo al NDJSON y emite cada bloque
+    // como `agent_thought_chunk`, que el bridge ya traduce a `reasoning-delta`.
+    const hadConversation = Boolean(session.conversationId);
+    const transcript = TRANSCRIPT_TAIL_DISABLED()
+      ? null
+      : createTranscriptTail({
+          getConversationId: () => session.conversationId,
+          includeToolRationale: !TRANSCRIPT_THOUGHTS_ONLY(),
+          onDebug: logDebug,
+          onTrace: text => emit(ctx.client, sessionId, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: `${text}\n\n` } }),
+        });
+    transcript?.begin({ resumeFromEnd: hadConversation });
+
     return new Promise((resolve, reject) => {
       const child = spawn(AGY_BIN, agyArgs, { cwd: session.cwd, env: { ...process.env } });
       activeProcesses[sessionId] = child;
@@ -628,6 +650,7 @@ const app = agent({ name: 'agy-acp' })
 
       child.on('error', err => {
         delete activeProcesses[sessionId];
+        transcript?.stop();
         reject(
           err.code === 'ENOENT'
             ? new Error(`Failed to start '${AGY_BIN}'. Is the Antigravity CLI installed? Set AGY_ACP_AGY_BIN to its absolute path.`)
@@ -637,6 +660,10 @@ const app = agent({ name: 'agy-acp' })
 
       child.on('close', async code => {
         delete activeProcesses[sessionId];
+        // La última línea de la transcripción se escribe casi al mismo tiempo que se cierra stdout,
+        // así que el drenaje final va antes de resolver el turno: si no, el pensamiento que explica
+        // la respuesta llegaría después de que el bridge ya cerró la cola SSE y se perdería.
+        await transcript?.finish().catch(() => undefined);
         await writeState(state);
 
         const wasKilled = child.killed || code === null;
