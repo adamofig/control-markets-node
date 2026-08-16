@@ -62,7 +62,15 @@ import { InboxModule } from './inbox/inbox.module';
     AgentCardsModule,
     NestAiServicesSdkModule.forRoot({
       apiBaseUrl: process.env.AI_SERVICES_HOST || 'https://api.dataclouder.com',
-      apiKey: process.env.AI_SERVICES_API_KEY || '',
+      // The credential every outbound call to ai-services carries. `AI_SERVICES_API_KEY` was wired
+      // here but never set, and nothing on the far side validated it — which is why ai-services had
+      // to stay open for this to work at all. It is the master token ai-services accepts now.
+      //
+      // These calls run inside flow node processors and schedulers, with no interactive session to
+      // forward, so a service credential is the right answer rather than a missing one. Once there
+      // is an async-context store, `getAuthContext` on the SDK carries the caller's own credential
+      // and only genuine background work falls back to this.
+      apiKey: process.env.AI_SERVICES_MASTER_TOKEN || process.env.AI_SERVICES_API_KEY || '',
     }),
     NestAuthModule,
     NestUsersModule,

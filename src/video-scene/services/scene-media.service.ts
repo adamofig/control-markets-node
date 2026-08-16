@@ -28,7 +28,10 @@ export interface ISceneAssetSnapshot {
 export class SceneMediaService {
   private readonly logger = new Logger(SceneMediaService.name);
   private readonly aiServicesHost = process.env.AI_SERVICES_HOST || 'http://localhost:3330';
-  private readonly apiKey = process.env.AI_SERVICES_API_KEY || '';
+  // Same credential the SDK client carries (see `app.module.ts`): this service talks to ai-services
+  // over raw HTTP because the SDK's methods point at the older per-adapter endpoints, but it must not
+  // authenticate differently for that reason.
+  private readonly apiKey = process.env.AI_SERVICES_MASTER_TOKEN || process.env.AI_SERVICES_API_KEY || '';
 
   constructor(private readonly httpService: HttpService) {}
 
@@ -74,6 +77,22 @@ export class SceneMediaService {
     return legacy ? [legacy] : [];
   }
 
+  /**
+   * The org travels as a header as well as in the body. The body copy is what the generation payload
+   * has always used; the header is what ai-services reads for attribution, and it is deliberately
+   * only a claim — the far side decides what a caller may reach, it does not take our word for it.
+   */
+  private buildHeaders(orgId?: string): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+    if (orgId) {
+      headers['x-org-id'] = orgId;
+    }
+    return headers;
+  }
+
   private async generate(type: 'audio' | 'image' | 'video', generationMetadata: Record<string, any>, orgId?: string): Promise<ISceneAssetSnapshot> {
     const url = `${this.aiServicesHost}/api/ai-services/adapter/generate`;
     this.logger.log(`Generating ${type} via ${url}`);
@@ -87,7 +106,7 @@ export class SceneMediaService {
           data: { orgId },
           options: { mode: 'sync', returnType: 'storage' },
         },
-        { headers: this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {} },
+        { headers: this.buildHeaders(orgId) },
       ),
     );
 
