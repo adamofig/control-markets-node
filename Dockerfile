@@ -29,10 +29,15 @@ FROM node:22-slim AS production
 ENV NODE_ENV=production
 WORKDIR /app
 
+# Instalar ca-certificates para peticiones HTTPS/SSL seguras de CLIs y SDKs
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+
 COPY --from=prod_deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
+COPY --from=build /app/scripts ./scripts
 
 EXPOSE 8121
 
 CMD ["node", "dist/main.js"]
+
