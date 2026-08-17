@@ -1,7 +1,11 @@
 # syntax=docker/dockerfile:1.7
 
 # ---- base: pin pnpm via corepack using the "packageManager" field in package.json ----
-FROM node:22-alpine AS base
+# Debian (glibc), not Alpine (musl): the local-agent engines are CLIs installed on the Docker host
+# and bind-mounted in, and `agy` is a dynamically linked glibc ELF — under musl it fails to start
+# with a misleading "not found" because /lib64/ld-linux-x86-64.so.2 does not exist. The build stages
+# match the runtime stage so native node_modules are not compiled against the wrong libc.
+FROM node:22-slim AS base
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -21,7 +25,7 @@ RUN --mount=type=cache,id=pnpm-store-node,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod
 
 # ---- production: slim runtime image ----
-FROM node:22-alpine AS production
+FROM node:22-slim AS production
 ENV NODE_ENV=production
 WORKDIR /app
 
