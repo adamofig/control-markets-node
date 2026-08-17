@@ -1,8 +1,8 @@
 import { formatAttachedSourcesBlock, MAX_ATTACHED_SOURCES, MAX_ATTACHED_TOTAL_CHARS } from './attached-sources.util';
-import { ILinkedContextResource } from '../agentic-profile/models/agentic-profile.models';
+import { IResolvedMention } from '../mentions/models/mention.models';
 
-function resource(id: string, overrides: Partial<ILinkedContextResource> = {}): ILinkedContextResource {
-  return { id, kind: 'knowledge', name: `Doc ${id}`, content: `CONTENT_${id}`, ...overrides };
+function resource(id: string, overrides: Partial<IResolvedMention> = {}): IResolvedMention {
+  return { id, kind: 'knowledge', via: 'profile', name: `Doc ${id}`, content: `CONTENT_${id}`, ...overrides };
 }
 
 describe('formatAttachedSourcesBlock', () => {
@@ -87,5 +87,64 @@ describe('formatAttachedSourcesBlock', () => {
 
   it('handles an empty input', () => {
     expect(formatAttachedSourcesBlock([])).toEqual({ markdown: '', attached: [] });
+  });
+
+  describe('universal mentions', () => {
+    it('labels the new families and marks what came from the organization rather than the agent', () => {
+      const { markdown } = formatAttachedSourcesBlock([
+        resource('v1', { kind: 'org_source', via: 'org', uri: 'cm://org_source/v1', name: 'Desglose SaaS', sourceUrl: 'https://youtu.be/x' }),
+        resource('a1', { kind: 'agentic_profile', via: 'org', uri: 'cm://agentic_profile/a1', name: 'Cortazar' }),
+      ]);
+
+      expect(markdown).toContain('### [Fuente de la organización] Desglose SaaS');
+      expect(markdown).toContain('### [Agente del ecosistema] Cortazar');
+      // Provenance is stated to the model: this is not part of what the agent permanently knows.
+      expect(markdown).toContain('no forma parte del contexto permanente de este agente');
+    });
+
+    it('carries the stable cm:// address into the prompt and the report', () => {
+      const { markdown, attached } = formatAttachedSourcesBlock([resource('v1', { kind: 'org_source', via: 'org', uri: 'cm://org_source/v1' })]);
+
+      expect(markdown).toContain('- Referencia: `cm://org_source/v1`');
+      expect(attached[0]).toMatchObject({ uri: 'cm://org_source/v1', via: 'org' });
+    });
+
+    it('does not announce an organization origin for the agent own resources', () => {
+      const { markdown } = formatAttachedSourcesBlock([resource('k1')]);
+      expect(markdown).not.toContain('no forma parte del contexto permanente');
+    });
+
+    it('sends the summary instead of a transcript that does not fit, and says so', () => {
+      const transcript = 'T'.repeat(MAX_ATTACHED_TOTAL_CHARS + 1000);
+      const { markdown, attached } = formatAttachedSourcesBlock([
+        resource('v1', { kind: 'org_source', via: 'org', content: transcript, summary: 'RESUMEN_DENSO' }),
+      ]);
+
+      // A dense whole beats a confident fragment — but the swap is never silent.
+      expect(markdown).toContain('RESUMEN_DENSO');
+      expect(markdown).toContain('Se envió el resumen de la fuente');
+      expect(attached[0].summarizedFrom).toBe(transcript.length);
+      expect(attached[0].truncatedFrom).toBeUndefined();
+    });
+
+    it('still truncates, announcing both cuts, when even the summary overflows', () => {
+      const transcript = 'T'.repeat(MAX_ATTACHED_TOTAL_CHARS + 1000);
+      const summary = 'S'.repeat(MAX_ATTACHED_TOTAL_CHARS + 500);
+      const { markdown, attached } = formatAttachedSourcesBlock([resource('v1', { kind: 'org_source', via: 'org', content: transcript, summary })]);
+
+      expect(markdown).toContain('Se envió el resumen de la fuente');
+      expect(markdown).toContain('Contenido truncado a');
+      expect(attached[0].summarizedFrom).toBe(transcript.length);
+      expect(attached[0].truncatedFrom).toBe(summary.length);
+      expect(attached[0].characters).toBe(MAX_ATTACHED_TOTAL_CHARS);
+    });
+
+    it('keeps the full content when it fits, even if a summary exists', () => {
+      const { markdown, attached } = formatAttachedSourcesBlock([resource('v1', { kind: 'org_source', via: 'org', summary: 'RESUMEN' })]);
+
+      expect(markdown).toContain('CONTENT_v1');
+      expect(markdown).not.toContain('RESUMEN');
+      expect(attached[0].summarizedFrom).toBeUndefined();
+    });
   });
 });

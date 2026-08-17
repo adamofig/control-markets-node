@@ -60,6 +60,41 @@ export class SourcesService extends EntityCommunicationService<SourceDocument> {
       .exec() as unknown as Promise<SourceDocument[]>;
   }
 
+  /**
+   * Catalog rows for the `@` mention menu, scoped to one organization.
+   *
+   * Two things this method owes its caller:
+   *
+   * 1. **`orgId` is mandatory.** An empty one would build `{}` and hand back every tenant's sources.
+   *    The guard is here, at the query, and not only at the controller.
+   * 2. **`content` is never projected.** A row renders a name; a source body can be a whole YouTube
+   *    transcript, and a catalog that ships them would cost more than the feature saves.
+   *
+   * `includeSynced` is off by default because this collection is shared with the wiki sync: every
+   * agent's memories, skills and explorations live here too (they carry `relPath`/`workspaceId`).
+   * Listing them unfiltered floods the menu with other agents' private notes, which is exactly what
+   * the profile-linked catalog already decides for itself.
+   */
+  async searchForMentions(orgId: string, query: string, limit = 12, options: { includeSynced?: boolean } = {}): Promise<SourceDocument[]> {
+    if (!orgId) return [];
+    const filter: Record<string, any> = { orgId };
+    if (!options.includeSynced) {
+      filter.$and = [{ $or: [{ relPath: { $exists: false } }, { relPath: null }, { relPath: '' }] }];
+    }
+    const trimmed = (query ?? '').trim();
+    if (trimmed) {
+      const rx = new RegExp(trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [{ name: rx }, { description: rx }];
+    }
+
+    return this.genericModel
+      .find(filter, { id: 1, name: 1, description: 1, sourceUrl: 1, type: 1, tag: 1, kind: 1, relPath: 1, updatedAt: 1 })
+      .sort(trimmed ? { name: 1 } : { updatedAt: -1 })
+      .limit(Math.max(1, Math.min(limit, 50)))
+      .lean()
+      .exec() as unknown as Promise<SourceDocument[]>;
+  }
+
   async save(source: ISource): Promise<SourceDocument> {
     if (source.id) {
       return this.update(source.id, source);

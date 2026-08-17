@@ -11,6 +11,7 @@ import { AgenticContextLevel, IAttachedSourceRef } from '../agentic-profile/mode
 import { createInjectedContextSnapshot, InjectedContextSnapshot } from './context-snapshot.util';
 import { AttachedSourceReport, formatAttachedSourcesBlock } from './attached-sources.util';
 import { KeyBalancerService } from '../key-balancer/key-balancer.service';
+import { MentionsService } from '../mentions/mentions.service';
 
 export interface LocalAgentMessage {
   role: 'user' | 'assistant';
@@ -50,6 +51,7 @@ export class LocalAgentChatService {
     private readonly fsTools: FilesystemToolsService,
     private readonly keyBalancerService: KeyBalancerService,
     private readonly skillsService: SkillsService,
+    private readonly mentionsService: MentionsService,
   ) {}
 
   getStatus() {
@@ -67,17 +69,18 @@ export class LocalAgentChatService {
     orgId?: string,
     attachedSources?: IAttachedSourceRef[],
   ): AsyncGenerator<LocalAgentStreamEvent> {
+    // `orgId` arrives already validated from the controller (`req.ctx.orgId`). The token fallback
+    // only covers callers that reach the service directly, never a value chosen by a request body.
     const resolvedOrgId = orgId ?? token['orgId'];
     // Unlike the ACP engines, this harness rebuilds the system prompt on every request, so an
     // attachment lives only in the turn that carried it — the model will not see it again later.
-    const attachedBlock =
-      agenticProfileId && attachedSources?.length
-        ? await this.buildAttachedSourcesBlock(agenticProfileId, attachedSources, resolvedOrgId).catch(error => {
-            this.logger.warn(`Could not resolve attached sources for profile ${agenticProfileId}: ${error?.message}`);
-            return null;
-          })
-        : null;
-    const { system, profileContext } = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId, attachedBlock?.markdown);
+    const attachedBlock = attachedSources?.length
+      ? await this.buildAttachedSourcesBlock(agenticProfileId, attachedSources, resolvedOrgId).catch(error => {
+          this.logger.warn(`Could not resolve attached sources for profile ${agenticProfileId ?? '-'}: ${error?.message}`);
+          return null;
+        })
+      : null;
+    const { system, profileContext } = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId);
     if (profileContext) yield { type: 'context-snapshot', context: this.createContextSnapshot(profileContext) };
     if (attachedBlock?.attached.length) yield { type: 'attached-sources', attached: attachedBlock.attached };
 
@@ -88,7 +91,19 @@ export class LocalAgentChatService {
     this.logger.log(`🔑 LocalAgentChatStream using key '${keyName}' (type: ${balancedKey?.keyType || 'default'}) for model '${model}'`);
 
 
-    const conversationMessages = messages.filter((m: any) => m.role !== 'system') as any;
+    // The attached block travels as a USER message, not inside the system prompt.
+    //
+    // With profile-only mentions the distinction was cosmetic; now the text can be an organization
+    // source nobody on the team wrote — a transcript, a scraped page. Concatenating that into the
+    // system prompt would hand third-party text the authority of our own instructions. It goes in
+    // just before the message that pinned it, which is also where the model expects the user's
+    // attachments to be.
+    const conversationMessages = messages.filter((m: any) => m.role !== 'system') as any[];
+    if (attachedBlock?.markdown) {
+      const lastUserIndex = conversationMessages.map((m: any) => m.role).lastIndexOf('user');
+      const insertAt = lastUserIndex >= 0 ? lastUserIndex : conversationMessages.length;
+      conversationMessages.splice(insertAt, 0, { role: 'user', content: attachedBlock.markdown });
+    }
 
     const result = streamText({
       model: googleProvider(model),
@@ -156,7 +171,12 @@ export class LocalAgentChatService {
     }
   }
 
-  private async buildSystemPrompt(token: AppToken, orgId?: string, agenticProfileId?: string, attachedBlock?: string): Promise<{ system: string; profileContext: string }> {
+  /**
+   * The system prompt carries the agent's identity and its standing profile context — never the
+   * `@mention` attachments, which travel as a user message so third-party text cannot borrow the
+   * authority of our own instructions.
+   */
+  private async buildSystemPrompt(token: AppToken, orgId?: string, agenticProfileId?: string): Promise<{ system: string; profileContext: string }> {
     let profileContext = '';
     if (agenticProfileId) {
       profileContext = await this.getProfileContext(agenticProfileId, orgId);
@@ -177,7 +197,7 @@ Rules:
 
     const system = `You are a local agent harness assistant for Control Markets, running on the user's own machine.
 
-${profileContext ? `# AGENT PROFILE (your identity, knowledge and tasks)\n\n${profileContext}\n\n` : ''}${attachedBlock ? `${attachedBlock}\n\n` : ''}${toolsNote}
+${profileContext ? `# AGENT PROFILE (your identity, knowledge and tasks)\n\n${profileContext}\n\n` : ''}${toolsNote}
 
 Current user: ${token.name ?? token.email} (userId: ${token.userId}, orgId: ${orgId ?? 'unknown'}).
 Answer in the user's language.`;
@@ -189,19 +209,23 @@ Answer in the user's language.`;
   }
 
   /**
-   * Resolves the sources the user attached with `@` for ONE turn and renders them as markdown.
+   * Resolves what the user attached with `@` for ONE turn and renders it as markdown.
+   *
+   * Goes through `MentionsService`, so a ref may be one of the profile's own resources, any source
+   * of the organization, or another agent's capability card — the profile is now optional, which is
+   * what lets a chat without one (`/page/local-agent-chat`) attach things too.
    *
    * Deliberately not cached: `contextCache` holds the profile context, which is stable for minutes,
    * while attachments change with every message — caching them would serve the previous turn's
    * documents to the current question.
    */
   async buildAttachedSourcesBlock(
-    profileId: string,
+    profileId: string | undefined,
     refs: IAttachedSourceRef[],
     orgId?: string,
   ): Promise<{ markdown: string; attached: AttachedSourceReport[] }> {
     if (!refs?.length) return { markdown: '', attached: [] };
-    const resources = await this.agenticProfileService.getLinkedContextResources(profileId, refs, orgId);
+    const resources = await this.mentionsService.resolve(refs, { orgId: orgId as string, profileId });
     return formatAttachedSourcesBlock(resources);
   }
 

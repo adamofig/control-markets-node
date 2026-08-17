@@ -8,9 +8,10 @@ import { LocalAgentChatService } from './local-agent-chat.service';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { AcpBridgeService } from './acp-bridge.service';
 import { KeyBalancerModule } from '../key-balancer/key-balancer.module';
+import { MentionsModule } from '../mentions/mentions.module';
 
 @Module({
-  imports: [NestAuthModule, AgenticProfileModule, WorkspacesModule, KeyBalancerModule, AgentSkillsModule],
+  imports: [NestAuthModule, AgenticProfileModule, WorkspacesModule, KeyBalancerModule, AgentSkillsModule, MentionsModule],
   controllers: [LocalAgentController],
   providers: [LocalAgentChatService, FilesystemToolsService, AcpBridgeService],
   exports: [LocalAgentChatService, AcpBridgeService],

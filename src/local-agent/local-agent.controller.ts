@@ -12,10 +12,16 @@ import { AgenticProfileService } from '../agentic-profile/services/agentic-profi
 import { IAgenticProfileAcpConfig, IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
 import { WorkspaceService } from '../workspaces/services/workspace.service';
 import { asAcpEngine } from '../common/acp-engines';
+import { OrgId } from '../common/org-id.decorator';
 
 class LocalAgentChatRequestDto {
   messages: LocalAgentMessage[];
   agenticProfileId?: string;
+  /**
+   * @deprecated Ignored since the universal mention system. The organization is resolved by the
+   * server from `req.ctx` (`x-org-id` header validated against the caller's membership). Kept in the
+   * DTO so an older client keeps compiling, never read.
+   */
   orgId?: string;
   attachedSources?: IAttachedSourceRef[];
 }
@@ -24,11 +30,12 @@ class AcpStreamRequestDto {
   message: string;
   sessionId?: string;
   agenticProfileId?: string;
+  /** @deprecated Ignored — see `LocalAgentChatRequestDto.orgId`. */
   orgId?: string;
   engine?: AcpEngine;
   model?: string;
   reasoningEffort?: CodexReasoningEffort;
-  /** Resources the user pinned to this turn with `@`. Their `kind` is a hint; the service re-derives it. */
+  /** Resources the user pinned to this turn with `@`. Their `kind` is a hint; the server decides. */
   attachedSources?: IAttachedSourceRef[];
 }
 
@@ -64,25 +71,27 @@ export class LocalAgentController {
 
   @Post('stream')
   @ApiOperation({ summary: 'Stream a local agent chat with profile context and filesystem tools (structured SSE events)' })
-  async streamChat(@Body() body: LocalAgentChatRequestDto, @Res() res: FastifyReply, @DecodedToken() token: AppToken) {
+  async streamChat(@Body() body: LocalAgentChatRequestDto, @Res() res: FastifyReply, @DecodedToken() token: AppToken, @OrgId() orgId: string) {
     res.raw.setHeader('Content-Type', 'text/event-stream');
     res.raw.setHeader('Cache-Control', 'no-cache');
     res.raw.setHeader('Connection', 'keep-alive');
     res.raw.setHeader('Access-Control-Allow-Origin', '*');
 
-    const events = this.localAgentChatService.streamChat(body.messages, token, body.agenticProfileId, body.orgId, body.attachedSources);
+    this.warnOnBodyOrgId(body.orgId, orgId, token);
+    const events = this.localAgentChatService.streamChat(body.messages, token, body.agenticProfileId, orgId, body.attachedSources);
     await this.pipeSse(events, res);
   }
 
   @Post('acp/stream')
   @ApiOperation({ summary: 'Stream a chat turn through a local ACP CLI engine — agy (default), claude or codex (structured SSE events)' })
-  async streamAcp(@Body() body: AcpStreamRequestDto, @Res() res: FastifyReply, @DecodedToken() token: AppToken) {
+  async streamAcp(@Body() body: AcpStreamRequestDto, @Res() res: FastifyReply, @DecodedToken() token: AppToken, @OrgId() orgId: string) {
     res.raw.setHeader('Content-Type', 'text/event-stream');
     res.raw.setHeader('Cache-Control', 'no-cache');
     res.raw.setHeader('Connection', 'keep-alive');
     res.raw.setHeader('Access-Control-Allow-Origin', '*');
 
-    const resolvedOrgId = body.orgId ?? token['orgId'];
+    this.warnOnBodyOrgId(body.orgId, orgId, token);
+    const resolvedOrgId = orgId;
 
     // The standing profile context is a first-turn concern: the CLI keeps it in session history.
     let profileContext: string | undefined;
@@ -91,9 +100,10 @@ export class LocalAgentController {
     }
 
     // `@mention` attachments are a per-turn concern, so they are resolved on EVERY request —
-    // deliberately outside the `!sessionId` guard above.
+    // deliberately outside the `!sessionId` guard above. The profile is optional: a mention may
+    // point at an organization resource, which a chat without a profile can attach too.
     let attached: { markdown: string; attached: AttachedSourceReport[] } | null = null;
-    if (body.agenticProfileId && body.attachedSources?.length) {
+    if (body.attachedSources?.length) {
       attached = await this.localAgentChatService
         .buildAttachedSourcesBlock(body.agenticProfileId, body.attachedSources, resolvedOrgId)
         .catch(() => null);
@@ -148,6 +158,26 @@ export class LocalAgentController {
   @ApiOperation({ summary: 'Cancel the in-flight ACP turn for a session' })
   cancelAcp(@Body() body: { sessionId: string }) {
     return this.acpBridge.cancel(body.sessionId);
+  }
+
+  /**
+   * Records a client that still sends `orgId` in the body.
+   *
+   * The field used to win over the token, which was fine while every mention had to be linked to the
+   * requested profile — a foreign `orgId` simply failed to find the profile. Universal mentions
+   * removed that accidental net: the organization became the only thing standing between a caller
+   * and another tenant's sources, so it can no longer come from the payload. The client may still
+   * *ask* for an organization through `x-org-id`, which `OrgContextGuard` validates against its
+   * membership before `@OrgId()` reads it.
+   *
+   * Kept as a warning rather than a rejection because the value is now inert; the log is there to
+   * find the callers that need updating.
+   */
+  private warnOnBodyOrgId(bodyOrgId: string | undefined, resolvedOrgId: string | undefined, token: AppToken) {
+    if (!bodyOrgId || bodyOrgId === resolvedOrgId) return;
+    this.logger.warn(
+      `[ORG_BODY_IGNORED] actor=${token?.email ?? '-'} sent orgId='${bodyOrgId}' in the body; serving '${resolvedOrgId ?? '-'}' from the validated request context.`,
+    );
   }
 
   private async pipeSse(events: AsyncGenerator<LocalAgentStreamEvent>, res: FastifyReply) {

@@ -1056,18 +1056,109 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
    */
   private buildLinkedKindMap(profile: any): Map<string, AgenticLinkedResourceKind> {
     const map = new Map<string, AgenticLinkedResourceKind>();
-    const register = (items: any[] | undefined, kind: AgenticLinkedResourceKind, respectEnabled = false) => {
+    this.eachLinkedRef(profile, (item, kind) => {
+      if (map.has(item.id)) return;
+      map.set(item.id, kind);
+    });
+    return map;
+  }
+
+  /**
+   * Single traversal of the five linked arrays, shared by everything that needs to know what a
+   * profile links and under which category.
+   *
+   * There is exactly one copy of this walk on purpose: the kind of an attachment is derived from
+   * *which array holds it*, so a second traversal that drifted — a missing `enabled` check, a
+   * different order — would let the catalog offer something the resolver then refuses.
+   */
+  private eachLinkedRef(profile: any, visit: (item: any, kind: AgenticLinkedResourceKind) => void): void {
+    const walk = (items: any[] | undefined, kind: AgenticLinkedResourceKind, respectEnabled = false) => {
       for (const item of items || []) {
-        if (!item?.id || map.has(item.id)) continue;
+        if (!item?.id) continue;
         if (respectEnabled && item.enabled === false) continue;
-        map.set(item.id, kind);
+        visit(item, kind);
       }
     };
-    register(profile.sources, 'knowledge');
-    register(profile.skills, 'skill', true);
-    register(profile.explorations, 'exploration', true);
-    register(profile.memories, 'memory', true);
-    register(profile.tasks, 'task');
-    return map;
+    walk(profile?.sources, 'knowledge');
+    walk(profile?.skills, 'skill', true);
+    walk(profile?.explorations, 'exploration', true);
+    walk(profile?.memories, 'memory', true);
+    walk(profile?.tasks, 'task');
+  }
+
+  /**
+   * The profile's own resources as mention-menu rows, without touching any other collection.
+   *
+   * The refs embedded in the profile already carry `name`/`description`, so this costs one document
+   * read — the reason the profile half of the catalog can stay instant while the organization half
+   * goes to the server.
+   */
+  async listLinkedMentionOptions(
+    profileId: string,
+    orgId?: string,
+  ): Promise<Array<{ id: string; kind: AgenticLinkedResourceKind; name: string; description?: string; sourceUrl?: string; status?: string }>> {
+    const profile = await this.genericModel.findOne(this.buildProfileIdentityQuery(profileId, orgId)).lean().exec();
+    if (!profile) return [];
+
+    const options: Array<{ id: string; kind: AgenticLinkedResourceKind; name: string; description?: string; sourceUrl?: string; status?: string }> = [];
+    const seen = new Set<string>();
+    this.eachLinkedRef(profile, (item, kind) => {
+      if (seen.has(item.id)) return;
+      seen.add(item.id);
+      options.push({
+        id: item.id,
+        kind,
+        name: item.name || item.id,
+        description: item.description || undefined,
+        sourceUrl: item.url || item.relPath || undefined,
+        ...(kind === 'task' && item.status ? { status: item.status } : {}),
+      });
+    });
+    return options;
+  }
+
+  /**
+   * Profiles of one organization as mention-menu rows.
+   *
+   * `orgId` is mandatory for the same reason as in `SourcesService.searchForMentions`: an empty one
+   * would list every tenant's agents. Disabled profiles are skipped — an agent that cannot run is
+   * not someone to hand work to.
+   */
+  async searchForMentions(orgId: string, query: string, limit = 12): Promise<any[]> {
+    if (!orgId) return [];
+    const filter: Record<string, any> = { orgId, enabled: { $ne: false } };
+    const trimmed = (query ?? '').trim();
+    if (trimmed) {
+      const rx = new RegExp(trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [{ name: rx }, { title: rx }, { description: rx }, { domain: rx }];
+    }
+
+    return this.genericModel
+      .find(filter, { id: 1, name: 1, title: 1, description: 1, domain: 1 })
+      .sort({ name: 1 })
+      .limit(Math.max(1, Math.min(limit, 50)))
+      .lean()
+      .exec();
+  }
+
+  /**
+   * Loads profiles for the `@agent` mention, scoped to the organization.
+   *
+   * Projects what a **capability card** needs and nothing else. In particular it does not read the
+   * linked agent card: another agent's `characterCard.instructions` are that agent's system prompt,
+   * and injecting them into this agent's turn would put foreign directives inside a block we
+   * explicitly frame as data. What a colleague needs to know is *what the other one does*, not how
+   * it was told to behave.
+   */
+  async findManyForMentionCards(ids: string[], orgId: string): Promise<any[]> {
+    if (!ids?.length || !orgId) return [];
+    const objectIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+    return this.genericModel
+      .find(
+        { orgId, $or: [{ id: { $in: ids } }, ...(objectIds.length ? [{ _id: { $in: objectIds } }] : [])] },
+        { id: 1, name: 1, title: 1, description: 1, domain: 1, skills: 1, tasks: 1, workspaceId: 1, heartbeat: 1, acpConfig: 1 },
+      )
+      .lean()
+      .exec();
   }
 }

@@ -1,5 +1,6 @@
 import { IAuditable } from '@dataclouder/nest-core';
 import { PersistedEngine } from '../../common/acp-engines';
+import { MentionError, MentionKind, MentionProvenance } from '../../mentions/models/mention.models';
 
 /** Engine recorded on a stored conversation. Superset of the dispatchable ACP engines — see
  * `common/acp-engines.ts` for why `builtin` and the retired `acp` label are part of it. */
@@ -55,12 +56,21 @@ export interface IAgenticConversationPermission {
  */
 export interface IAgenticConversationAttachment {
   id: string;
-  kind?: 'knowledge' | 'skill' | 'exploration' | 'memory' | 'task';
+  kind?: MentionKind;
+  /**
+   * Which door resolved it. Worth storing: an audit that only sees the name cannot tell an
+   * organization video apart from a document the agent permanently carries.
+   */
+  via?: MentionProvenance;
+  /** `cm://{kind}/{id}` — survives a rename, which the `@Name` written in the message does not. */
+  uri?: string;
   name?: string;
   characters?: number;
   estimatedTokens?: number;
   truncatedFrom?: number;
-  error?: 'not-linked' | 'not-found' | 'over-limit';
+  /** Set when a summary was stored instead of the full content, because the full one did not fit. */
+  summarizedFrom?: number;
+  error?: MentionError;
 }
 
 export interface IAgenticConversationMessage {
