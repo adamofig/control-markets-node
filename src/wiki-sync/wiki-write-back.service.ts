@@ -13,10 +13,14 @@ import { WIKI_PROFILE_CHANGED, WIKI_SOURCE_CHANGED, WIKI_TASK_CHANGED, WikiEntit
 import { DEFAULT_TASK_PRIORITY, TASK_STATUS_MARKS } from '../agent-tasks/models/classes';
 
 /**
- * Matches the leading `- [x] P4 ` part of a Section 6 task line, so the mark and the priority
- * badge can be rewritten together without touching the link or the description.
+ * Matches the leading `- [x] #07 P4 ` part of a Section 6 task line, so mark, number badge and
+ * priority badge are rewritten together without touching the link or the description.
+ *
+ * The number is a badge *outside* the link and never part of the label: the sync stores `link.label`
+ * as the task's `name`, so folding "07." into it would push the number into the DB name and it would
+ * be re-prefixed on every round trip.
  */
-const PROFILE_TASK_LINE_PREFIX = /^(\s*-\s*)\[\s*[xX/rR-]?\s*\]\s*(?:P[1-5]\s+)?/;
+const PROFILE_TASK_LINE_PREFIX = /^(\s*-\s*)\[\s*[xX/rR-]?\s*\]\s*(?:#\d+\s+)?(?:P[1-5]\s+)?/;
 
 /**
  * Phase 2 of the sync contract: local write-back (DB → wiki `.md` files).
@@ -105,7 +109,7 @@ export class WikiWriteBackService {
 
     const local = fs.readFileSync(abs, 'utf-8');
     const localHash = hashContent(local);
-    const autoKeys = { status: task.status, priority: task.priority, taskId: this.idOf(task), orgId: task.orgId };
+    const autoKeys = { status: task.status, priority: task.priority, taskNumber: task.taskNumber, taskId: this.idOf(task), orgId: task.orgId };
     const localBodyUnchanged = !task.contentHash || localHash === task.contentHash;
     const dbBodyHash = task.content ? hashContent(task.content) : null;
 
@@ -160,7 +164,9 @@ export class WikiWriteBackService {
     if (!tasksDir.startsWith(path.resolve(root) + path.sep)) return; // anti-escape
     fs.mkdirSync(tasksDir, { recursive: true });
 
-    const fileName = this.nextTaskFileName(tasksDir, task.name || 'tarea');
+    // The file prefix follows the assignee's sequence, so `tasks/07-*.md` and `taskNumber: 7` agree
+    // and the CLI can keep inferring one from the other.
+    const fileName = this.nextTaskFileName(tasksDir, task.name || 'tarea', task.taskNumber);
     const taskAbs = path.join(tasksDir, fileName);
     const sourceUrl = `tasks/${fileName}`;
 
@@ -172,6 +178,7 @@ export class WikiWriteBackService {
     const content = this.setFrontmatterKeys(body, {
       status: task.status || 'pending',
       priority: task.priority ?? DEFAULT_TASK_PRIORITY,
+      taskNumber: task.taskNumber,
       orgId: task.orgId,
       taskId,
     });
@@ -281,7 +288,7 @@ export class WikiWriteBackService {
 
     const content = fs.readFileSync(located.abs, 'utf-8');
     const mark = this.statusToMark(task.status);
-    const badge = this.priorityBadge(task.priority);
+    const badge = `${this.numberBadge(task.taskNumber)}${this.priorityBadge(task.priority)}`;
     const lines = content.split('\n');
     let changed = false;
     for (let i = 0; i < lines.length; i++) {
@@ -307,6 +314,15 @@ export class WikiWriteBackService {
     return priority && priority !== DEFAULT_TASK_PRIORITY ? `P${priority} ` : '';
   }
 
+  /**
+   * Section 6 badge for the correlative number: `#07`. Always rendered when the task has one —
+   * unlike the priority badge, there is no "default" number to hide, and the whole point of the
+   * field is that a human can read it off the list and say "ejecuta la tarea 7".
+   */
+  private numberBadge(taskNumber?: number): string {
+    return taskNumber ? `#${String(taskNumber).padStart(2, '0')} ` : '';
+  }
+
   /** Appends the new task's checkbox line at the end of the Section 6 list of the profile file. */
   private insertProfileTaskLine(profileAbs: string, task: any, sourceUrl: string): void {
     const content = fs.readFileSync(profileAbs, 'utf-8');
@@ -330,7 +346,7 @@ export class WikiWriteBackService {
     }
     const mark = this.statusToMark(task.status);
     const desc = task.description ? ` — ${task.description}` : '';
-    const line = `- [${mark}] ${this.priorityBadge(task.priority)}**[${task.name}](${sourceUrl})**${desc}`;
+    const line = `- [${mark}] ${this.numberBadge(task.taskNumber)}${this.priorityBadge(task.priority)}**[${task.name}](${sourceUrl})**${desc}`;
     lines.splice(insertAfter !== -1 ? insertAfter + 1 : start + 1, 0, line);
     fs.writeFileSync(profileAbs, lines.join('\n'), 'utf-8');
     this.logger.log(`Inserted Section 6 line for new task "${task.name}"`);
@@ -346,7 +362,14 @@ export class WikiWriteBackService {
       query: { id: profile.id || profile._id?.toString() },
       payload: {
         $push: {
-          tasks: { id: taskId, name: task.name, status: task.status || 'pending', priority: task.priority ?? DEFAULT_TASK_PRIORITY, updatedAt: task.updatedAt },
+          tasks: {
+            id: taskId,
+            name: task.name,
+            status: task.status || 'pending',
+            priority: task.priority ?? DEFAULT_TASK_PRIORITY,
+            taskNumber: task.taskNumber,
+            updatedAt: task.updatedAt,
+          },
         },
       },
     });
@@ -415,14 +438,16 @@ export class WikiWriteBackService {
     return TASK_STATUS_MARKS[status] ?? ' ';
   }
 
-  private nextTaskFileName(tasksDir: string, name: string): string {
+  private nextTaskFileName(tasksDir: string, name: string, taskNumber?: number): string {
     const existing = fs.readdirSync(tasksDir);
     let max = 0;
     for (const f of existing) {
       const m = f.match(/^(\d+)-/);
       if (m) max = Math.max(max, parseInt(m[1], 10));
     }
-    const nn = String(max + 1).padStart(2, '0');
+    // The DB sequence wins when it exists — the folder max is only the fallback for a profile whose
+    // tasks were never numbered (and for the rare file that lives outside any sequence).
+    const nn = String(taskNumber || max + 1).padStart(2, '0');
     const slug =
       (name || 'tarea')
         .normalize('NFD')

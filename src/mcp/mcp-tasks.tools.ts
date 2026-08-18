@@ -74,13 +74,18 @@ The schema is derived directly from the TypeScript models — it is always up to
 Call tasks_getSchema first if you are unsure of field names or nested shapes. Here are only the basic fields, so user request make sense:
 Fields: name, description, status ("pending"|"in_progress"|"in_review"|"done"|"paused"|""|null), orgId,
 priority (number 1..5 — 1 Baja, 2 Media (default), 3 Alta, 4 Importante, 5 Crítica; higher is more urgent),
+taskNumber (correlative number inside the ASSIGNEE's own sequence — see below),
 taskType ("review_task"|"create_content"|"human_task"),
 assignedType ("agent"|"user"),
 assignedTo {userId, email, name} — nested object, always query with dot-notation:
 "assignedTo.name", "assignedTo.email", "assignedTo.userId".
 Note: in order to create, orgId is a must, ask user for it.
+taskNumber is assigned automatically on creation and never reused — do NOT send it yourself.
+It is scoped per assignee, NOT global: "tarea 7" only means something together with whose task 7 it is.
 Examples: urgent backlog → query { "priority": { "$gte": 4 }, "status": { "$ne": "done" } } with options { "sort": { "priority": -1 } };
-pending review → query { "status": "in_review" }.
+pending review → query { "status": "in_review" };
+"la tarea 7 de Borges" → query { "orgId": "<org>", "taskNumber": 7, "$or": [ { "agentCard.id": "<cardId>" }, { "assignedTo.id": "<cardId>" } ] };
+"mi tarea 3" for a human → query { "orgId": "<org>", "taskNumber": 3, "assignedTo.userId": "<uid>" }.
 `,
 
     parameters: operationSchema,
@@ -96,6 +101,8 @@ pending review → query { "status": "in_review" }.
     description: `Find all tasks assigned to a specific user.
 Handles the nested assignedTo object query internally — no need to know the dot-notation path.
 Optionally filter by status (use "in_review" for work waiting on approval) and/or by minimum priority.
+Pass taskNumber to resolve a phrase like "mi tarea 3" / "la tarea 3 de Kenya": the number counts
+inside THIS user's own sequence, so it is only unambiguous together with the user identity here.
 Results come back sorted by priority descending (most urgent first).`,
     parameters: z.object({
       userId: assignedUserSchema.shape.userId.optional().describe('Firebase UID (assignedTo.userId)'),
@@ -103,6 +110,7 @@ Results come back sorted by priority descending (most urgent first).`,
       name: assignedUserSchema.shape.name.optional().describe('Display name (assignedTo.name)'),
       status: agentTaskSummarySchema.shape.status,
       minPriority: z.number().int().min(1).max(5).optional().describe('Only tasks with priority >= this value (1..5).'),
+      taskNumber: z.number().int().positive().optional().describe("The task's correlative number within this user's sequence (e.g. 3 for \"mi tarea 3\")."),
     }),
   })
   async getTasksByAssignee({
@@ -111,19 +119,24 @@ Results come back sorted by priority descending (most urgent first).`,
     name,
     status,
     minPriority,
+    taskNumber,
   }: {
     userId?: string;
     email?: string;
     name?: string;
     status?: string;
     minPriority?: number;
+    taskNumber?: number;
   }) {
     const query: Record<string, unknown> = {};
-    if (userId) query['assignedTo.userId'] = userId;
+    // Legacy rows written by Angular put the uid in `assignedTo.id`; match both or a user's early
+    // tasks silently drop out of their own sequence.
+    if (userId) query['$or'] = [{ 'assignedTo.userId': userId }, { 'assignedTo.id': userId }];
     else if (email) query['assignedTo.email'] = email;
     else if (name) query['assignedTo.name'] = name;
     if (status) query['status'] = status;
     if (minPriority) query['priority'] = { $gte: minPriority };
+    if (taskNumber) query['taskNumber'] = taskNumber;
     const result = await this.agentTasksService.executeOperation({ action: 'find', query, options: { sort: { priority: -1 } } });
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }

@@ -89,9 +89,70 @@ export function normalizeTaskPriority(value: unknown): TaskPriority | undefined 
   return n as TaskPriority;
 }
 
+/** Coerces "7", 7 or "07" to a positive integer task number. Returns undefined for anything else. */
+export function normalizeTaskNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = typeof value === 'number' ? value : parseInt(String(value).trim(), 10);
+  if (!Number.isInteger(n) || n < 1) return undefined;
+  return n;
+}
+
 export enum AssignedType {
   AGENT = 'agent',
   USER = 'user',
+}
+
+/**
+ * The sequence a `taskNumber` counts inside. The number is meaningless globally: "tarea 7" is the
+ * 7th task of *this* assignee in *this* organization.
+ *
+ * `match` is a mongo query fragment rather than a single field because the same assignee is written
+ * in more than one shape across the codebase, and a per-field scope would silently split one agent
+ * into two independent sequences:
+ *   - the markdown sync creates agent tasks with `assignedTo.id = <agentCardId>` and no `agentCard`;
+ *   - the UI form creates them with `agentCard.id` and `agenticProfileId`;
+ *   - legacy human rows written by Angular carry `assignedTo.id` where `assignedTo.userId` belongs.
+ * The `$or` mirrors the legacy-tolerant lookup already documented as the safe way to query tasks.
+ */
+export interface ITaskNumberScope {
+  orgId: string;
+  /** Stable identity of the sequence — the agent card id or the user's uid/email. For logs. */
+  key: string;
+  /** Matches every task belonging to this assignee, whichever shape wrote it. */
+  match: Record<string, any>;
+}
+
+/**
+ * Resolves the counter a task belongs to, or `null` when it belongs to none.
+ *
+ * An unassigned task returns `null` and stays without a number until somebody owns it: minting one
+ * would put it in a sequence nobody can read back.
+ */
+export function resolveTaskNumberScope(task: Partial<IAgentTask> | null | undefined): ITaskNumberScope | null {
+  if (!task?.orgId) return null;
+  const orgId = task.orgId;
+  const assignee = (task.assignedTo || {}) as Partial<IAssignedUser> & { id?: string };
+
+  const isUser = task.assignedType === AssignedType.USER || (!task.assignedType && (assignee.userId || assignee.email));
+  if (isUser) {
+    const key = assignee.userId || assignee.email;
+    if (!key) return null;
+    const or: Record<string, any>[] = [];
+    if (assignee.userId) or.push({ 'assignedTo.userId': assignee.userId }, { 'assignedTo.id': assignee.userId });
+    if (assignee.email) or.push({ 'assignedTo.email': assignee.email });
+    return { orgId, key, match: { assignedType: AssignedType.USER, $or: or } };
+  }
+
+  // Agent. The card id is the identity that survives every shape; the profile is matched too so a
+  // card swap on the same profile does not restart the sequence.
+  const cardId = task.agentCard?.id || assignee.id;
+  const profileId = task.agenticProfileId || task.agenticProfile?.id;
+  if (!cardId && !profileId) return null;
+
+  const or: Record<string, any>[] = [];
+  if (cardId) or.push({ 'agentCard.id': cardId }, { 'assignedTo.id': cardId });
+  if (profileId) or.push({ agenticProfileId: profileId });
+  return { orgId, key: cardId || profileId, match: { assignedType: AssignedType.AGENT, $or: or } };
 }
 
 export interface IAssignedUser {
@@ -131,8 +192,8 @@ export interface ITask {
   assignedTo?: IAssignedTo;
   assignedType?: AssignedType;
   status?: TaskStatus;
-  /** 1..5, higher is more urgent. Defaults to 2 (Media) on creation. */
   priority?: TaskPriority;
+  taskNumber?: number;
   image?: CloudStorageData;
   taskType?: AgentTaskType | string;
   subtasks?: ISubtask[];
@@ -190,6 +251,7 @@ export interface ITaskRefFields {
   name?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
+  taskNumber?: number;
   updatedAt?: Date | string;
 }
 

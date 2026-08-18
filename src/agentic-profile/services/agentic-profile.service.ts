@@ -8,7 +8,7 @@ import { SourcesService } from '../../agent-tasks/services/sources.service';
 import { SkillsService } from '../../agent-skills/services/skills.service';
 import { AgentTasksService } from '../../agent-tasks/services/agent-tasks.service';
 import { mergeMarkdownSubtasks, parseSubtasksFromMarkdown } from '../../agent-tasks/services/subtask-markdown.util';
-import { normalizeTaskPriority, DEFAULT_TASK_PRIORITY, TASK_PRIORITY_LABELS, TASK_STATUS_MARKS } from '../../agent-tasks/models/classes';
+import { normalizeTaskPriority, normalizeTaskNumber, DEFAULT_TASK_PRIORITY, TASK_PRIORITY_LABELS, TASK_STATUS_MARKS } from '../../agent-tasks/models/classes';
 import {
   AgenticContextLevel,
   AgenticLinkedResourceKind,
@@ -84,6 +84,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           name: live.name ?? ref.name,
           status: live.status ?? ref.status,
           priority: live.priority ?? ref.priority,
+          taskNumber: live.taskNumber ?? ref.taskNumber,
           updatedAt: live.updatedAt ?? ref.updatedAt,
         };
       });
@@ -561,6 +562,10 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         // `priority` is an auto-frontmatter key (excluded from the content hash), so it always
         // travels on the link — exactly like `status`. Missing/invalid → keep whatever the DB has.
         const taskPriority = normalizeTaskPriority(link.priority);
+        // Same out-of-band channel for `taskNumber`. The local file only *proposes* it (from its
+        // frontmatter or its `NN-` filename prefix); the assignee's sequence in mongo decides, and
+        // the write-back returns whatever was really persisted.
+        const taskNumber = normalizeTaskNumber(link.taskNumber);
         const hasContent = link.content !== undefined && link.content !== null;
         const taskFingerprint = workspaceId && link.relPath ? buildFingerprint(workspaceId, link.relPath) : undefined;
         const taskContractFields: any = taskFingerprint ? { fingerprint: taskFingerprint, workspaceId, relPath: link.relPath } : {};
@@ -570,11 +575,21 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           // checkbox/frontmatter, so apply it alone when it differs.
           const fingerprintChanged = taskFingerprint && taskEntity.fingerprint !== taskFingerprint;
           const priorityChanged = taskPriority !== undefined && taskPriority !== taskEntity.priority;
-          if (taskStatus !== taskEntity.status || priorityChanged || fingerprintChanged) {
+          // A task that already owns a number keeps it: the sequence lives in mongo, and the local
+          // file proposing a different one must not be able to rewrite history.
+          const numberChanged = taskNumber !== undefined && !taskEntity.taskNumber;
+          if (taskStatus !== taskEntity.status || priorityChanged || numberChanged || fingerprintChanged) {
             await this.agentTasksService.executeOperation({
               action: 'updateOne',
               query: { id: link.taskId },
-              payload: { $set: { status: taskStatus, ...(taskPriority !== undefined ? { priority: taskPriority } : {}), ...taskContractFields } },
+              payload: {
+                $set: {
+                  status: taskStatus,
+                  ...(taskPriority !== undefined ? { priority: taskPriority } : {}),
+                  ...(numberChanged ? { taskNumber } : {}),
+                  ...taskContractFields,
+                },
+              },
             });
             taskEntity = await this.agentTasksService.executeOperation({
               action: 'findOne',
@@ -593,6 +608,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
             taskEntity.contentHash === contentHash &&
             taskEntity.status === taskStatus &&
             (taskPriority === undefined || taskEntity.priority === taskPriority) &&
+            (taskNumber === undefined || taskEntity.taskNumber !== undefined) &&
             taskEntity.name === link.label &&
             taskEntity.description === link.description &&
             (!taskFingerprint || taskEntity.fingerprint === taskFingerprint)
@@ -607,6 +623,8 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
               sourceUrl: link.url,
               status: taskStatus,
               ...(taskPriority !== undefined ? { priority: taskPriority } : {}),
+              // Only ever *seeds* the number: on update it is dropped when the task already has one.
+              ...(taskNumber !== undefined && !taskEntity?.taskNumber ? { taskNumber } : {}),
               contentHash,
               ...taskContractFields,
               assignedType: 'agent',
@@ -653,6 +671,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           name: taskEntity.name,
           status: taskEntity.status,
           priority: taskEntity.priority,
+          taskNumber: taskEntity.taskNumber,
           updatedAt: (taskEntity as any).updatedAt,
         });
 
@@ -664,6 +683,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
           orgId,
           status: taskEntity.status,
           priority: taskEntity.priority,
+          taskNumber: taskEntity.taskNumber,
         });
       }
     }

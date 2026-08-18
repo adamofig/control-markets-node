@@ -72,6 +72,14 @@ export const agentTaskSummarySchema = z.object({
     .optional()
     .describe('Task status. "in_review" = finished by the assignee, waiting for a reviewer to approve it.'),
   priority: z.number().int().min(1).max(5).optional().describe('Urgency 1..5 — 1 Baja, 2 Media (default), 3 Alta, 4 Importante, 5 Crítica. Sort descending.'),
+  taskNumber: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Correlative number of the task WITHIN its assignee\'s sequence — "la tarea 7 de Borges". Assigned by the backend on creation and never reused; do not set it by hand. It is NOT unique globally: always pair it with the assignee (and orgId) when querying, or you will match other people\'s task 7.'
+    ),
   taskType: z.enum(['review_task', 'create_content', 'human_task']).optional(),
   assignedType: z.enum(['agent', 'user']).optional(),
   assignedTo: assignedToSchema.optional(),

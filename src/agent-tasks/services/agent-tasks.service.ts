@@ -12,7 +12,22 @@ import { EntityCommunicationService, MongoService } from '@dataclouder/nest-mong
 import { buildInitialConversation, ChatRole, AgentCardService, IAgentCard, ChatMessage } from '@dataclouder/nest-agent-cards';
 // local
 import { AgentTaskEntity, AgentTaskDocument } from '../schemas/agent-task.schema';
-import { AgentTaskType, AssignedType, IAgentTask, IAgentOutcomeJob, ISourceTask, ISubtask, ITaskRefFields, MessageAI, OutputTaks, SubtaskStatus, TaskStatus } from '../models/classes';
+import {
+  AgentTaskType,
+  AssignedType,
+  IAgentTask,
+  IAgentOutcomeJob,
+  ISourceTask,
+  ISubtask,
+  ITaskNumberScope,
+  ITaskRefFields,
+  MessageAI,
+  OutputTaks,
+  SubtaskStatus,
+  TaskStatus,
+  normalizeTaskNumber,
+  resolveTaskNumberScope,
+} from '../models/classes';
 import { AgentOutcomeJobService } from './agent-job.service';
 import { SourcesService } from './sources.service';
 import { ChatLLMRequestAdapter, AiServicesSdkClient, MessageLLM } from '@dataclouder/nest-ai-services-sdk';
@@ -44,6 +59,15 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
 
   /** Every generic write (UI CRUD, sync, heartbeat tools) flows through here — notify the wiki write-back */
   async executeOperation(operation: any): Promise<any> {
+    // The generic path bypasses `save()`, so it is also where the markdown sync, MCP and the
+    // universal REST endpoint create tasks. Number them here or those three would never get one.
+    if (operation?.action === 'create' && operation.payload) {
+      const payloads = Array.isArray(operation.payload) ? operation.payload : [operation.payload];
+      for (const payload of payloads) {
+        await this.assignTaskNumber(payload);
+      }
+    }
+
     const result = await super.executeOperation(operation);
     emitWikiChangeForOperation(this.eventEmitter, WIKI_TASK_CHANGED, operation, result);
     // If a task operation created/updated/deleted tasks, sync with AgenticProfile
@@ -77,7 +101,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     if (objectIds.length === 0) return [];
     return this.genericModel
       .find({ _id: { $in: objectIds } })
-      .select({ id: 1, orgId: 1, name: 1, status: 1, priority: 1, updatedAt: 1 })
+      .select({ id: 1, orgId: 1, name: 1, status: 1, priority: 1, taskNumber: 1, updatedAt: 1 })
       .lean<ITaskRefFields[]>()
       .exec();
   }
@@ -143,6 +167,7 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
         name: task.name,
         status: task.status,
         priority: task.priority,
+        taskNumber: task.taskNumber,
         updatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : new Date().toISOString(),
       };
 
@@ -204,17 +229,90 @@ export class AgentTasksService extends EntityCommunicationService<AgentTaskDocum
     }
   }
 
+  /**
+   * Highest `taskNumber` currently used inside one assignee's sequence, or 0 when the sequence is
+   * empty. Index-covered by the `{ orgId, <scope field>, taskNumber: -1 }` indexes.
+   */
+  private async maxTaskNumber(scope: ITaskNumberScope): Promise<number> {
+    const top = await this.genericModel
+      .findOne({ orgId: scope.orgId, ...scope.match, taskNumber: { $ne: null } })
+      .sort({ taskNumber: -1 })
+      .select({ taskNumber: 1 })
+      .lean<{ taskNumber?: number }>()
+      .exec();
+    return top?.taskNumber || 0;
+  }
+
+  /**
+   * Fills `taskNumber` on a task about to be created, unless the caller already supplied one.
+   *
+   * A supplied number is honoured — that is how the markdown sync keeps `tasks/07-*.md` and the
+   * database agreeing — but only if it is free; a colliding one is pushed to the end of the sequence
+   * instead of silently creating two "tarea 7" for the same assignee.
+   *
+   * Not transactional: two creates racing for the same assignee can both read the same max. The
+   * loop below re-checks the candidate, which closes the window to the width of a single insert, and
+   * a duplicate here costs a wrong label, never wrong data. A counters collection would be the fix
+   * if this ever stops being a per-human-scale sequence.
+   */
+  private async assignTaskNumber(dto: IAgentTask): Promise<void> {
+    const scope = resolveTaskNumberScope(dto);
+    if (!scope) {
+      // Unassigned: no sequence to belong to. Drop a value the caller may have guessed.
+      delete dto.taskNumber;
+      return;
+    }
+
+    const requested = normalizeTaskNumber(dto.taskNumber);
+    let candidate = requested || (await this.maxTaskNumber(scope)) + 1;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const taken = await this.genericModel.exists({ orgId: scope.orgId, ...scope.match, taskNumber: candidate });
+      if (!taken) break;
+      candidate = (await this.maxTaskNumber(scope)) + 1;
+    }
+    dto.taskNumber = candidate;
+  }
+
+  /**
+   * A task that changes hands leaves its old sequence and joins the new one (Opción A of the spec).
+   * The number it had is *not* recycled: it just goes unused, so an old reference to "tarea 4 de
+   * Kenya" never silently resolves to a different piece of work.
+   */
+  private async renumberOnReassignment(dto: IAgentTask, previous: IAgentTask | null): Promise<void> {
+    const nextScope = resolveTaskNumberScope(dto);
+    const prevScope = resolveTaskNumberScope(previous);
+
+    const sameScope = nextScope && prevScope && nextScope.key === prevScope.key && nextScope.orgId === prevScope.orgId;
+    if (sameScope) {
+      // Same owner: the number is immutable, whatever the payload claims.
+      dto.taskNumber = previous?.taskNumber;
+      return;
+    }
+
+    if (!nextScope) {
+      delete dto.taskNumber;
+      return;
+    }
+
+    delete dto.taskNumber;
+    await this.assignTaskNumber(dto);
+  }
+
   async save(createAgentTaskDto: IAgentTask) {
     const id = createAgentTaskDto.id || createAgentTaskDto._id;
+    const previous = id ? await this.genericModel.findById(id).lean<IAgentTask>().exec() : null;
     await this.resolveAgentAssignment(createAgentTaskDto);
 
     let savedTask: any;
     if (id) {
+      await this.renumberOnReassignment(createAgentTaskDto, previous);
       savedTask = await this.update(id, createAgentTaskDto);
       this.emitChanged(savedTask || { id });
     } else {
       delete createAgentTaskDto._id;
       delete createAgentTaskDto.id;
+      await this.assignTaskNumber(createAgentTaskDto);
       const createdTask = new this.genericModel(createAgentTaskDto);
       savedTask = await createdTask.save();
       this.emitChanged(savedTask);

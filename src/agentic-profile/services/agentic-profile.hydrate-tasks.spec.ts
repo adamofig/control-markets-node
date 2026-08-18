@@ -2,9 +2,9 @@ import { AgenticProfileService } from './agentic-profile.service';
 
 describe('AgenticProfileService.hydrateTaskRefs', () => {
   const liveTasks = [
-    { id: 'task-1', orgId: 'org-1', name: 'Renamed in /page/tasks', status: 'in_review', priority: 5, updatedAt: '2026-08-05T10:00:00.000Z' },
-    { id: 'task-2', orgId: 'org-1', name: 'Second task', status: 'pending', priority: 3, updatedAt: '2026-08-05T09:00:00.000Z' },
-    { id: 'task-foreign', orgId: 'org-2', name: 'Belongs to another tenant', status: 'done', priority: 5 },
+    { id: 'task-1', orgId: 'org-1', name: 'Renamed in /page/tasks', status: 'in_review', priority: 5, taskNumber: 1, updatedAt: '2026-08-05T10:00:00.000Z' },
+    { id: 'task-2', orgId: 'org-1', name: 'Second task', status: 'pending', priority: 3, taskNumber: 2, updatedAt: '2026-08-05T09:00:00.000Z' },
+    { id: 'task-foreign', orgId: 'org-2', name: 'Belongs to another tenant', status: 'done', priority: 5, taskNumber: 99 },
   ];
 
   function createService() {
@@ -15,7 +15,7 @@ describe('AgenticProfileService.hydrateTaskRefs', () => {
     return { service, agentTasksService };
   }
 
-  it('refreshes the stale snapshot with the live name, status and priority', async () => {
+  it('refreshes the stale snapshot with the live name, status, priority and taskNumber', async () => {
     const { service } = createService();
     const profile = { orgId: 'org-1', tasks: [{ id: 'task-1', name: 'Old name', status: 'pending', priority: 2 }] };
 
@@ -26,11 +26,12 @@ describe('AgenticProfileService.hydrateTaskRefs', () => {
       name: 'Renamed in /page/tasks',
       status: 'in_review',
       priority: 5,
+      taskNumber: 1,
       updatedAt: '2026-08-05T10:00:00.000Z',
     });
   });
 
-  it('fills a priority the ref never had — the profile form writes refs without one', async () => {
+  it('fills a priority and taskNumber the ref never had — the profile form writes refs without one', async () => {
     const { service } = createService();
     // `onTaskSelected` in the Angular form stores only { id, name, status }.
     const profile: { orgId: string; tasks: any[] } = { orgId: 'org-1', tasks: [{ id: 'task-2', name: 'Second task', status: 'pending' }] };
@@ -38,6 +39,7 @@ describe('AgenticProfileService.hydrateTaskRefs', () => {
     const [hydrated] = await service.hydrateTaskRefs([profile]);
 
     expect(hydrated.tasks[0].priority).toBe(3);
+    expect(hydrated.tasks[0].taskNumber).toBe(2);
   });
 
   it('resolves every ref of every profile in a single batched query', async () => {

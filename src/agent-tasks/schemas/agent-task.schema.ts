@@ -58,6 +58,10 @@ export class AgentTaskEntity implements IAgentTask {
   @Prop({ required: false, type: Number, min: 1, max: 5, default: DEFAULT_TASK_PRIORITY, index: true })
   priority?: TaskPriority;
 
+
+  @Prop({ required: false, type: Number, min: 1 })
+  taskNumber?: number;
+
   @Prop({ required: false, type: String })
   taskType: AgentTaskType | string;
 
@@ -114,3 +118,14 @@ addIdAfterSave(AgentTaskSchema);
 
 AgentTaskSchema.index({ name: 'text', description: 'text' });
 AgentTaskSchema.index({ orgId: 1, fingerprint: 1 }, { sparse: true });
+
+// `taskNumber` counters. One index per assignee shape because `resolveTaskNumberScope` matches the
+// assignee with an `$or` over all of them (the sync writes `assignedTo.id`, the form writes
+// `agentCard.id`) — mongo resolves an `$or` by unioning one index per branch, so every branch needs
+// its own. Descending on the number so the max-lookup that mints the next value reads one entry.
+// Sparse: unassigned tasks carry no number and must not weigh on these indexes.
+AgentTaskSchema.index({ orgId: 1, agenticProfileId: 1, taskNumber: -1 }, { sparse: true });
+AgentTaskSchema.index({ orgId: 1, 'agentCard.id': 1, taskNumber: -1 }, { sparse: true });
+AgentTaskSchema.index({ orgId: 1, 'assignedTo.id': 1, taskNumber: -1 }, { sparse: true });
+AgentTaskSchema.index({ orgId: 1, 'assignedTo.userId': 1, taskNumber: -1 }, { sparse: true });
+AgentTaskSchema.index({ orgId: 1, 'assignedTo.email': 1, taskNumber: -1 }, { sparse: true });
