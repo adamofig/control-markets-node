@@ -287,6 +287,19 @@ export interface ISource {
   description: string; // Summary of the source
   content: string; // Content of the source
   contentEnhancedAI?: string; // Content enhanced by AI
+  /**
+   * Literal spoken text of a video/audio source, kept OUT of `content` on purpose.
+   *
+   * `content` is the interpretation (summary, segmentation, visual narrative) and `transcription`
+   * is the raw material. They are acquired by independent processes that fail independently — a
+   * saturated Gemini must not cost you a transcription the caption track already handed over.
+   *
+   * Distinct from `video.transcription` (`WhisperTranscription`), which is the structured
+   * word/segment output of the Python Whisper pipeline. This one is plain readable text.
+   */
+  transcription?: string;
+  /** Where `transcription` came from: `captions` (exact) | `model` (reconstructed) | `whisper`. */
+  transcriptionSource?: string;
   type: SourceType;
   sourceUrl: string;
   image: IImageSource;

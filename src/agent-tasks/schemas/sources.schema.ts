@@ -59,6 +59,14 @@ export class SourceEntity implements ISource {
   @Prop({ required: false })
   contentEnhancedAI: string;
 
+  /** Literal spoken text. Kept out of `content` so the two acquisition paths can fail separately. */
+  @Prop({ required: false })
+  transcription?: string;
+
+  /** `captions` (exact, from the platform's subtitle track) | `model` (reconstructed) | `whisper`. */
+  @Prop({ required: false })
+  transcriptionSource?: string;
+
   @Prop({ required: false })
   relationId: string;
 
