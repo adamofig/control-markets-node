@@ -546,50 +546,109 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
       }
     }
 
-    // 6. Sync Tasks (Section 6)
-    const sec6 = sections.find((s: any) => s.number === 6);
+    // 6. Sync Tasks — YAML frontmatter `tasks[]` when present, legacy Section 6 checkboxes otherwise.
+    // The link contract is identical either way: `status`, `priority` and `taskNumber` always travel
+    // out-of-band on the link, because they are auto-frontmatter keys excluded from the content hash
+    // and a delta-skipped task would otherwise never move on the board.
+    const taskLinks = this.resolveCollectionLinks(payload, sections, 'tasks', 6);
     const resolvedTasks = [];
     const taskWriteBacks = []; // Return list of tasks to update local frontmatter
 
-    if (sec6 && sec6.links) {
-      for (const link of sec6.links) {
-        let taskEntity = null;
-        if (link.taskId) {
-          taskEntity = await this.agentTasksService.findOne(link.taskId);
+    for (const link of taskLinks) {
+      let taskEntity = null;
+      if (link.taskId) {
+        taskEntity = await this.agentTasksService.findOne(link.taskId);
+      }
+
+      const taskStatus = link.status || 'pending';
+      // `priority` is an auto-frontmatter key (excluded from the content hash), so it always
+      // travels on the link — exactly like `status`. Missing/invalid → keep whatever the DB has.
+      const taskPriority = normalizeTaskPriority(link.priority);
+      // Same out-of-band channel for `taskNumber`. The local file only *proposes* it (from its
+      // frontmatter or its `NN-` filename prefix); the assignee's sequence in mongo decides, and
+      // the write-back returns whatever was really persisted.
+      const taskNumber = normalizeTaskNumber(link.taskNumber);
+      const hasContent = link.content !== undefined && link.content !== null;
+      const taskFingerprint = workspaceId && link.relPath ? buildFingerprint(workspaceId, link.relPath) : undefined;
+      const taskContractFields: any = taskFingerprint ? { fingerprint: taskFingerprint, workspaceId, relPath: link.relPath } : {};
+
+      if (taskEntity && !hasContent) {
+        // Delta sync: content unchanged per manifest. Status still flows from the local
+        // checkbox/frontmatter, so apply it alone when it differs.
+        const fingerprintChanged = taskFingerprint && taskEntity.fingerprint !== taskFingerprint;
+        const priorityChanged = taskPriority !== undefined && taskPriority !== taskEntity.priority;
+        // A task that already owns a number keeps it: the sequence lives in mongo, and the local
+        // file proposing a different one must not be able to rewrite history.
+        const numberChanged = taskNumber !== undefined && !taskEntity.taskNumber;
+        if (taskStatus !== taskEntity.status || priorityChanged || numberChanged || fingerprintChanged) {
+          await this.agentTasksService.executeOperation({
+            action: 'updateOne',
+            query: { id: link.taskId },
+            payload: {
+              $set: {
+                status: taskStatus,
+                ...(taskPriority !== undefined ? { priority: taskPriority } : {}),
+                ...(numberChanged ? { taskNumber } : {}),
+                ...taskContractFields,
+              },
+            },
+          });
+          taskEntity = await this.agentTasksService.executeOperation({
+            action: 'findOne',
+            query: { id: link.taskId },
+          });
+          stats.updated++;
+        } else {
+          stats.skipped++;
         }
+      } else {
+        const fileContent = link.content;
+        const contentHash = hashContent(hasContent ? fileContent : link.description || '');
 
-        const taskStatus = link.status || 'pending';
-        // `priority` is an auto-frontmatter key (excluded from the content hash), so it always
-        // travels on the link — exactly like `status`. Missing/invalid → keep whatever the DB has.
-        const taskPriority = normalizeTaskPriority(link.priority);
-        // Same out-of-band channel for `taskNumber`. The local file only *proposes* it (from its
-        // frontmatter or its `NN-` filename prefix); the assignee's sequence in mongo decides, and
-        // the write-back returns whatever was really persisted.
-        const taskNumber = normalizeTaskNumber(link.taskNumber);
-        const hasContent = link.content !== undefined && link.content !== null;
-        const taskFingerprint = workspaceId && link.relPath ? buildFingerprint(workspaceId, link.relPath) : undefined;
-        const taskContractFields: any = taskFingerprint ? { fingerprint: taskFingerprint, workspaceId, relPath: link.relPath } : {};
+        if (
+          taskEntity &&
+          taskEntity.contentHash === contentHash &&
+          taskEntity.status === taskStatus &&
+          (taskPriority === undefined || taskEntity.priority === taskPriority) &&
+          (taskNumber === undefined || taskEntity.taskNumber !== undefined) &&
+          taskEntity.name === link.label &&
+          taskEntity.description === link.description &&
+          (!taskFingerprint || taskEntity.fingerprint === taskFingerprint)
+        ) {
+          stats.skipped++;
+        } else {
+          const taskData: any = {
+            orgId,
+            name: link.label,
+            description: link.description,
+            content: fileContent || link.description,
+            sourceUrl: link.url,
+            status: taskStatus,
+            ...(taskPriority !== undefined ? { priority: taskPriority } : {}),
+            // Only ever *seeds* the number: on update it is dropped when the task already has one.
+            ...(taskNumber !== undefined && !taskEntity?.taskNumber ? { taskNumber } : {}),
+            contentHash,
+            ...taskContractFields,
+            assignedType: 'agent',
+            assignedTo: {
+              id: agentCardId,
+              name: agentName,
+              description: agentTitle,
+            },
+          };
 
-        if (taskEntity && !hasContent) {
-          // Delta sync: content unchanged per manifest. Status still flows from the local
-          // checkbox/frontmatter, so apply it alone when it differs.
-          const fingerprintChanged = taskFingerprint && taskEntity.fingerprint !== taskFingerprint;
-          const priorityChanged = taskPriority !== undefined && taskPriority !== taskEntity.priority;
-          // A task that already owns a number keeps it: the sequence lives in mongo, and the local
-          // file proposing a different one must not be able to rewrite history.
-          const numberChanged = taskNumber !== undefined && !taskEntity.taskNumber;
-          if (taskStatus !== taskEntity.status || priorityChanged || numberChanged || fingerprintChanged) {
+          // Extract `- [ ]` checkboxes from the task markdown and merge them as structured subtasks.
+          // Platform-completed subtasks keep their done status even if the local file is stale.
+          const parsedSubtasks = parseSubtasksFromMarkdown(fileContent);
+          if (parsedSubtasks.length > 0 || taskEntity?.subtasks?.length) {
+            taskData.subtasks = mergeMarkdownSubtasks(taskEntity?.subtasks || [], parsedSubtasks);
+          }
+
+          if (taskEntity) {
             await this.agentTasksService.executeOperation({
               action: 'updateOne',
               query: { id: link.taskId },
-              payload: {
-                $set: {
-                  status: taskStatus,
-                  ...(taskPriority !== undefined ? { priority: taskPriority } : {}),
-                  ...(numberChanged ? { taskNumber } : {}),
-                  ...taskContractFields,
-                },
-              },
+              payload: { $set: taskData },
             });
             taskEntity = await this.agentTasksService.executeOperation({
               action: 'findOne',
@@ -597,95 +656,37 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
             });
             stats.updated++;
           } else {
-            stats.skipped++;
-          }
-        } else {
-          const fileContent = link.content;
-          const contentHash = hashContent(hasContent ? fileContent : link.description || '');
-
-          if (
-            taskEntity &&
-            taskEntity.contentHash === contentHash &&
-            taskEntity.status === taskStatus &&
-            (taskPriority === undefined || taskEntity.priority === taskPriority) &&
-            (taskNumber === undefined || taskEntity.taskNumber !== undefined) &&
-            taskEntity.name === link.label &&
-            taskEntity.description === link.description &&
-            (!taskFingerprint || taskEntity.fingerprint === taskFingerprint)
-          ) {
-            stats.skipped++;
-          } else {
-            const taskData: any = {
-              orgId,
-              name: link.label,
-              description: link.description,
-              content: fileContent || link.description,
-              sourceUrl: link.url,
-              status: taskStatus,
-              ...(taskPriority !== undefined ? { priority: taskPriority } : {}),
-              // Only ever *seeds* the number: on update it is dropped when the task already has one.
-              ...(taskNumber !== undefined && !taskEntity?.taskNumber ? { taskNumber } : {}),
-              contentHash,
-              ...taskContractFields,
-              assignedType: 'agent',
-              assignedTo: {
-                id: agentCardId,
-                name: agentName,
-                description: agentTitle,
-              },
-            };
-
-            // Extract `- [ ]` checkboxes from the task markdown and merge them as structured subtasks.
-            // Platform-completed subtasks keep their done status even if the local file is stale.
-            const parsedSubtasks = parseSubtasksFromMarkdown(fileContent);
-            if (parsedSubtasks.length > 0 || taskEntity?.subtasks?.length) {
-              taskData.subtasks = mergeMarkdownSubtasks(taskEntity?.subtasks || [], parsedSubtasks);
-            }
-
-            if (taskEntity) {
-              await this.agentTasksService.executeOperation({
-                action: 'updateOne',
-                query: { id: link.taskId },
-                payload: { $set: taskData },
-              });
-              taskEntity = await this.agentTasksService.executeOperation({
-                action: 'findOne',
-                query: { id: link.taskId },
-              });
-              stats.updated++;
-            } else {
-              taskData.auditable = { createdBy: userEmail, updatedBy: userEmail };
-              taskEntity = await this.agentTasksService.executeOperation({
-                action: 'create',
-                payload: taskData,
-              });
-              stats.created++;
-            }
+            taskData.auditable = { createdBy: userEmail, updatedBy: userEmail };
+            taskEntity = await this.agentTasksService.executeOperation({
+              action: 'create',
+              payload: taskData,
+            });
+            stats.created++;
           }
         }
-
-        const resolvedId = taskEntity.id || taskEntity._id?.toString();
-
-        resolvedTasks.push({
-          id: resolvedId,
-          name: taskEntity.name,
-          status: taskEntity.status,
-          priority: taskEntity.priority,
-          taskNumber: taskEntity.taskNumber,
-          updatedAt: (taskEntity as any).updatedAt,
-        });
-
-        // Add to write-back list
-        taskWriteBacks.push({
-          url: link.url,
-          label: link.label,
-          taskId: resolvedId,
-          orgId,
-          status: taskEntity.status,
-          priority: taskEntity.priority,
-          taskNumber: taskEntity.taskNumber,
-        });
       }
+
+      const resolvedId = taskEntity.id || taskEntity._id?.toString();
+
+      resolvedTasks.push({
+        id: resolvedId,
+        name: taskEntity.name,
+        status: taskEntity.status,
+        priority: taskEntity.priority,
+        taskNumber: taskEntity.taskNumber,
+        updatedAt: (taskEntity as any).updatedAt,
+      });
+
+      // Add to write-back list
+      taskWriteBacks.push({
+        url: link.url,
+        label: link.label,
+        taskId: resolvedId,
+        orgId,
+        status: taskEntity.status,
+        priority: taskEntity.priority,
+        taskNumber: taskEntity.taskNumber,
+      });
     }
     profile.tasks = resolvedTasks;
 

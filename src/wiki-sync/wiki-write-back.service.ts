@@ -10,6 +10,7 @@ import { SourcesService } from '../agent-tasks/services/sources.service';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { buildFingerprint, hashContent } from '../agentic-profile/services/sync-hash.util';
 import { WIKI_PROFILE_CHANGED, WIKI_SOURCE_CHANGED, WIKI_TASK_CHANGED, WikiEntityChangedEvent } from './wiki-sync.events';
+import { hasFrontmatterTasks, upsertProfileTaskEntry } from './profile-frontmatter-tasks.util';
 import { DEFAULT_TASK_PRIORITY, TASK_STATUS_MARKS } from '../agent-tasks/models/classes';
 
 /**
@@ -101,7 +102,7 @@ export class WikiWriteBackService {
   private async writeBackExistingTask(task: any): Promise<void> {
     const located = this.locate(task.workspaceId, task.relPath);
     if (!located) return;
-    const { abs, root } = located;
+    const { abs } = located;
     if (!fs.existsSync(abs)) {
       this.logger.warn(`Task file missing locally, skipping write-back: ${task.relPath}`);
       return;
@@ -141,7 +142,7 @@ export class WikiWriteBackService {
       }
     }
 
-    await this.updateProfileTaskCheckbox(task, root);
+    await this.updateProfileTaskIndex(task);
   }
 
   /** A task created outside the wiki (UI/heartbeat): create its `.md` in the agent's tasks/ folder
@@ -195,8 +196,8 @@ export class WikiWriteBackService {
       contentHash: hashContent(content),
     });
 
-    // Register the task in Section 6 of the profile file + in the profile.tasks refs
-    this.insertProfileTaskLine(profileAbs, task, sourceUrl);
+    // Register the task in the profile's index (frontmatter tasks[] or Section 6) + in profile.tasks
+    this.registerTaskInProfile(profileAbs, task, sourceUrl);
     await this.ensureProfileTaskRef(profile, task);
   }
 
@@ -279,14 +280,38 @@ export class WikiWriteBackService {
     return result;
   }
 
-  /** Rewrites the `- [ ]/[/]/[r]/[x]/[-]` mark and the `P<n>` badge of the task's line in Section 6. */
-  private async updateProfileTaskCheckbox(task: any, root: string): Promise<void> {
+  /**
+   * Mirrors the task's DB state into the profile's index of tasks.
+   *
+   * Two shapes coexist while agents migrate one at a time: the structured `tasks[]` block of the YAML
+   * frontmatter (preferred — status and number are typed fields, not badges to re-render) and the
+   * legacy Section 6 checkbox line. The frontmatter wins whenever the profile declares it, because
+   * that is precisely the array the CLI reads and the Section 6 list has stopped being parsed.
+   */
+  private async updateProfileTaskIndex(task: any): Promise<void> {
     const profile = await this.findProfileForTask(task);
     if (!profile?.relPath || !profile?.workspaceId) return;
     const located = this.locate(profile.workspaceId, profile.relPath);
     if (!located || !fs.existsSync(located.abs)) return;
 
     const content = fs.readFileSync(located.abs, 'utf-8');
+
+    if (task.sourceUrl && hasFrontmatterTasks(content)) {
+      const updated = upsertProfileTaskEntry(content, task.sourceUrl, {
+        number: task.taskNumber,
+        priority: task.priority,
+        status: task.status,
+        name: task.name,
+        taskId: this.idOf(task),
+        description: task.description,
+      });
+      if (updated && updated !== content) {
+        fs.writeFileSync(located.abs, updated, 'utf-8');
+        this.logger.log(`Updated frontmatter task entry for "${task.name}" → status=${task.status}`);
+      }
+      return;
+    }
+
     const mark = this.statusToMark(task.status);
     const badge = `${this.numberBadge(task.taskNumber)}${this.priorityBadge(task.priority)}`;
     const lines = content.split('\n');
@@ -323,9 +348,32 @@ export class WikiWriteBackService {
     return taskNumber ? `#${String(taskNumber).padStart(2, '0')} ` : '';
   }
 
-  /** Appends the new task's checkbox line at the end of the Section 6 list of the profile file. */
-  private insertProfileTaskLine(profileAbs: string, task: any, sourceUrl: string): void {
+  /**
+   * Registers a task that was born outside the wiki (UI, heartbeat) in the profile's index, so the
+   * next CLI sync sees it declared instead of treating the freshly materialized file as an orphan.
+   *
+   * A migrated profile gets a new entry in the frontmatter `tasks[]` array; an un-migrated one keeps
+   * getting its checkbox line appended to Section 6.
+   */
+  private registerTaskInProfile(profileAbs: string, task: any, sourceUrl: string): void {
     const content = fs.readFileSync(profileAbs, 'utf-8');
+
+    if (hasFrontmatterTasks(content)) {
+      const updated = upsertProfileTaskEntry(content, sourceUrl, {
+        number: task.taskNumber,
+        priority: task.priority ?? DEFAULT_TASK_PRIORITY,
+        status: task.status || 'pending',
+        name: task.name,
+        taskId: this.idOf(task),
+        description: task.description,
+      });
+      if (updated && updated !== content) {
+        fs.writeFileSync(profileAbs, updated, 'utf-8');
+        this.logger.log(`Registered new task "${task.name}" in the frontmatter tasks[] of the profile`);
+      }
+      return;
+    }
+
     if (content.includes(`](${sourceUrl})`)) return;
     const lines = content.split('\n');
     const start = lines.findIndex(l => /^##\s+6\.?\s/.test(l));
