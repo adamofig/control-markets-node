@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Tool } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { SocialMediaTrackerService } from '../social-media-tracker/services/social-media-tracker.service';
+import { assertDocumentInOrg, requireMcpContext, scopeMcpOperation, scopedQuery } from './mcp-scope.util';
 
 const preprocessJson = (val: unknown) => {
   if (typeof val === 'string') {
@@ -57,7 +58,8 @@ Key fields:
 Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_createPost / social_updatePost for common operations.`,
     parameters: operationSchema,
   })
-  async socialOperation(operation: OperationInput) {
+  async socialOperation(operation: OperationInput, _context: unknown, request: any) {
+    scopeMcpOperation(operation, requireMcpContext(request), 'social_operation');
     const result = await this.socialService.executeOperation(operation);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -71,8 +73,8 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
       status: z.enum(['draft', 'scheduled', 'published']).optional().describe('Filter by post status.'),
     }),
   })
-  async listScheduledPosts({ platform, status }: { platform?: string; status?: string }) {
-    const query: any = {};
+  async listScheduledPosts({ platform, status }: { platform?: string; status?: string }, _context: unknown, request: any) {
+    const query: any = scopedQuery(requireMcpContext(request));
     if (platform) query.platform = platform;
     if (status) query.status = status;
 
@@ -93,7 +95,8 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
       platform: z.enum(['tiktok', 'instagram', 'youtube']).optional().describe('Optionally filter by platform.'),
     }),
   })
-  async getPostsThisWeek({ platform }: { platform?: string }) {
+  async getPostsThisWeek({ platform }: { platform?: string }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0 = Sunday
     const monday = new Date(now);
@@ -104,9 +107,9 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     sunday.setDate(monday.getDate() + 6);
     sunday.setHours(23, 59, 59, 999);
 
-    const query: any = {
+    const query: any = scopedQuery(identity, {
       scheduledDate: { $gte: monday, $lte: sunday },
-    };
+    });
     if (platform) query.platform = platform;
 
     const result = await this.socialService.queryUsingFiltersConfig({
@@ -126,8 +129,11 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
       postId: z.string().describe('The ID of the social media post.'),
     }),
   })
-  async getSocialPost({ postId }: { postId: string }) {
-    const result = await this.socialService.findOne(postId);
+  async getSocialPost({ postId }: { postId: string }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    // Id-addressed read: there is no filter to rewrite, so the ownership check happens on the way
+    // out — the same thing `OrgScopeInterceptor.scopeResponse` does for `GET /:id`.
+    const result = assertDocumentInOrg(await this.socialService.findOne(postId), identity, 'social_getPost', `Post ${postId}`);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
@@ -154,9 +160,13 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     notes?: string;
     videoUrl?: string;
     emoji?: string;
-  }) {
+  }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
     const result = await this.socialService.save({
       ...dto,
+      // The document is being born: the org is stamped, not filtered — `CREATE_ACTIONS` of the
+      // shared rulebook, applied by hand because `save()` is not operation-shaped.
+      orgId: identity.orgId,
       scheduledDate: dto.scheduledDate ? new Date(dto.scheduledDate) : undefined,
       status: dto.status ?? 'draft',
     });
@@ -192,9 +202,17 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     notes?: string;
     videoUrl?: string;
     emoji?: string;
-  }) {
+  }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    // `partialUpdate` is id-addressed, so the document is read under the caller's org before it is
+    // written — the gap F14a documented as structurally open for REST, closed here because a tool
+    // call has no UI in front of it to make the mistake unlikely.
+    assertDocumentInOrg(await this.socialService.findOne(postId), identity, 'social_updatePost', `Post ${postId}`);
+
     const updates: any = { ...rest };
     if (scheduledDate) updates.scheduledDate = new Date(scheduledDate);
+    // Never let an update move a row into another organization.
+    delete updates.orgId;
 
     const result = await this.socialService.partialUpdate(postId, updates);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };

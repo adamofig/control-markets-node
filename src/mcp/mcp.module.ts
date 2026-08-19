@@ -14,6 +14,7 @@ import { AgenticProfileModule } from '../agentic-profile/agentic-profile.module'
 import { MessagingModule } from '../messaging/messaging.module';
 import { McpMessagingTools } from './mcp-messaging.tools';
 import { McpResourcesTools } from './mcp-resources.tools';
+import { CmResourcesModule } from '../cm-resources/cm-resources.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { McpResourcesTools } from './mcp-resources.tools';
     UserModule,
     AgenticProfileModule,
     MessagingModule,
+    CmResourcesModule,
     McpModule.forFeature([McpFlowboardTools, McpSocialTools, McpTasksTools, McpOrganizationTools, McpUserTools, McpMessagingTools, McpResourcesTools], 'control-markets'),
   ],
   providers: [McpFlowboardTools, McpSocialTools, McpTasksTools, McpOrganizationTools, McpUserTools, McpMessagingTools, McpResourcesTools],

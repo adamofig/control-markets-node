@@ -114,7 +114,9 @@ Add nodes and edges to an existing flowboard.
 | :--- | :------- |
 | `src/mcp/mcp.module.ts` | `AppMcpModule` — registers tools via `McpModule.forFeature` |
 | `src/mcp/mcp-flowboard.tools.ts` | `@Tool()` implementations for flowboard operations |
-| `src/mcp/mcp-auth.guard.ts` | API key guard (not yet applied — endpoint is open) |
+| `src/mcp/mcp-auth-context.guard.ts` | Requires an identity and an organization, and bridges both onto `request.raw` — the object a tool receives under Fastify |
+| `src/mcp/mcp-scope.util.ts` | What every tool calls before touching a collection; delegates the rewriting to F14a's shared rulebook |
+| `src/mcp/mcp-tool-scope.spec.ts` | Static coverage: a new tool that does not scope fails the suite |
 | `src/app.module.ts` | `McpModule.forRoot()` + `AppMcpModule` registered here |
 | `docs/bruno-docs/mcp_test.http` | REST Client requests for local testing |
 
@@ -233,15 +235,39 @@ curl -s -X POST http://localhost:8121/mcp \
 
 ---
 
-## Authentication (Phase 2 — not yet enabled)
+## Authentication and org scoping
 
-`src/mcp/mcp-auth.guard.ts` contains a ready-to-use `McpApiKeyGuard` that reads the `MCP_API_KEY` environment variable. To enable it, apply the guard to the MCP module and add `MCP_API_KEY=your-secret` to `.env`.
+Send a Personal Access Token: `Authorization: Bearer cm_pat_...`. A request without one gets 401.
+
+Three guards run, in this order:
+
+1. **`ProjectAuthGuard`** (global, F12) — resolves who is calling. Accepts `cm_pat_*` without Firebase.
+2. **`OrgContextGuard`** (global, F12) — resolves `req.ctx` against Mongo membership, default-closed.
+3. **`McpAuthContextGuard`** (route-level, registered in `McpModule.forRoot({ guards })`) — refuses a
+   request with no identity or no organization, and copies both onto `request.raw`.
+
+That third one is not redundant. `mcp-nest` invokes a tool as `method(args, context, httpRequest.raw)`,
+and under the Fastify adapter `.raw` is the Node `IncomingMessage` — a **different object** from the
+one the global guards decorated. Without the bridge, nothing F12 resolved is visible from inside a tool.
+
+Every tool then calls `requireMcpContext(request)` and scopes its query from that identity. It never
+takes an organization from its arguments: those come from a language model. The three tools that still
+name an organization (`org_getMembers`, `org_operateUser`, `messaging_notifyUser`) treat it as a
+*request* — honoured if it is yours, allowed with an `[ADMIN_BYPASS]` line for platform admins,
+refused otherwise.
+
+`McpApiKeyGuard` and `MCP_API_KEY` are **gone**. The class was never registered on any route, so the
+`x-api-key` it checked was never validated — it only made the endpoint look protected.
+
+Full contract: [mcp-user-identity.md](../../../../control-markets-wiki/02-references/09-agentic-conversations-(borges)/mcp-user-identity.md).
 
 ---
 
 ## Adding more tools
 
-To expose more services, create a new tools file in `src/mcp/`, add it to `AppMcpModule`, and register it with `forFeature`:
+To expose more services, create a new tools file in `src/mcp/`, add it to `AppMcpModule`, and register it with `forFeature`.
+
+**Every handler must take the raw request as its third parameter and resolve its organization from it** — `mcp-tool-scope.spec.ts` fails the build otherwise. See any existing tool for the shape:
 
 ```typescript
 // src/mcp/mcp.module.ts

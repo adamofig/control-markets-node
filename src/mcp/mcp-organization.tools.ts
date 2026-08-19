@@ -37,6 +37,8 @@ clone → use query with _id.`,
 
 type OperationInput = z.infer<typeof operationSchema>;
 
+import { requireMcpContext, requirePlatformAdminForWrite, resolveOrgArgument, scopeMcpOperation } from './mcp-scope.util';
+
 @Injectable()
 export class McpOrganizationTools {
   constructor(private organizationService: OrganizationService) {}
@@ -56,7 +58,12 @@ Dot-notation for nested queries: "socialNetworks.type".
 Use org_getMembers / org_operateUser for member management — they handle the nested logic for you.`,
     parameters: operationSchema,
   })
-  async orgOperation(operation: OperationInput) {
+  async orgOperation(operation: OperationInput, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    requirePlatformAdminForWrite(operation, identity, 'org_operation', '`org_operateUser`');
+    // The organizations collection *is* the tenant, so its link to one is its own `id` — there is no
+    // `orgId` field to filter on. A member reads their own organization and nothing else.
+    scopeMcpOperation(operation, identity, 'org_operation', 'id');
     const result = await this.organizationService.executeOperation(operation);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -67,11 +74,12 @@ Use org_getMembers / org_operateUser for member management — they handle the n
 Provide the organization's MongoDB _id. Returns { userId, email, fullName, displayName, role, status }
 for each member, resolved from users.organizations[] — the source of truth, not the deprecated guests array.`,
     parameters: z.object({
-      orgId: z.string().describe('MongoDB _id of the organization.'),
+      orgId: z.string().optional().describe('MongoDB _id of the organization. Defaults to yours; naming another one requires platform access.'),
     }),
   })
-  async getMembers({ orgId }: { orgId: string }) {
-    const result = await this.organizationService.getMembers(orgId);
+  async getMembers({ orgId }: { orgId?: string }, _context: unknown, request: any) {
+    const resolved = resolveOrgArgument(orgId, requireMcpContext(request), 'org_getMembers');
+    const result = await this.organizationService.getMembers(resolved);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
@@ -84,8 +92,15 @@ role that person holds in it.`,
       email: z.string().describe('Email address of the user.'),
     }),
   })
-  async findByUser({ email }: { email: string }) {
-    const result = await this.organizationService.findOrganizationsByUserEmail(email);
+  async findByUser({ email }: { email: string }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    const all = await this.organizationService.findOrganizationsByUserEmail(email);
+    // Answering with every organization a person belongs to would map the platform's tenants from
+    // any single token. A member sees only the intersection with their own organization; a platform
+    // admin sees the whole list, which is what the admin screens need.
+    const result = identity.isPlatformAdmin
+      ? all
+      : (Array.isArray(all) ? all : []).filter((org: any) => (org?.id ?? org?._id?.toString()) === identity.orgId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
@@ -102,7 +117,7 @@ role that person holds in it.`,
 Business invariants apply here too (they live in the service, not in a guard): the last Owner cannot
 be removed or demoted, and nobody can be granted a role above the caller's own.`,
     parameters: z.object({
-      orgId: z.string().describe('MongoDB _id of the organization.'),
+      orgId: z.string().optional().describe('MongoDB _id of the organization. Defaults to yours; naming another one requires platform access.'),
       email: z.string().describe('Email of the user to operate on.'),
       operation: z.enum(['add', 'remove', 'update-role', 'update-profile']).describe('What to do with the membership.'),
       role: z.enum(['owner', 'admin', 'member', 'viewer']).optional().describe('Role for "add" (default "member") and "update-role".'),
@@ -116,13 +131,16 @@ be removed or demoted, and nobody can be granted a role above the caller's own.`
     role,
     displayName,
   }: {
-    orgId: string;
+    orgId?: string;
     email: string;
     operation: OrgUserOperation;
     role?: OrgRole;
     displayName?: string;
-  }) {
-    const result = await this.organizationService.operateUserToOrganization(orgId, { email, operation, role, displayName });
+  }, _context: unknown, request: any) {
+    // The business invariants (last owner, no role above your own) live in the service and still
+    // apply. What is added here is *which* organization the caller may run them against.
+    const resolved = resolveOrgArgument(orgId, requireMcpContext(request), 'org_operateUser');
+    const result = await this.organizationService.operateUserToOrganization(resolved, { email, operation, role, displayName });
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 }

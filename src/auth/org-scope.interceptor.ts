@@ -7,6 +7,7 @@ import { IS_PUBLIC_KEY } from './public.decorator';
 import { IS_NOT_ORG_SCOPED_KEY } from './not-org-scoped.decorator';
 import { IRequestOrgContext } from './org-context.service';
 import { ISharedCatalogRule, SHARED_CATALOG_CONTROLLERS } from './shared-catalog';
+import * as OrgScope from './org-scope.rules';
 
 /**
  * F14a — **the `orgId` belongs to the server.**
@@ -62,14 +63,9 @@ import { ISharedCatalogRule, SHARED_CATALOG_CONTROLLERS } from './shared-catalog
 export class OrgScopeInterceptor implements NestInterceptor {
   private readonly logger = new Logger('OrgScopeInterceptor');
 
-  /** Actions whose `query` is a filter, and therefore the thing that decides which rows are touched. */
-  private static readonly FILTER_ACTIONS = new Set(['find', 'findOne', 'updateOne', 'updateMany', 'deleteOne', 'deleteMany']);
-  /** Actions whose `payload` is the document being written, so the org is stamped rather than filtered. */
-  private static readonly CREATE_ACTIONS = new Set(['create', 'clone']);
-  /** Actions whose `payload` is a Mongo update document — strip a foreign org, never write ours in. */
-  private static readonly UPDATE_ACTIONS = new Set(['updateOne', 'updateMany', 'partialUpdate']);
-  /** The subset of `FILTER_ACTIONS` that only reads, and is therefore what a shared catalog widens. */
-  private static readonly READ_ACTIONS = new Set(['find', 'findOne']);
+  // The action tables and the rewriting itself live in `org-scope.rules.ts`, shared with the MCP
+  // transport. This class is the HTTP adapter over them: it decides *which* requests are in scope
+  // and binds the logging and the rollout flag; it no longer owns the rules.
 
   constructor(private readonly reflector: Reflector) {}
 
@@ -148,37 +144,23 @@ export class OrgScopeInterceptor implements NestInterceptor {
   }
 
   private scopeOperation(operation: any, ctx: IRequestOrgContext, request: any, shared?: ISharedCatalogRule): void {
-    if (!operation || typeof operation !== 'object') return;
-
-    // The platform-admin escape hatch that `/page/admin/admin-entities` uses to list across organizations.
-    // It survives F14a on purpose, and it is audited every time — same rule as `[ADMIN_BYPASS]` elsewhere.
-    if (ctx.isPlatformAdmin && operation.options?.adminBypass === true) {
-      this.logger.warn(`[ADMIN_BYPASS] ${request.method} ${request.url} | actor=${ctx.email} | action=${operation.action} | org scope not applied`);
+    // The platform-admin escape hatch that `/page/admin/admin-entities` uses to list across
+    // organizations. It survives F14a on purpose, and it is audited every time — same rule as
+    // `[ADMIN_BYPASS]` elsewhere. The rules module knows *whether* it applies; the line is ours.
+    if (OrgScope.isAdminBypass(operation, ctx)) {
+      this.logger.warn(`[ADMIN_BYPASS] ${request.method} ${request.url} | actor=${ctx.email} | action=${operation?.action} | org scope not applied`);
       return;
     }
+    OrgScope.scopeOperation(operation, ctx, this.reporterFor(request, ctx), this.optionsFor(shared));
+  }
 
-    const action = operation.action;
+  /** Binds the shared rules to this transport's audit line and rollout flag. */
+  private reporterFor(request: any, ctx: IRequestOrgContext): OrgScope.OrgScopeReporter {
+    return (where, claimed) => this.report(request, ctx, where, claimed);
+  }
 
-    if (action === 'aggregate') {
-      // An arbitrary pipeline can read anything in the collection, so the scope goes in front of its first
-      // stage where nothing can have widened it yet. A later client `$match` can only narrow it, which is
-      // exactly how the frontend's "Mi Organización" / "Catálogo Público" filters are meant to work.
-      const pipeline = Array.isArray(operation.payload) ? operation.payload : [];
-      operation.payload = [{ $match: this.readScope(ctx, shared) }, ...pipeline];
-      return;
-    }
-
-    if (OrgScopeInterceptor.FILTER_ACTIONS.has(action)) {
-      const readOnly = OrgScopeInterceptor.READ_ACTIONS.has(action);
-      operation.query = this.scopeFilter(operation.query, ctx, request, `operation(${action}).query`, readOnly ? shared : undefined);
-    }
-    if (OrgScopeInterceptor.CREATE_ACTIONS.has(action)) {
-      operation.payload = operation.payload ?? {};
-      this.stampOrgId(operation.payload, ctx, request, `operation(${action}).payload`);
-    }
-    if (OrgScopeInterceptor.UPDATE_ACTIONS.has(action)) {
-      this.stripForeignOrgId(operation.payload, ctx, request, `operation(${action}).payload`);
-    }
+  private optionsFor(shared?: ISharedCatalogRule): OrgScope.OrgScopeOptions {
+    return { logOnly: this.isLogOnly(), shared };
   }
 
   /**
@@ -187,8 +169,7 @@ export class OrgScopeInterceptor implements NestInterceptor {
    * place the read/write asymmetry is expressed.
    */
   private readScope(ctx: IRequestOrgContext, shared?: ISharedCatalogRule): Record<string, any> {
-    if (!shared) return { orgId: ctx.orgId };
-    return { $or: [{ orgId: ctx.orgId }, ...shared.sharedFilters] };
+    return OrgScope.readScope(ctx, shared);
   }
 
   /**
@@ -199,31 +180,12 @@ export class OrgScopeInterceptor implements NestInterceptor {
    * client can still narrow ("Mi Organización", "Catálogo Público"), it just cannot widen past the union.
    */
   private scopeFilter(target: any, ctx: IRequestOrgContext, request: any, where: string, shared?: ISharedCatalogRule): any {
-    const filter = target && typeof target === 'object' && !Array.isArray(target) ? target : {};
-    if (filter.orgId !== undefined && filter.orgId !== ctx.orgId) {
-      this.report(request, ctx, where, filter.orgId);
-    }
-    if (this.isLogOnly()) return target;
-
-    if (!shared) {
-      filter.orgId = ctx.orgId;
-      return filter;
-    }
-
-    if (filter.orgId !== undefined && filter.orgId !== ctx.orgId) {
-      delete filter.orgId;
-    }
-    const scope = this.readScope(ctx, shared);
-    return Object.keys(filter).length > 0 ? { $and: [scope, filter] } : scope;
+    return OrgScope.scopeFilter(target, ctx, this.reporterFor(request, ctx), where, this.optionsFor(shared));
   }
 
   /** Stamps the org on a document being written. */
   private stampOrgId(document: any, ctx: IRequestOrgContext, request: any, where: string): void {
-    if (document.orgId !== undefined && document.orgId !== ctx.orgId) {
-      this.report(request, ctx, where, document.orgId);
-    }
-    if (this.isLogOnly()) return;
-    document.orgId = ctx.orgId;
+    OrgScope.stampOrgId(document, ctx, this.reporterFor(request, ctx), where, this.optionsFor());
   }
 
   /**
@@ -231,15 +193,7 @@ export class OrgScopeInterceptor implements NestInterceptor {
    * row's owner; the accompanying query already limits the write to our organization.
    */
   private stripForeignOrgId(payload: any, ctx: IRequestOrgContext, request: any, where: string): void {
-    if (!payload || typeof payload !== 'object') return;
-
-    for (const container of [payload, payload.$set, payload.$setOnInsert]) {
-      if (!container || typeof container !== 'object') continue;
-      if (container.orgId !== undefined && container.orgId !== ctx.orgId) {
-        this.report(request, ctx, where, container.orgId);
-        if (!this.isLogOnly()) delete container.orgId;
-      }
-    }
+    OrgScope.stripForeignOrgId(payload, ctx, this.reporterFor(request, ctx), where, this.optionsFor());
   }
 
   /**

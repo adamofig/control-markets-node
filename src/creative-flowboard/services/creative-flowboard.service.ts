@@ -153,13 +153,27 @@ export class CreativeFlowboardService extends EntityCommunicationService<Creativ
     return result;
   }
 
+  /**
+   * Ownership check for a flow addressed by id.
+   *
+   * Extracted from `moveNodesForOrganization`, which was the only caller until the MCP tools needed
+   * the same question answered before running a node, a whole flow, or adding nodes. It lives here
+   * rather than in the tool layer because it is a fact about flows, and a second copy of the
+   * `$or: [{_id}, {id}]` shape is a second place to get the identity lookup wrong.
+   *
+   * Projects to `_id` only: the callers need existence, not the document.
+   */
+  public async assertFlowInOrganization(flowId: string, orgId: string): Promise<void> {
+    const flow = await this.creativeFlowboardModel.findOne({ $or: [{ _id: flowId }, { id: flowId }], orgId }).select({ _id: 1 }).lean().exec();
+    if (!flow) throw new NotFoundException('Flow was not found in the current organization');
+  }
+
   public async moveNodesForOrganization(
     flowId: string,
     orgId: string,
     positions: { nodeId: string; x: number; y: number }[],
   ): Promise<CreativeFlowboardDocument> {
-    const flow = await this.creativeFlowboardModel.findOne({ $or: [{ _id: flowId }, { id: flowId }], orgId }).select({ _id: 1 }).lean().exec();
-    if (!flow) throw new NotFoundException('Flow was not found in the current organization');
+    await this.assertFlowInOrganization(flowId, orgId);
     return this.moveNodes(flowId, positions);
   }
 

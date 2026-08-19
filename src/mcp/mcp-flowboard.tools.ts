@@ -2,19 +2,38 @@ import { Injectable } from '@nestjs/common';
 import { Tool } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { CreativeFlowboardService } from '../creative-flowboard/services/creative-flowboard.service';
+import { IMcpAuthContext } from './mcp-auth-context.guard';
+import { requireMcpContext, scopedQuery } from './mcp-scope.util';
 
+/**
+ * Canvas tools, scoped to the caller's organization.
+ *
+ * Every method takes the raw HTTP request as its third parameter — that is the signature
+ * `@rekog/mcp-nest` invokes tools with (`method(args, context, httpRequest.raw)`), and it is where
+ * `McpAuthContextGuard` leaves the resolved identity.
+ *
+ * Six of the seven tools address a flow **by id**, where there is no filter to rewrite: the id is the
+ * query. They all call `assertFlowInOrganization` first, so a flow of another organization is not
+ * found rather than run. `flow_listFlows` is the only one with a filter, and it gets `orgId` in it.
+ */
 @Injectable()
 export class McpFlowboardTools {
   constructor(private flowboardService: CreativeFlowboardService) {}
 
+  /** Existence + ownership, before anything is executed or mutated. */
+  private async assertOwned(flowId: string, identity: IMcpAuthContext): Promise<void> {
+    await this.flowboardService.assertFlowInOrganization(flowId, identity.orgId);
+  }
+
   @Tool({
     name: 'flow_listFlows',
-    description: 'List all available flowboards with their IDs and basic metadata.',
+    description: 'List the flowboards of your organization with their IDs and basic metadata.',
     parameters: z.object({}),
   })
-  async listFlows() {
-    const flows = await this.flowboardService.findAll();
-    const summary = flows.map(f => ({ id: (f as any).id, name: (f as any).name, nodesCount: (f as any).nodes?.length ?? 0 }));
+  async listFlows(_args: unknown, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    const flows = await this.flowboardService.executeOperation({ action: 'find', query: scopedQuery(identity) });
+    const summary = (Array.isArray(flows) ? flows : []).map((f: any) => ({ id: f.id, name: f.name, nodesCount: f.nodes?.length ?? 0 }));
     return { content: [{ type: 'text', text: JSON.stringify(summary) }] };
   }
 
@@ -26,7 +45,8 @@ export class McpFlowboardTools {
       nodeId: z.string().describe('The ID of the node to execute.'),
     }),
   })
-  async runNode({ flowId, nodeId }: { flowId: string; nodeId: string }) {
+  async runNode({ flowId, nodeId }: { flowId: string; nodeId: string }, _context: unknown, request: any) {
+    await this.assertOwned(flowId, requireMcpContext(request));
     const result = await this.flowboardService.runNodev2(flowId, nodeId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -39,7 +59,8 @@ export class McpFlowboardTools {
       nodeId: z.string().describe('The ID of the node to execute.'),
     }),
   })
-  async runAndWait({ flowId, nodeId }: { flowId: string; nodeId: string }) {
+  async runAndWait({ flowId, nodeId }: { flowId: string; nodeId: string }, _context: unknown, request: any) {
+    await this.assertOwned(flowId, requireMcpContext(request));
     const result = await this.flowboardService.runAndWait(flowId, nodeId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -58,8 +79,9 @@ export class McpFlowboardTools {
       ),
     }),
   })
-  async moveNodes({ flowId, positions }: { flowId: string; positions: { nodeId: string; x: number; y: number }[] }) {
-    await this.flowboardService.moveNodes(flowId, positions);
+  async moveNodes({ flowId, positions }: { flowId: string; positions: { nodeId: string; x: number; y: number }[] }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    await this.flowboardService.moveNodesForOrganization(flowId, identity.orgId, positions);
     return { content: [{ type: 'text', text: JSON.stringify({ success: true, flowId, updatedCount: positions.length }) }] };
   }
 
@@ -70,7 +92,8 @@ export class McpFlowboardTools {
       flowId: z.string().describe('The ID of the flowboard to run.'),
     }),
   })
-  async runFlow({ flowId }: { flowId: string }) {
+  async runFlow({ flowId }: { flowId: string }, _context: unknown, request: any) {
+    await this.assertOwned(flowId, requireMcpContext(request));
     const result = await this.flowboardService.runFlow(flowId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -82,7 +105,8 @@ export class McpFlowboardTools {
       flowId: z.string().describe('The ID of the flowboard.'),
     }),
   })
-  async getFlow({ flowId }: { flowId: string }) {
+  async getFlow({ flowId }: { flowId: string }, _context: unknown, request: any) {
+    await this.assertOwned(flowId, requireMcpContext(request));
     const result = await this.flowboardService.findOne(flowId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -96,7 +120,8 @@ export class McpFlowboardTools {
       edges: z.array(z.any()).optional().describe('Array of edge objects to add.'),
     }),
   })
-  async addNodes({ flowId, nodes, edges }: { flowId: string; nodes: any[]; edges?: any[] }) {
+  async addNodes({ flowId, nodes, edges }: { flowId: string; nodes: any[]; edges?: any[] }, _context: unknown, request: any) {
+    await this.assertOwned(flowId, requireMcpContext(request));
     const result = await this.flowboardService.addNodes({ flowId, nodes, edges: edges ?? [] });
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }

@@ -5,6 +5,7 @@ import { AgentTasksService } from '../agent-tasks/services/agent-tasks.service';
 import { SubtaskStatus } from '../agent-tasks/models/classes';
 import { AgentOutcomeJobService } from '../agent-tasks/services/agent-job.service';
 import { assignedUserSchema, agentTaskSummarySchema, agentOutcomeJobSummarySchema } from '../agent-tasks/models/task-schemas';
+import { assertDocumentInOrg, requireMcpContext, scopeMcpOperation, scopedQuery } from './mcp-scope.util';
 
 const preprocessJson = (val: unknown) => {
   if (typeof val === 'string') {
@@ -47,6 +48,27 @@ export class McpTasksTools {
 
   // ─── Schema introspection ────────────────────────────────────────────────
 
+  /**
+   * Ownership of a task addressed by id.
+   *
+   * `updateSubtaskStatus` and `execute` take a bare `taskId` — there is no filter to rewrite, so the
+   * document is read under the caller's organization first and the write only happens if it is
+   * there. `execute` matters most: it runs an LLM and bills for it.
+   */
+  private async assertTaskOwned(taskId: string, request: any, tool: string): Promise<void> {
+    const identity = requireMcpContext(request);
+    const [task] = await this.agentTasksService.executeOperation({
+      action: 'find',
+      query: { id: taskId, orgId: identity.orgId },
+      options: { limit: 1, projection: { id: 1, orgId: 1 } },
+    });
+    if (!task) {
+      // Same message for "belongs to another org" and "does not exist" — an existence oracle over
+      // other tenants is not worth a better error message.
+      assertDocumentInOrg({ orgId: '__missing__' }, identity, tool, `Task ${taskId}`);
+    }
+  }
+
   @Tool({
     name: 'tasks_getSchema',
     description: `Returns the JSON Schema for both agent_tasks and agent_outcome_jobs collections.
@@ -54,7 +76,8 @@ Call this first when you are unsure about field names, nested object shapes, or 
 The schema is derived directly from the TypeScript models — it is always up to date.`,
     parameters: z.object({}),
   })
-  async getSchema() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getSchema(_args: unknown, _context: unknown, _request: any) {
     const schema = {
       agent_tasks: z.toJSONSchema(agentTaskSummarySchema),
       agent_outcome_jobs: z.toJSONSchema(agentOutcomeJobSummarySchema),
@@ -88,7 +111,8 @@ pending review → query { "status": "in_review" };
 
     parameters: operationSchema,
   })
-  async tasksOperation(operation: OperationInput) {
+  async tasksOperation(operation: OperationInput, _context: unknown, request: any) {
+    scopeMcpOperation(operation, requireMcpContext(request), 'tasks_operation');
     const result = await this.agentTasksService.executeOperation(operation);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -125,8 +149,12 @@ Results come back sorted by priority descending (most urgent first).`,
     status?: string;
     minPriority?: number;
     taskNumber?: number;
-  }) {
-    const query: Record<string, unknown> = {};
+  }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    // The task numbering is correlative *per assignee inside an organization*, so scoping this query
+    // is not only an access rule: without it "mi tarea 3" could match a different person's #3 in
+    // another tenant and answer with the wrong task.
+    const query: Record<string, unknown> = scopedQuery(identity);
     // Legacy rows written by Angular put the uid in `assignedTo.id`; match both or a user's early
     // tasks silently drop out of their own sequence.
     if (userId) query['$or'] = [{ 'assignedTo.userId': userId }, { 'assignedTo.id': userId }];
@@ -151,7 +179,12 @@ Use tasks_operation (findOne with projection { "subtasks": 1 }) to list a task's
       completedBy: z.string().optional().describe('Email of the user or name of the agent completing it.'),
     }),
   })
-  async updateSubtaskStatus({ taskId, subtaskId, status, completedBy }: { taskId: string; subtaskId: string; status: SubtaskStatus; completedBy?: string }) {
+  async updateSubtaskStatus(
+    { taskId, subtaskId, status, completedBy }: { taskId: string; subtaskId: string; status: SubtaskStatus; completedBy?: string },
+    _context: unknown,
+    request: any,
+  ) {
+    await this.assertTaskOwned(taskId, request, 'tasks_updateSubtaskStatus');
     const result = await this.agentTasksService.updateSubtaskStatus(taskId, subtaskId, status, completedBy);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -163,7 +196,8 @@ Use tasks_operation (findOne with projection { "subtasks": 1 }) to list a task's
       taskId: z.string().describe('The ID of the agent task to execute.'),
     }),
   })
-  async executeAgentTask({ taskId }: { taskId: string }) {
+  async executeAgentTask({ taskId }: { taskId: string }, _context: unknown, request: any) {
+    await this.assertTaskOwned(taskId, request, 'tasks_executeTask');
     const result = await this.agentTasksService.execute(taskId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -178,7 +212,8 @@ Call tasks_getSchema first if you are unsure of field names or nested shapes.
 Key reminder: task and agentCard are nested — query with "task._id", "task.name", "agentCard.id", "agentCard.name".`,
     parameters: operationSchema,
   })
-  async jobsOperation(operation: OperationInput) {
+  async jobsOperation(operation: OperationInput, _context: unknown, request: any) {
+    scopeMcpOperation(operation, requireMcpContext(request), 'tasks_jobsOperation');
     const result = await this.agentJobService.executeOperation(operation);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }

@@ -1,5 +1,12 @@
 # MCP Server Integration Plan
 
+> ⚠️ **Superado el 2026-08-18 (tarea 6).** La Fase 2 de este plan —`McpApiKeyGuard` + `MCP_API_KEY`—
+> **nunca se cableó**: la clase existió pero no estaba registrada en ninguna ruta, así que el
+> `x-api-key` que aparece más abajo jamás se validó. La autenticación real de `/mcp` la dan los guards
+> globales de F12 (`ProjectAuthGuard` + `OrgContextGuard`) con un PAT `cm_pat_*`, y el acotado por
+> organización lo hace `McpAuthContextGuard` junto con `mcp-scope.util.ts`. `McpApiKeyGuard` se borró.
+> Fuente de verdad: [mcp-user-identity.md](../../../control-markets-wiki/02-references/09-agentic-conversations-(borges)/mcp-user-identity.md).
+
 **Goal:** Expose Control Markets as an MCP (Model Context Protocol) server so AI agents (Claude Code, Claude Desktop, any MCP client) can control the platform via natural language from the terminal — e.g., *"Move all nodes in flow 12345 to position 0,0"*.
 
 ---

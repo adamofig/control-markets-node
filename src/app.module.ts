@@ -35,6 +35,7 @@ import { ChatModule } from './chat/chat.module';
 import { HumanResourcesModule } from './human-resources/human-resources.module';
 import { McpModule } from '@rekog/mcp-nest';
 import { AppMcpModule } from './mcp/mcp.module';
+import { McpAuthContextGuard } from './mcp/mcp-auth-context.guard';
 import { randomUUID } from 'crypto';
 import { BlogEntryModule } from './blog-entry/blog-entry.module';
 import { UniversalModule } from './universal/universal.module';
@@ -97,6 +98,11 @@ import { InboxModule } from './inbox/inbox.module';
     McpModule.forRoot({
       name: 'control-markets',
       version: '1.0.0',
+      // Route-level guard, so it runs AFTER the two global ones registered in `AuthContextModule`
+      // (F12) and can read what they resolved. It refuses a request with no identity or no
+      // organization, and bridges both onto `request.raw` — the object a tool actually receives
+      // under Fastify. See `McpAuthContextGuard` for why the bridge is not optional.
+      guards: [McpAuthContextGuard],
       streamableHttp: {
         enableJsonResponse: false,
         sessionIdGenerator: () => randomUUID(),

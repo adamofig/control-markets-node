@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Tool } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { AppUserService } from '../user/user.service';
@@ -35,9 +35,35 @@ clone → use query with _id.`,
 
 type OperationInput = z.infer<typeof operationSchema>;
 
+import { requireMcpContext, requirePlatformAdminForWrite, scopeMcpOperation, stripPrivilegeFields } from './mcp-scope.util';
+import { IMcpAuthContext } from './mcp-auth-context.guard';
+
 @Injectable()
 export class McpUserTools {
+  private readonly logger = new Logger('McpUserTools');
+
   constructor(private userService: AppUserService) {}
+
+  /**
+   * A user is visible to a caller only if they share an organization.
+   *
+   * The `users` collection is platform-wide: without this check, `users_findByEmail` over MCP is a
+   * directory of every person on the platform — emails, personal data and claims included — for
+   * anyone holding any token. Membership is read from the target's own `organizations[]`, the same
+   * source of truth `org_getMembers` uses.
+   *
+   * Not found and not-in-your-org return the same thing, on purpose: distinguishing them would
+   * confirm which email addresses have accounts here.
+   */
+  private assertShareOrg<T>(user: T, identity: IMcpAuthContext, tool: string, ref: string): T {
+    if (identity.isPlatformAdmin) return user;
+    const memberships = ((user as any)?.organizations ?? []) as Array<{ orgId?: string }>;
+    if (!user || !memberships.some(m => m?.orgId === identity.orgId)) {
+      this.logger.warn(`[ORG_SCOPE_DENIED] mcp:${tool} | actor=${identity.email || '-'} | ${ref} is not a member of ${identity.orgId}`);
+      throw new ForbiddenException(`No user matching '${ref}' was found in your organization.`);
+    }
+    return user;
+  }
 
   @Tool({
     name: 'users_operation',
@@ -57,7 +83,12 @@ Dot-notation for nested queries: "personalData.firstname", "organizations.orgId"
 Use users_findByEmail / users_findById for common lookups — they handle the query for you.`,
     parameters: operationSchema,
   })
-  async usersOperation(operation: OperationInput) {
+  async usersOperation(operation: OperationInput, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    requirePlatformAdminForWrite(operation, identity, 'users_operation', '`org_operateUser`');
+    // `users` links to an organization through `organizations[].orgId`, not a top-level `orgId`:
+    // one person belongs to many tenants. Scoping by the wrong field would filter nothing.
+    scopeMcpOperation(operation, identity, 'users_operation', 'organizations.orgId');
     const result = await this.userService.executeOperation(operation);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -70,8 +101,9 @@ Returns the full user document including personalData, settings, organizations, 
       email: z.string().describe('The email address of the user to look up.'),
     }),
   })
-  async findByEmail({ email }: { email: string }) {
-    const result = await this.userService.findUserByEmail(email);
+  async findByEmail({ email }: { email: string }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    const result = this.assertShareOrg(await this.userService.findUserByEmail(email), identity, 'users_findByEmail', email);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
@@ -83,8 +115,9 @@ Returns a partial user document. Use users_findByEmail if you have the email ins
       userId: z.string().describe('The internal user ID (id field).'),
     }),
   })
-  async findById({ userId }: { userId: string }) {
-    const result = await this.userService.findUserById(userId);
+  async findById({ userId }: { userId: string }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    const result = this.assertShareOrg(await this.userService.findUserById(userId), identity, 'users_findById', userId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
@@ -99,8 +132,10 @@ Do NOT use this to manage organization membership — use org_operateUser for th
       payload: z.record(z.string(), z.unknown()).describe('Fields to update (e.g. { "defaultOrgId": "abc123", "personalData.nickname": "Dev" }).'),
     }),
   })
-  async updateByEmail({ email, payload }: { email: string; payload: Record<string, unknown> }) {
-    const result = await this.userService.updateUserByEmail(email, payload);
+  async updateByEmail({ email, payload }: { email: string; payload: Record<string, unknown> }, _context: unknown, request: any) {
+    const identity = requireMcpContext(request);
+    this.assertShareOrg(await this.userService.findUserByEmail(email), identity, 'users_updateByEmail', email);
+    const result = await this.userService.updateUserByEmail(email, stripPrivilegeFields(payload, identity, 'users_updateByEmail'));
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 }
