@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Tool } from '@rekog/mcp-nest';
+import { Tool, ToolScopes } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { AgentTasksService } from '../agent-tasks/services/agent-tasks.service';
 import { SubtaskStatus } from '../agent-tasks/models/classes';
 import { AgentOutcomeJobService } from '../agent-tasks/services/agent-job.service';
 import { assignedUserSchema, agentTaskSummarySchema, agentOutcomeJobSummarySchema } from '../agent-tasks/models/task-schemas';
 import { assertDocumentInOrg, requireMcpContext, scopeMcpOperation, scopedQuery } from './mcp-scope.util';
+import { MCP_SCOPES } from './mcp-scopes';
 
 const preprocessJson = (val: unknown) => {
   if (typeof val === 'string') {
@@ -69,6 +70,7 @@ export class McpTasksTools {
     }
   }
 
+  @ToolScopes([MCP_SCOPES.tasks])
   @Tool({
     name: 'tasks_getSchema',
     description: `Returns the JSON Schema for both agent_tasks and agent_outcome_jobs collections.
@@ -89,6 +91,7 @@ The schema is derived directly from the TypeScript models — it is always up to
 
   
 
+  @ToolScopes([MCP_SCOPES.tasks])
   @Tool({
     name: 'tasks_operation',
     description: `Execute any MongoDB operation on the agent_tasks collection.
@@ -118,6 +121,7 @@ pending review → query { "status": "in_review" };
   }
 
 
+  @ToolScopes([MCP_SCOPES.tasks])
   @Tool({
     name: 'tasks_getByAssignee',
     description: `Find all tasks assigned to a specific user.
@@ -167,6 +171,7 @@ Results come back sorted by priority descending (most urgent first).`,
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.tasks])
   @Tool({
     name: 'tasks_updateSubtaskStatus',
     description: `Mark a subtask of an agent task as done or pending. Subtasks are the structured checklist items of a task (synced from the markdown "- [ ]" checkboxes or created in the UI).
@@ -189,6 +194,7 @@ Use tasks_operation (findOne with projection { "subtasks": 1 }) to list a task's
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.tasks])
   @Tool({
     name: 'tasks_executeTask',
     description: `Execute an agent task by ID. Only valid if the task have an agent card associated. Runs the task against its configured agent cards and sources. Returns the outcome job(s) with AI-generated content.`,
@@ -204,6 +210,7 @@ Use tasks_operation (findOne with projection { "subtasks": 1 }) to list a task's
 
   // ─── agent_outcome_jobs collection ───────────────────────────────────────
 
+  @ToolScopes([MCP_SCOPES.tasks])
   @Tool({
     name: 'tasks_jobsOperation',
     description: `Execute any MongoDB operation on the agent_outcome_jobs collection.

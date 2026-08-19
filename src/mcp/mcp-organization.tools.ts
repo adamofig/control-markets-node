@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Tool } from '@rekog/mcp-nest';
+import { Tool, ToolScopes } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { OrganizationService } from '../organization/services/organization.service';
 import { OrgUserOperation } from '../organization/models/organization-member.models';
@@ -38,11 +38,13 @@ clone → use query with _id.`,
 type OperationInput = z.infer<typeof operationSchema>;
 
 import { requireMcpContext, requirePlatformAdminForWrite, resolveOrgArgument, scopeMcpOperation } from './mcp-scope.util';
+import { MCP_SCOPES } from './mcp-scopes';
 
 @Injectable()
 export class McpOrganizationTools {
   constructor(private organizationService: OrganizationService) {}
 
+  @ToolScopes([MCP_SCOPES.org])
   @Tool({
     name: 'org_operation',
     description: `Execute any MongoDB operation on the organizations collection.
@@ -68,6 +70,7 @@ Use org_getMembers / org_operateUser for member management — they handle the n
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.org])
   @Tool({
     name: 'org_getMembers',
     description: `Return all members of a specific organization, with their role.
@@ -83,6 +86,7 @@ for each member, resolved from users.organizations[] — the source of truth, no
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.org])
   @Tool({
     name: 'org_findByUser',
     description: `Find all organizations a user belongs to by their email address.
@@ -104,6 +108,7 @@ role that person holds in it.`,
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.org])
   @Tool({
     name: 'org_operateUser',
     description: `Manage a user's membership in an organization.

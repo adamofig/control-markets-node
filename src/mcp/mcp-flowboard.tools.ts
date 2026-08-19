@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Tool } from '@rekog/mcp-nest';
+import { Tool, ToolScopes } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { CreativeFlowboardService } from '../creative-flowboard/services/creative-flowboard.service';
 import { IMcpAuthContext } from './mcp-auth-context.guard';
 import { requireMcpContext, scopedQuery } from './mcp-scope.util';
+import { MCP_SCOPES } from './mcp-scopes';
 
 /**
  * Canvas tools, scoped to the caller's organization.
@@ -25,6 +26,7 @@ export class McpFlowboardTools {
     await this.flowboardService.assertFlowInOrganization(flowId, identity.orgId);
   }
 
+  @ToolScopes([MCP_SCOPES.flows])
   @Tool({
     name: 'flow_listFlows',
     description: 'List the flowboards of your organization with their IDs and basic metadata.',
@@ -37,6 +39,7 @@ export class McpFlowboardTools {
     return { content: [{ type: 'text', text: JSON.stringify(summary) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.flows])
   @Tool({
     name: 'flow_runNode',
     description: 'Execute a single node within a flowboard. Returns the initial IFlowExecutionState (async — node runs in background).',
@@ -51,6 +54,7 @@ export class McpFlowboardTools {
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.flows])
   @Tool({
     name: 'flow_runAndWait',
     description: 'Execute a single node and wait for the result. Returns the completed AgentOutcomeJob with the AI-generated content.',
@@ -65,6 +69,7 @@ export class McpFlowboardTools {
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.flows])
   @Tool({
     name: 'flow_moveNodes',
     description: 'Move one or more nodes on a flowboard canvas to new (x, y) positions.',
@@ -85,6 +90,7 @@ export class McpFlowboardTools {
     return { content: [{ type: 'text', text: JSON.stringify({ success: true, flowId, updatedCount: positions.length }) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.flows])
   @Tool({
     name: 'flow_runFlow',
     description: 'Execute a full flowboard — runs all agent nodes in sequence.',
@@ -98,6 +104,7 @@ export class McpFlowboardTools {
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.flows])
   @Tool({
     name: 'flow_getFlow',
     description: 'Get the full definition of a flowboard including all nodes and edges.',
@@ -111,6 +118,7 @@ export class McpFlowboardTools {
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.flows])
   @Tool({
     name: 'flow_addNodes',
     description: 'Add nodes and edges to an existing flowboard.',

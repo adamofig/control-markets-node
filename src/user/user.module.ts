@@ -5,6 +5,7 @@ import { UserController } from './user.controller';
 import { AppUserService } from './user.service';
 import { ProjectAuthGuard } from './project-auth.guard';
 import { SystemMasterTokenService } from './system-master-token.service';
+import { EphemeralAgentTokenService } from './ephemeral-agent-token.service';
 // import { FirebaseService } from '../common/firebase.service'; // Removed local import
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
@@ -49,6 +50,7 @@ import { OrganizationModule } from '../organization/organization.module';
   providers: [
     AppUserService,
     SystemMasterTokenService,
+    EphemeralAgentTokenService,
     ProjectAuthGuard,
     { provide: AuthGuard, useClass: ProjectAuthGuard },
     { provide: DC_ENTITY_GUARD, useExisting: ProjectAuthGuard },
@@ -56,6 +58,7 @@ import { OrganizationModule } from '../organization/organization.module';
   exports: [
     AppUserService,
     SystemMasterTokenService,
+    EphemeralAgentTokenService,
     ProjectAuthGuard,
     { provide: AuthGuard, useClass: ProjectAuthGuard },
     { provide: DC_ENTITY_GUARD, useExisting: ProjectAuthGuard },

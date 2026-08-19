@@ -119,7 +119,13 @@ export class LocalAgentController {
     const model = body.model?.trim() || (profileDefaultsApply ? acpConfig?.defaultModel : undefined);
     const reasoningEffort = body.reasoningEffort ?? (profileDefaultsApply ? acpConfig?.reasoningEffort : undefined);
 
-    const runtime = this.acpBridge.describeRuntime(engine, cwd);
+    // Task 25 — everything an ACP session needs to hold a credential of its own: the organization
+    // the server resolved (never the body), the profile it belongs to, and the person it acts for.
+    // Assembled before `describeRuntime` because the runtime index has to name the tools the token
+    // will unlock, and the token is minted from exactly these fields.
+    const agentIdentity = { orgId: resolvedOrgId, profileId: body.agenticProfileId, actorEmail: token?.email, actorUserId: (token as any)?.userId };
+
+    const runtime = this.acpBridge.describeRuntime(engine, cwd, agentIdentity);
 
     // The standing profile context is a first-turn concern: the CLI keeps it in session history.
     let profileContext: string | undefined;
@@ -142,7 +148,7 @@ export class LocalAgentController {
       body.sessionId,
       profileContext,
       engine,
-      { model, reasoningEffort, cwd },
+      { model, reasoningEffort, cwd, ...agentIdentity },
       attached?.markdown || undefined,
     );
 

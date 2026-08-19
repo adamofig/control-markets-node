@@ -1,12 +1,13 @@
 jest.mock('./filesystem-tools.service', () => ({ FilesystemToolsService: class {} }));
 
 import { AcpBridgeService } from './acp-bridge.service';
+import { EphemeralAgentTokenService } from '../user/ephemeral-agent-token.service';
 
 describe('AcpBridgeService Claude ACP integration', () => {
   let service: AcpBridgeService;
 
   beforeEach(() => {
-    service = new AcpBridgeService({ enabled: true } as any);
+    service = new AcpBridgeService({ enabled: true } as any, new EphemeralAgentTokenService());
   });
 
   afterEach(() => {

@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import { Tool } from '@rekog/mcp-nest';
+import { Tool, ToolScopes } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { AppUserService } from '../user/user.service';
 
@@ -37,6 +37,7 @@ type OperationInput = z.infer<typeof operationSchema>;
 
 import { requireMcpContext, requirePlatformAdminForWrite, scopeMcpOperation, stripPrivilegeFields } from './mcp-scope.util';
 import { IMcpAuthContext } from './mcp-auth-context.guard';
+import { MCP_SCOPES } from './mcp-scopes';
 
 @Injectable()
 export class McpUserTools {
@@ -65,6 +66,7 @@ export class McpUserTools {
     return user;
   }
 
+  @ToolScopes([MCP_SCOPES.users])
   @Tool({
     name: 'users_operation',
     description: `Execute any MongoDB operation on the users collection.
@@ -93,6 +95,7 @@ Use users_findByEmail / users_findById for common lookups — they handle the qu
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.users])
   @Tool({
     name: 'users_findByEmail',
     description: `Find a single user by their email address.
@@ -107,6 +110,7 @@ Returns the full user document including personalData, settings, organizations, 
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.users])
   @Tool({
     name: 'users_findById',
     description: `Find a single user by their internal user ID (the id field, not the MongoDB _id).
@@ -121,6 +125,7 @@ Returns a partial user document. Use users_findByEmail if you have the email ins
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.users])
   @Tool({
     name: 'users_updateByEmail',
     description: `Update a user's fields by their email address.

@@ -10,6 +10,8 @@ import { LocalAgentStreamEvent } from './local-agent-chat.service';
 import { normalizeTokenUsage } from './ai-usage.util';
 import { AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from '../common/acp-engines';
 import { AgenticRuntimeProfile } from '../agentic-profile/models/agentic-profile.models';
+import { EphemeralAgentTokenService } from '../user/ephemeral-agent-token.service';
+import { agyMcpEnv, buildAcpMcpServers, ensureAgyMcpConfig, McpTransportKind, McpWiringPlan, planMcpWiring } from './acp-mcp-wiring';
 
 // @agentclientprotocol/sdk is ESM-only; the project compiles to CommonJS, so a static
 // import would become require() and fail. new Function keeps the dynamic import as-is.
@@ -28,6 +30,17 @@ export { AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from '../common/a
 export interface AcpRuntimeOptions {
   model?: string;
   reasoningEffort?: CodexReasoningEffort;
+  /**
+   * The organization this session may reach. Task 25 — without it no MCP token is minted and the
+   * session runs on the engine's own tools, because every Control Markets tool derives its tenant
+   * from the token and a session that cannot name one has nothing safe to be given.
+   */
+  orgId?: string;
+  /** The agentic profile behind the session, carried into the grant for audit. */
+  profileId?: string;
+  /** The human the session acts for. Their membership is what resolves the role at `/mcp`. */
+  actorEmail?: string;
+  actorUserId?: string;
   /** Working directory for the spawned CLI session — the agent's workspace root
    * (resolved from the profile's workspaceId via ~/.control-markets/workspaces.json).
    * Falls back to the first LOCAL_AGENT_WORKSPACE_ROOTS when absent. */
@@ -79,6 +92,11 @@ interface EngineConfig {
   effortConfigId?: string;
   /** Optional env var with the default reasoning effort for `effortConfigId`. */
   effortEnv?: string;
+  /**
+   * How this engine can be handed an MCP server, or `undefined` when it cannot be.
+   * A property of the CLI, not a preference — see `McpTransportKind`.
+   */
+  mcpTransport?: McpTransportKind;
 }
 
 const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
@@ -93,6 +111,9 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     stripEnv: ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT'],
     versionCommand: 'npx -y @agentclientprotocol/claude-agent-acp@0.59.0 --cli --version',
     modelEnv: 'LOCAL_AGENT_CLAUDE_MODEL',
+    // The reference implementation of the protocol's MCP support: it takes `mcpServers` on
+    // `session/new` and honours the `type: "http"` descriptor with its headers.
+    mcpTransport: 'acp-http',
   },
   codex: {
     // The official ACP adapter starts `codex app-server` and translates it to ACP.
@@ -101,6 +122,10 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     stripEnv: [],
     versionCommand: 'codex --version',
     modelEnv: 'LOCAL_AGENT_CODEX_MODEL',
+    // Declared, not verified: the adapter is official and the argument is part of the protocol, but
+    // no Control Markets session has proven it end to end. `openAcpSession` retries without MCP if
+    // the adapter refuses the argument, so an unsupported engine degrades instead of failing.
+    mcpTransport: 'acp-http',
   },
   agy: {
     // Runs the in-repo adapter with the backend's own Node, so there is nothing to install and
@@ -117,6 +142,9 @@ const ENGINE_CONFIGS: Record<AcpEngine, EngineConfig> = {
     selectsModelViaConfigOption: true,
     effortConfigId: 'effort',
     effortEnv: 'LOCAL_AGENT_AGY_REASONING_EFFORT',
+    // `agy` ignores ACP's `mcpServers` and reads its own global config file. The descriptor is
+    // therefore useless here and the wiring goes through `ensureAgyMcpConfig` plus the environment.
+    mcpTransport: 'agy-config-stdio',
   },
 };
 
@@ -168,6 +196,16 @@ interface AcpSession {
   resolvedModel?: string;
   /** Reasoning effort the adapter reports as current, when it advertises the option. */
   resolvedEffort?: string;
+  /**
+   * The session's own `cm_eat_*` credential. Held so it can be revoked when the session ends —
+   * never logged, never persisted, never handed to anything but the subprocess environment or the
+   * ACP descriptor.
+   */
+  mcpToken?: string;
+  /** The tool names this session was opened with, or `[]` when it runs without our MCP. */
+  mcpTools: string[];
+  /** True when MCP was planned but the adapter refused it and the session opened degraded. */
+  mcpDegraded?: boolean;
   /** Exact USD cost attributable to the active turn, derived from `usage_update` increments. */
   turnCostUsd?: number;
   /**
@@ -214,12 +252,29 @@ export class AcpBridgeService implements OnModuleDestroy {
   private versions = new Map<AcpEngine, string | null>(); // probed CLI versions; missing key = not probed yet
   private reaper = setInterval(() => this.reapIdleSessions(), 60_000);
 
-  constructor(private readonly fsTools: FilesystemToolsService) {}
+  constructor(
+    private readonly fsTools: FilesystemToolsService,
+    private readonly agentTokens: EphemeralAgentTokenService,
+  ) {}
 
   onModuleDestroy() {
     clearInterval(this.reaper);
-    for (const session of this.sessions.values()) session.process.kill('SIGTERM');
+    for (const session of this.sessions.values()) this.disposeSession(session);
     this.sessions.clear();
+  }
+
+  /**
+   * Ends a session and its credential together.
+   *
+   * A killed subprocess and a live grant is exactly the state the token exists to avoid: a bearer
+   * string with no session behind it, still good at `/mcp` until its TTL runs out. Revoking by
+   * session id (rather than by the token this object happens to hold) also catches the grants of a
+   * respawn that minted a second one.
+   */
+  private disposeSession(session: AcpSession): void {
+    session.process.kill('SIGTERM');
+    this.agentTokens.revokeSession(session.id);
+    session.mcpToken = undefined;
   }
 
   get enabled(): boolean {
@@ -246,20 +301,26 @@ export class AcpBridgeService implements OnModuleDestroy {
    * heartbeat ask, so an autonomous wake-up never gets a context different from the one tested in
    * the chat.
    *
-   * `tools: []` is the honest answer today: sessions are opened with `mcpServers: []` in all three
-   * paths (`newSession`, `loadSession`, `resumeSession`), so the engine has its own native tools
-   * and NOT ours. Task 25 wires MCP in; when it does, this is the one line that changes and the
-   * whole index starts naming the tools that appeared.
+   * `tools` used to be the empty array, and honestly so: sessions were opened with `mcpServers: []`
+   * in all three paths. Task 25 wires MCP in, and this is where that becomes visible — the index now
+   * names the tools the session will actually have.
+   *
+   * It answers **before** the session exists, because the index it feeds goes into the prompt that
+   * opens the session. That is why `planMcpWiring` is a pure predicate evaluated from the same
+   * inputs the spawn will use: no organization, no MCP, no promise. The one case the prediction can
+   * outlive is an adapter that refuses the argument mid-handshake; `openAcpSession` records that on
+   * the session and announces it, rather than letting the index stand uncorrected.
    *
    * The workspace roots are only a claim of what the CLI may open — `ContextAccessRenderer` checks
    * every file against disk before printing its path, which is what stops `/app` in a container
    * from looking like a checkout of the wiki.
    */
-  describeRuntime(engine: AcpEngine, cwd?: string): AgenticRuntimeProfile {
+  describeRuntime(engine: AcpEngine, cwd?: string, options: AcpRuntimeOptions = {}): AgenticRuntimeProfile {
     const roots = this.fsTools.workspaceRoots;
     const primary = cwd || roots[0];
     const workspaceRoots = [primary, ...roots.filter(root => root !== primary)].filter(root => !!root && fs.existsSync(root));
-    return { engine, tools: [], workspaceRoots: workspaceRoots.length ? workspaceRoots : undefined };
+    const plan = planMcpWiring(ENGINE_CONFIGS[engine]?.mcpTransport, options.orgId);
+    return { engine, tools: plan?.toolNames ?? [], workspaceRoots: workspaceRoots.length ? workspaceRoots : undefined };
   }
 
   private async probeVersion(engine: AcpEngine): Promise<string | null> {
@@ -453,6 +514,40 @@ export class AcpBridgeService implements OnModuleDestroy {
     const env = { ...process.env };
     for (const key of config.stripEnv) delete env[key];
 
+    // ── Task 25: the session's own key to Control Markets ────────────────────────────────────────
+    // Computed before the spawn because for `agy` the credential travels in the environment of the
+    // process about to be created, and an environment cannot be amended afterwards.
+    const bridgeSessionId = existing?.id ?? sessionId ?? randomUUID();
+    const mcpPlan = planMcpWiring(config.mcpTransport, runtimeOptions.orgId);
+    let mcpToken: string | undefined;
+    if (mcpPlan) {
+      // A respawn of the same bridge session invalidates the previous grant first: the old
+      // subprocess is gone, so its token is a credential with nothing behind it.
+      this.agentTokens.revokeSession(bridgeSessionId);
+      const minted = this.agentTokens.mint({
+        orgId: runtimeOptions.orgId!,
+        sessionId: bridgeSessionId,
+        profileId: runtimeOptions.profileId,
+        email: runtimeOptions.actorEmail,
+        userId: runtimeOptions.actorUserId,
+        scopes: mcpPlan.scopes,
+      });
+      mcpToken = minted.token;
+
+      if (mcpPlan.transport === 'agy-config-stdio') {
+        // `agy` reads its servers from a file and has nowhere to put a header, so the entry names
+        // the shim and the environment supplies the identity. If the file cannot be written the
+        // session simply runs without our tools — never with an unauthenticated server.
+        if (ensureAgyMcpConfig()) {
+          Object.assign(env, agyMcpEnv(mcpPlan, mcpToken));
+        } else {
+          this.agentTokens.revoke(mcpToken);
+          mcpToken = undefined;
+        }
+      }
+      onProgress?.(mcpToken ? `Conectando herramientas de Control Markets (${mcpPlan.toolNames.length})...` : 'Sin herramientas de Control Markets en esta sesión.');
+    }
+
     if (resolvedEngine === 'claude') {
       // The Zed adapter wraps the Claude Agent SDK, which honors ANTHROPIC_MODEL
       // (aliases like 'sonnet'/'opus'/'haiku' or full model ids). The env is fixed at
@@ -508,7 +603,7 @@ export class AcpBridgeService implements OnModuleDestroy {
     child.stderr.on('data', (chunk: Buffer) => this.logger.debug(`[${resolvedEngine} --acp] ${chunk.toString().trim()}`));
 
     const session: AcpSession = {
-      id: existing?.id ?? sessionId ?? randomUUID(),
+      id: bridgeSessionId,
       engine: resolvedEngine,
       acpSessionId: existing?.acpSessionId ?? '',
       process: child,
@@ -518,6 +613,8 @@ export class AcpBridgeService implements OnModuleDestroy {
       toolNames: existing?.toolNames ?? new Map(),
       contextSent: existing?.contextSent ?? false,
       runtimeOptions: existing?.runtimeOptions ?? runtimeOptions,
+      mcpToken,
+      mcpTools: mcpToken && mcpPlan ? mcpPlan.toolNames : [],
       turnCostUsd: undefined,
       lastUsedAt: Date.now(),
     };
@@ -559,17 +656,23 @@ export class AcpBridgeService implements OnModuleDestroy {
     // the vendored agy adapter implements resume — and checking only the legacy flag would
     // silently mint a new session after every respawn, losing the CLI-side conversation.
     const canResume = Boolean(init.agentCapabilities?.sessionCapabilities?.resume);
+    // One `mcpServers` value for the three lifecycle calls. It used to be the literal `[]` written
+    // out three times — the shape of a constant that three call sites are each free to get wrong.
+    const mcpServers = this.buildMcpServers(session, mcpPlan);
     if (session.acpSessionId && init.agentCapabilities?.loadSession) {
       onProgress?.(`Restaurando sesión agéntica: ${session.acpSessionId.slice(0, 8)}...`);
-      const loaded = await session.connection.loadSession({ sessionId: session.acpSessionId, cwd, mcpServers: [] });
+      const loaded = await this.openAcpSession(session, mcpServers, servers => session.connection.loadSession({ sessionId: session.acpSessionId, cwd, mcpServers: servers }), onProgress);
       configOptions = loaded?.configOptions;
     } else if (session.acpSessionId && canResume) {
       onProgress?.(`Reanudando sesión agéntica: ${session.acpSessionId.slice(0, 8)}...`);
-      const resumed = await session.connection.resumeSession({ sessionId: session.acpSessionId, cwd, mcpServers: [], additionalDirectories });
+      const resumed = await this.openAcpSession(session, mcpServers, servers =>
+        session.connection.resumeSession({ sessionId: session.acpSessionId, cwd, mcpServers: servers, additionalDirectories }),
+        onProgress,
+      );
       configOptions = resumed?.configOptions;
     } else {
       onProgress?.('Creando nueva sesión en el motor agéntico...');
-      const created = await session.connection.newSession({ cwd, mcpServers: [], additionalDirectories });
+      const created = await this.openAcpSession(session, mcpServers, servers => session.connection.newSession({ cwd, mcpServers: servers, additionalDirectories }), onProgress);
       session.acpSessionId = created.sessionId;
       configOptions = created?.configOptions;
     }
@@ -601,6 +704,47 @@ export class AcpBridgeService implements OnModuleDestroy {
 
     this.sessions.set(session.id, session);
     return session;
+  }
+
+  /**
+   * The `mcpServers` argument the three session-lifecycle calls share.
+   *
+   * Empty for `agy` even when its wiring succeeded: that engine ignores this argument entirely and
+   * its servers come from its own config file. Returning the descriptor anyway would put the token
+   * into an argument the CLI stores in its session state, for no benefit at all.
+   */
+  private buildMcpServers(session: AcpSession, plan: McpWiringPlan | null): any[] {
+    if (!plan || !session.mcpToken) return [];
+    if (plan.transport !== 'acp-http') return [];
+    return buildAcpMcpServers(plan, session.mcpToken);
+  }
+
+  /**
+   * Opens (or restores) the ACP session, and degrades to no MCP if the adapter refuses the argument.
+   *
+   * The rule from the spec is that a session must never promise `cm_read` and not have it. An
+   * adapter that rejects `mcpServers` would otherwise take the whole session down — a chat that
+   * cannot start at all is a worse outcome than one that starts with the engine's own tools — so
+   * the refusal is caught once, recorded on the session, and retried clean. `mcpTools` is emptied at
+   * the same time, which is what the runtime index reads.
+   */
+  private async openAcpSession(session: AcpSession, mcpServers: any[], open: (servers: any[]) => Promise<any>, onProgress?: (msg: string) => void): Promise<any> {
+    try {
+      return await open(mcpServers);
+    } catch (error: any) {
+      if (!mcpServers.length) throw error;
+      this.logger.warn(`ACP session ${session.id}: adapter refused the mcpServers argument (${error?.message ?? error}); reopening without Control Markets tools.`);
+      session.mcpDegraded = true;
+      session.mcpTools = [];
+      this.agentTokens.revokeSession(session.id);
+      session.mcpToken = undefined;
+      // Through `onProgress`, not `session.queue`: the queue is only attached to the session *after*
+      // `getOrCreateSession` returns, so pushing there during the handshake would drop the notice —
+      // and a degradation nobody is told about is indistinguishable from a session that never had
+      // the tools, which is the confusion this whole branch exists to avoid.
+      onProgress?.('El motor rechazó las herramientas de Control Markets; la sesión continúa sin ellas.');
+      return open([]);
+    }
   }
 
   /**
@@ -741,7 +885,7 @@ export class AcpBridgeService implements OnModuleDestroy {
     for (const [id, session] of this.sessions) {
       if (!session.queue && now - session.lastUsedAt > IDLE_TTL_MS) {
         this.logger.log(`Reaping idle ACP session ${id}`);
-        session.process.kill('SIGTERM');
+        this.disposeSession(session);
         this.sessions.delete(id);
       }
     }

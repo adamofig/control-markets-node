@@ -10,6 +10,7 @@ import { AcpBridgeService, AcpEngine } from '../local-agent/acp-bridge.service';
 import { DEFAULT_ACP_ENGINE, asAcpEngine } from '../common/acp-engines';
 import { LocalAgentChatService } from '../local-agent/local-agent-chat.service';
 import { WorkspaceService } from '../workspaces/services/workspace.service';
+import { AppUserService } from '../user/user.service';
 import { AgenticHeartbeatRunDocument, AgenticHeartbeatRunEntity, HeartbeatRunTrigger, IHeartbeatToolCall } from './schemas/agentic-heartbeat-run.schema';
 
 const CRON_PREFIX = 'agentic-heartbeat:';
@@ -79,6 +80,7 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     private readonly acpBridge: AcpBridgeService,
     private readonly localAgentChatService: LocalAgentChatService,
     private readonly workspaceService: WorkspaceService,
+    private readonly userService: AppUserService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -338,7 +340,17 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     const heartbeatContextLevel = profile.contextLevel === 'full' ? 'full' : 'medium';
     // Same runtime the chat uses for this engine and cwd. Nobody watches an autonomous wake-up
     // live, so a context different from the one tested in the chat is the worst place to diverge.
-    const contextRuntime = this.acpBridge.describeRuntime(engine, workspaceCwd);
+    // Task 25 — an unattended run still needs an identity to hold a `/mcp` credential, and it
+    // borrows the organization's owner rather than inventing a principal: the role that decides what
+    // a tool may touch is read from Mongo by email, so a synthetic actor would resolve to no role
+    // and every tool would 403. A missing identity is not fatal — the run simply gets no tools.
+    const actingIdentity = await this.userService.findOrgActingIdentity(profile.orgId).catch(() => null);
+    if (!actingIdentity) {
+      this.logger.warn(`${tag} No active member found in org ${profile.orgId}; the run will have no Control Markets tools.`);
+    }
+    const agentIdentity = { orgId: actingIdentity ? profile.orgId : undefined, profileId, actorEmail: actingIdentity?.email, actorUserId: actingIdentity?.userId };
+
+    const contextRuntime = this.acpBridge.describeRuntime(engine, workspaceCwd, agentIdentity);
     const context = await this.localAgentChatService.getProfileContext(profileId, profile.orgId, heartbeatContextLevel, contextRuntime).catch(err => {
       this.logger.warn(`Could not compose full-context for ${profileId}: ${err.message}`);
       return undefined;
@@ -365,6 +377,7 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
       cwd: workspaceCwd,
       model: inheritsProfileModel ? acpConfig?.defaultModel : undefined,
       reasoningEffort: inheritsProfileModel ? acpConfig?.reasoningEffort : undefined,
+      ...agentIdentity,
     };
 
     for await (const event of this.acpBridge.stream(prompt, undefined, context, engine, runtimeOptions)) {

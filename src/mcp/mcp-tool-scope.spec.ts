@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { ALL_MCP_SCOPES, MCP_TOOLS_BY_SCOPE, McpScope } from './mcp-scopes';
 
 /**
  * The test that keeps task 6 from rotting — the same shape as `route-guards.spec.ts` does for F10.
@@ -48,8 +49,11 @@ describe('MCP tool org-scope coverage (task 6)', () => {
 
     for (let i = 0; i < lines.length; i++) {
       if (/^\s*@Tool\(\{/.test(lines[i])) {
-        if (start >= 0) blocks.push(buildBlock(lines, start, i));
-        start = i;
+        // Task 25 put `@ToolScopes([...])` on the line above `@Tool({`. Starting the block there
+        // keeps the scope declaration inside the block it belongs to instead of the previous tool's.
+        const from = i > 0 && /^\s*@ToolScopes\(/.test(lines[i - 1]) ? i - 1 : i;
+        if (start >= 0) blocks.push(buildBlock(lines, start, from));
+        start = from;
       }
     }
     if (start >= 0) blocks.push(buildBlock(lines, start, lines.length));
@@ -106,6 +110,37 @@ describe('MCP tool org-scope coverage (task 6)', () => {
       .filter(tool => /orgId:\s*z\.string\(\)/.test(tool.body) && !tool.body.includes('resolveOrgArgument'))
       .map(tool => `${tool.file}:${tool.name}`);
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * Task 25 — the tool allow-list of an ephemeral agent token is enforced by `@rekog/mcp-nest`
+   * comparing a tool's `requiredScopes` against `raw.user.scopes`. A tool with **no** scope declared
+   * has no requirement, so it stays reachable by every credential, including one minted for an
+   * unattended cron run. An undecorated tool is therefore not a missing label: it is a hole.
+   */
+  it.each(allTools.map(t => [t.name, t]))('%s declares the scope it needs', (_name, tool: any) => {
+    expect({ tool: tool.name, file: tool.file, declaresScope: /@ToolScopes\(\[MCP_SCOPES\./.test(tool.body) }).toEqual({
+      tool: tool.name,
+      file: tool.file,
+      declaresScope: true,
+    });
+  });
+
+  it('MCP_TOOLS_BY_SCOPE says exactly what the decorators say', () => {
+    // The table is a copy of the decorators, kept because the runtime index has to name a session's
+    // tools before any MCP server is running. A copy that can drift silently is worse than no copy.
+    const fromDecorators = new Map<string, string>();
+    for (const tool of allTools) {
+      const declared = /@ToolScopes\(\[MCP_SCOPES\.([a-zA-Z]+)\]\)/.exec(tool.body)?.[1];
+      if (declared) fromDecorators.set(tool.name, `cm:${declared}`);
+    }
+
+    const fromTable = new Map<string, string>();
+    for (const scope of ALL_MCP_SCOPES) {
+      for (const name of MCP_TOOLS_BY_SCOPE[scope as McpScope]) fromTable.set(name, scope);
+    }
+
+    expect(Object.fromEntries([...fromTable].sort())).toEqual(Object.fromEntries([...fromDecorators].sort()));
   });
 
   it('the guard is registered on the /mcp route', () => {

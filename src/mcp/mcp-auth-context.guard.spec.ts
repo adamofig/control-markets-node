@@ -1,6 +1,7 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { McpAuthContextGuard } from './mcp-auth-context.guard';
 import { requireMcpContext, resolveOrgArgument, scopeMcpOperation, scopedQuery, stripPrivilegeFields, requirePlatformAdminForWrite } from './mcp-scope.util';
+import { ALL_MCP_SCOPES, MCP_SCOPES } from './mcp-scopes';
 
 const contextFor = (request: any) => ({ switchToHttp: () => ({ getRequest: () => request }) }) as any;
 
@@ -28,6 +29,56 @@ describe('McpAuthContextGuard', () => {
     const request = fastifyRequest({ ctx: undefined, orgId: 'org-fallback' });
     guard.canActivate(contextFor(request));
     expect(requireMcpContext(request.raw).orgId).toBe('org-fallback');
+  });
+
+  describe('ephemeral agent tokens (task 25)', () => {
+    const grant = (over: any = {}) => ({
+      orgId: 'org-a',
+      profileId: 'borges',
+      sessionId: 'session-1',
+      scopes: [MCP_SCOPES.resources, MCP_SCOPES.tasks],
+      expiresAt: Date.now() + 60_000,
+      fingerprint: 'abc123def456',
+      ...over,
+    });
+
+    it('a human credential keeps every scope', () => {
+      const request = fastifyRequest();
+      guard.canActivate(contextFor(request));
+      expect(requireMcpContext(request.raw).scopes).toEqual(ALL_MCP_SCOPES);
+      expect((request.raw as any).user.scopes).toEqual(ALL_MCP_SCOPES);
+    });
+
+    it('an agent session carries only the scopes it was minted with', () => {
+      const request = fastifyRequest({ authMethod: 'ephemeral-agent', agentGrant: grant() });
+      guard.canActivate(contextFor(request));
+
+      // `raw.user.scopes` is not bookkeeping: it is what mcp-nest compares against each tool's
+      // `@ToolScopes`, both to build `tools/list` and to refuse a `tools/call`.
+      expect((request.raw as any).user.scopes).toEqual([MCP_SCOPES.resources, MCP_SCOPES.tasks]);
+      expect(requireMcpContext(request.raw).agentSessionId).toBe('session-1');
+    });
+
+    it('refuses a request that resolved to an organization the grant does not name', () => {
+      // The escape route being closed: `OrgContextGuard` prefers `x-org-id` over the org the token
+      // pinned, which is right for a human switching workspace and wrong for a session credential.
+      const request = fastifyRequest({
+        authMethod: 'ephemeral-agent',
+        agentGrant: grant({ orgId: 'org-b' }),
+      });
+      expect(() => guard.canActivate(contextFor(request))).toThrow(ForbiddenException);
+      // Refused, not silently corrected — a tool acting on a different org than the token names is
+      // the exact failure this whole task exists to prevent.
+      expect((request.raw as any).mcpAuthContext).toBeUndefined();
+    });
+
+    it('does not leak the Mongo user document into what mcp-nest authorizes on', () => {
+      const request = fastifyRequest({ user: { email: 'adamo@control.markets', token: 'cm_pat_secret', claims: { roles: { admin: null } } } });
+      guard.canActivate(contextFor(request));
+      // The forwarded object used to be the user document verbatim, which has no `scopes` field —
+      // so every tool passed the check for everyone.
+      expect((request.raw as any).user.scopes).toBeDefined();
+    });
   });
 
   /**

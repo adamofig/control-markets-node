@@ -5,6 +5,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
 import { UserEntity } from './user.entity';
 import { SYSTEM_PRINCIPAL_EMAIL, SYSTEM_PRINCIPAL_ID, SystemMasterTokenService } from './system-master-token.service';
+import { EphemeralAgentTokenService, EPHEMERAL_AGENT_TOKEN_PREFIX, IEphemeralAgentGrant } from './ephemeral-agent-token.service';
 import { IS_PUBLIC_KEY } from 'src/auth/public.decorator';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class ProjectAuthGuard extends AuthGuard {
     @InjectModel(UserEntity.name) private userModel: Model<UserEntity>,
     private readonly masterToken: SystemMasterTokenService,
     private readonly reflector?: Reflector,
+    private readonly ephemeralToken?: EphemeralAgentTokenService,
   ) {
     super(fbService);
   }
@@ -53,6 +55,19 @@ export class ProjectAuthGuard extends AuthGuard {
       return true;
     }
 
+    // `cm_eat_*` — an agentic session's own credential, minted by the ACP bridge for one session and
+    // dead when that session is. Checked before the PAT branch because both are bearer strings and
+    // only the prefix tells them apart, and refused loudly when it does not resolve: an agent whose
+    // token expired mid-turn must read "expired", not "unknown token".
+    if (token?.startsWith(EPHEMERAL_AGENT_TOKEN_PREFIX)) {
+      const grant = this.ephemeralToken?.resolve(token);
+      if (!grant) {
+        throw new UnauthorizedException('This agent session token is expired, revoked or unknown. Reopen the session to get a new one.');
+      }
+      await this.applyEphemeralAgentContext(request, grant);
+      return true;
+    }
+
     if (token && token.startsWith('cm_pat_')) {
       const user = await this.userModel.findOne({ token }).lean().exec();
       if (user) {
@@ -86,6 +101,42 @@ export class ProjectAuthGuard extends AuthGuard {
 
     request.authMethod = 'firebase';
     return super.canActivate(context);
+  }
+
+  /**
+   * Loads an ephemeral agent grant onto the request.
+   *
+   * The identity is **borrowed, not synthesised**: the grant carries the email of the human the
+   * session is acting for, so `OrgContextGuard` resolves a real membership and a real role from
+   * Mongo exactly as it would for that person. What the token changes is the blast radius, not who
+   * the actor is — one organization, a subset of MCP scopes, and an expiry measured in minutes.
+   *
+   * `request.orgId` is pinned to the grant. `OrgContextGuard` still prefers an `x-org-id` header
+   * over it, which is correct for a human switching workspace and wrong for a token that names its
+   * only tenant; `McpAuthContextGuard` refuses the request when the resolved organization ends up
+   * differing from the grant, rather than silently correcting it.
+   */
+  private async applyEphemeralAgentContext(request: any, grant: IEphemeralAgentGrant): Promise<void> {
+    request.authMethod = 'ephemeral-agent';
+    request.agentGrant = grant;
+    request.orgId = grant.orgId;
+
+    const user = grant.email ? await this.userModel.findOne({ email: grant.email.toLowerCase() }).lean().exec() : null;
+    request.decodedToken = {
+      uid: user?.fbId || user?.id || grant.userId || `agent:${grant.sessionId}`,
+      userId: user?.id || grant.userId,
+      email: user?.email ?? grant.email,
+      name: user?.personalData?.firstname || 'Agent session',
+      firebase: { sign_in_provider: 'ephemeral_agent_token' },
+      roles: user?.claims?.roles,
+      claims: user?.claims,
+      isAgentSession: true,
+    };
+    if (user) request.user = user;
+
+    this.logger.log(
+      `[EPHEMERAL_AGENT_EXECUTION] ${request.method} ${request.url} | grant=${grant.fingerprint} | session=${grant.sessionId} | org=${grant.orgId} | actor=${grant.email ?? '-'}`,
+    );
   }
 
   /**

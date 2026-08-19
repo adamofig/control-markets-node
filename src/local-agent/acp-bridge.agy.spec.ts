@@ -6,6 +6,7 @@ import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'fs';
 import { tmpdir, homedir } from 'os';
 import { join } from 'path';
 import { AcpBridgeService } from './acp-bridge.service';
+import { EphemeralAgentTokenService } from '../user/ephemeral-agent-token.service';
 import { LocalAgentStreamEvent } from './local-agent-chat.service';
 
 /**
@@ -27,7 +28,7 @@ describeE2E('AcpBridgeService · agy engine (E2E, requires local agy)', () => {
     workspaceRoot = mkdtempSync(join(tmpdir(), 'agy-bridge-root-'));
     secondaryRoot = mkdtempSync(join(tmpdir(), 'agy-bridge-extra-'));
     writeFileSync(join(workspaceRoot, 'marcador.txt'), 'el codigo secreto es ZANZIBAR-77\n', 'utf-8');
-    service = new AcpBridgeService({ enabled: true, workspaceRoots: [workspaceRoot, secondaryRoot] } as any);
+    service = new AcpBridgeService({ enabled: true, workspaceRoots: [workspaceRoot, secondaryRoot] } as any, new EphemeralAgentTokenService());
   });
 
   afterAll(() => {

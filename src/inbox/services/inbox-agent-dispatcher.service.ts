@@ -3,6 +3,7 @@ import { AppToken } from '@dataclouder/nest-auth';
 import { AcpBridgeService } from '../../local-agent/acp-bridge.service';
 import { LocalAgentChatService, LocalAgentStreamEvent } from '../../local-agent/local-agent-chat.service';
 import { WorkspaceService } from '../../workspaces/services/workspace.service';
+import { AppUserService } from '../../user/user.service';
 import { AcpEngine, DEFAULT_ACP_ENGINE, asAcpEngine } from '../../common/acp-engines';
 import { IAgenticConversationTool, IAgenticTokenUsage } from '../../agentic-conversation/models/agentic-conversation.models';
 import { IInboxAgentExecutionSnapshot } from '../models/inbox.models';
@@ -56,7 +57,8 @@ export class InboxAgentDispatcherService {
     private readonly acpBridge: AcpBridgeService,
     private readonly localAgentChat: LocalAgentChatService,
     private readonly workspaces: WorkspaceService,
-    private readonly events: InboxEventService
+    private readonly events: InboxEventService,
+    private readonly users: AppUserService
   ) {}
 
   /**
@@ -186,10 +188,18 @@ export class InboxAgentDispatcherService {
     // Model and effort only apply when the thread runs on the engine those defaults were written
     // for — engine-specific model ids are not portable and the CLI would reject a foreign one.
     const inheritsDefaults = !!agent.acpConfig?.defaultEngine && engine === agent.acpConfig.defaultEngine;
+    // Task 25 — an inbox reply is as unattended as a heartbeat: whoever wrote the message is not
+    // a member the server can authorise, so the session borrows the organization's acting identity
+    // exactly as the cron path does. No identity, no tools; the reply still goes out.
+    const actingIdentity = await this.users.findOrgActingIdentity(agent.orgId).catch(() => null);
     const runtimeOptions = {
       cwd: this.workspaces.resolveRootForHost(agent.workspaceId ?? '') ?? undefined,
       model: inheritsDefaults ? agent.acpConfig?.defaultModel : undefined,
       reasoningEffort: inheritsDefaults ? agent.acpConfig?.reasoningEffort : undefined,
+      orgId: actingIdentity ? agent.orgId : undefined,
+      profileId: agent.agenticProfileId,
+      actorEmail: actingIdentity?.email,
+      actorUserId: actingIdentity?.userId,
     };
 
     const outcome = this.emptyOutcome(engine);

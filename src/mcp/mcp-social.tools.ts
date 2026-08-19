@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Tool } from '@rekog/mcp-nest';
+import { Tool, ToolScopes } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { SocialMediaTrackerService } from '../social-media-tracker/services/social-media-tracker.service';
 import { assertDocumentInOrg, requireMcpContext, scopeMcpOperation, scopedQuery } from './mcp-scope.util';
+import { MCP_SCOPES } from './mcp-scopes';
 
 const preprocessJson = (val: unknown) => {
   if (typeof val === 'string') {
@@ -40,6 +41,7 @@ type OperationInput = z.infer<typeof operationSchema>;
 export class McpSocialTools {
   constructor(private socialService: SocialMediaTrackerService) {}
 
+  @ToolScopes([MCP_SCOPES.social])
   @Tool({
     name: 'social_operation',
     description: `Execute any MongoDB operation on the social_media_tracker collection.
@@ -64,6 +66,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.social])
   @Tool({
     name: 'social_listPosts',
     description:
@@ -88,6 +91,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.social])
   @Tool({
     name: 'social_getPostsThisWeek',
     description: 'Get all social media posts scheduled for the current week (Monday to Sunday).',
@@ -122,6 +126,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.social])
   @Tool({
     name: 'social_getPost',
     description: 'Get the full details of a single social media post by its ID.',
@@ -137,6 +142,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.social])
   @Tool({
     name: 'social_createPost',
     description: 'Create a new social media post entry in the tracker.',
@@ -173,6 +179,7 @@ Prefer social_listPosts / social_getPostsThisWeek / social_getPost / social_crea
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
+  @ToolScopes([MCP_SCOPES.social])
   @Tool({
     name: 'social_updatePost',
     description: 'Update fields of an existing social media post.',

@@ -6,7 +6,7 @@ import { Model } from 'mongoose';
 
 import { FirebaseService, AppAuthClaims, PermissionClaim, PlanType, RolClaim, AppToken } from '@dataclouder/nest-auth';
 
-import { IUser } from './user.class';
+import { IUser, IUserOrganization, OrgRole } from './user.class';
 import { EntityCommunicationService } from '@dataclouder/nest-mongo';
 import { MongoService } from '@dataclouder/nest-mongo';
 
@@ -53,6 +53,33 @@ export class AppUserService extends EntityCommunicationService<UserEntity> {
       .find({ 'organizations.orgId': orgId }, { id: 1, email: 1, urlPicture: 1, personalData: 1, organizations: 1 })
       .lean()
       .exec();
+  }
+
+  /**
+   * The identity an unattended agentic run acts as inside one organization.
+   *
+   * Task 25 gives an ACP session an ephemeral `/mcp` credential, and that credential borrows a real
+   * membership rather than inventing a synthetic one — `OrgContextService.resolve` reads the role
+   * from Mongo by email, so a principal with no account resolves to no role and, under F12's
+   * default-closed rule, to a 403 on every tool. A chat has an obvious answer (the person typing);
+   * a cron wake-up does not, so it acts as the organization's owner.
+   *
+   * The preference order is Owner, then Admin, then any active member, and the search is restricted
+   * to the organization asked for — it can never return somebody from another tenant. `null` when
+   * the organization has no active membership at all, which correctly leaves that profile's
+   * heartbeats running without our tools instead of guessing.
+   */
+  public async findOrgActingIdentity(orgId: string): Promise<{ email: string; userId?: string } | null> {
+    if (!orgId) return null;
+    const members = await this.findOrgMembers(orgId);
+    const rank: Record<string, number> = { [OrgRole.Owner]: 0, [OrgRole.Admin]: 1, [OrgRole.Member]: 2, [OrgRole.Viewer]: 3 };
+    const candidates = members
+      .map(member => ({ member, membership: (member.organizations ?? []).find((org: IUserOrganization) => org.orgId === orgId) }))
+      .filter(entry => !!entry.membership && entry.membership.status !== 'disabled' && entry.membership.status !== 'invited' && !!entry.member.email)
+      .sort((a, b) => (rank[a.membership!.role ?? OrgRole.Member] ?? 9) - (rank[b.membership!.role ?? OrgRole.Member] ?? 9));
+
+    const chosen = candidates[0];
+    return chosen ? { email: chosen.member.email, userId: chosen.member.id } : null;
   }
 
   /**

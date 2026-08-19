@@ -1,5 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { IRequestOrgContext } from '../auth/org-context.service';
+import { IEphemeralAgentGrant } from '../user/ephemeral-agent-token.service';
+import { ALL_MCP_SCOPES, McpScope } from './mcp-scopes';
 
 /**
  * Identity at the `/mcp` door — and the bridge that carries it to the tools.
@@ -69,6 +71,25 @@ export class McpAuthContextGuard implements CanActivate {
       );
     }
 
+    // Task 25 — an ephemeral agent token names exactly one organization, and `OrgContextGuard`
+    // resolves `x-org-id` ahead of the `request.orgId` this guard's predecessor pinned. For a human
+    // switching workspace that preference is right; for a credential minted for one session it is a
+    // way to walk out of the box. The mismatch is refused rather than corrected, because a tool that
+    // quietly acts on a different organization than the token names is the failure this whole task
+    // exists to prevent.
+    const grant: IEphemeralAgentGrant | undefined = request.agentGrant;
+    if (grant && orgId !== grant.orgId) {
+      this.logger.warn(`[EAT_ORG_MISMATCH] grant=${grant.fingerprint} | session=${grant.sessionId} | granted=${grant.orgId} | requested=${orgId}`);
+      throw new ForbiddenException(
+        `This agent session token is scoped to organization ${grant.orgId}; the request resolved to ${orgId}. Drop the \`x-org-id\` header.`,
+      );
+    }
+
+    // What this caller may *do*, as opposed to where. A human's credential carries the whole
+    // vocabulary — nothing changes for a PAT, a Firebase session or the master token — while an
+    // agent session carries what its grant was minted with.
+    const scopes: McpScope[] = grant ? grant.scopes : [...ALL_MCP_SCOPES];
+
     // The bridge. `raw` is what a tool receives; without this copy the tool sees an anonymous
     // IncomingMessage and — by design — refuses to run.
     const identity: IMcpAuthContext = {
@@ -80,15 +101,23 @@ export class McpAuthContextGuard implements CanActivate {
       isPlatformAdmin: !!ctx?.isPlatformAdmin,
       isPersonalSpace: !!ctx?.isPersonalSpace,
       authMethod: request.authMethod ?? 'unknown',
+      scopes,
+      agentSessionId: grant?.sessionId,
+      profileId: grant?.profileId,
     };
 
     const raw = request.raw ?? request;
     raw[McpAuthContextGuard.BRIDGE_KEY] = identity;
-    // `user` is what `mcp-nest` itself reads off `raw` for its own authorization features. Filling it
-    // keeps the library's `@ToolRoles` / `@ToolScopes` usable later without a second bridge.
-    raw.user = raw.user ?? request.user;
+    // `user` is what `mcp-nest` reads off `raw` to filter the catalogue in `tools/list` and to refuse
+    // a `tools/call`, comparing `user.scopes` against each tool's `@ToolScopes`. Writing the resolved
+    // scopes here is therefore not bookkeeping: it is the whole enforcement of the tool allow-list,
+    // and it has to be an object we build — the Mongo user document has no `scopes` field, so
+    // forwarding it unchanged (as this line used to) meant every tool was reachable by everyone.
+    raw.user = { ...(request.user ?? {}), scopes, email: identity.email, orgId: identity.orgId };
 
-    this.logger.log(`[MCP_SESSION] actor=${identity.email || '-'} | org=${identity.orgId} | role=${identity.role ?? '-'} | auth=${identity.authMethod}`);
+    this.logger.log(
+      `[MCP_SESSION] actor=${identity.email || '-'} | org=${identity.orgId} | role=${identity.role ?? '-'} | auth=${identity.authMethod} | scopes=${scopes.join(',')}`,
+    );
     return true;
   }
 }
@@ -109,4 +138,10 @@ export interface IMcpAuthContext {
   isPlatformAdmin: boolean;
   isPersonalSpace: boolean;
   authMethod: string;
+  /** What this caller may do. Full vocabulary for a human; the grant's subset for an agent session. */
+  scopes: McpScope[];
+  /** Set only for an ephemeral agent token: the ACP bridge session that owns this credential. */
+  agentSessionId?: string;
+  /** Set only for an ephemeral agent token: the agentic profile the session belongs to. Audit only. */
+  profileId?: string;
 }

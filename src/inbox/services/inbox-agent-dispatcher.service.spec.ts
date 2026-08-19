@@ -47,6 +47,9 @@ describe('InboxAgentDispatcherService', () => {
     };
     const workspaces = { resolveRootForHost: jest.fn().mockReturnValue(null) };
     const events = { emit: jest.fn() };
+    // Task 25 — the dispatcher asks who the session acts for before opening it. Null keeps these
+    // tests on the pre-MCP path: a reply still goes out, just without Control Markets tools.
+    const users = { findOrgActingIdentity: jest.fn().mockResolvedValue(null) };
 
     return {
       service: new InboxAgentDispatcherService(
@@ -57,7 +60,8 @@ describe('InboxAgentDispatcherService', () => {
         acpBridge as any,
         localAgentChat as any,
         workspaces as any,
-        events as any
+        events as any,
+        users as any
       ),
       conversations,
       messages,

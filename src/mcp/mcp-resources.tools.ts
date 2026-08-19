@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Tool } from '@rekog/mcp-nest';
+import { Tool, ToolScopes } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
 import { CmResourceResolver } from '../cm-resources/cm-resource.resolver';
 import { requireMcpContext } from './mcp-scope.util';
+import { MCP_SCOPES } from './mcp-scopes';
 
 /**
  * MCP tools that read *resources* — profiles, and eventually the whole `cm://` address space.
@@ -25,6 +26,7 @@ export class McpResourcesTools {
     private readonly cmResources: CmResourceResolver,
   ) {}
 
+  @ToolScopes([MCP_SCOPES.resources])
   @Tool({
     name: 'agentic_profile_get_context',
     description: `Retrieves the full compiled Markdown context of an agentic profile (character instructions, knowledge sources, rules/skills, and active tasks) in a single unified Markdown text.
@@ -73,6 +75,7 @@ The organization is resolved from your token; there is no orgId parameter and no
     }
   }
 
+  @ToolScopes([MCP_SCOPES.resources])
   @Tool({
     name: 'cm_read',
     description: `Read any Control Markets document by its cm:// address. Single verb — prefer it over any other way of pulling content.

@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { Tool } from '@rekog/mcp-nest';
+import { Tool, ToolScopes } from '@rekog/mcp-nest';
 import { z } from 'zod';
 import { MessagingOutboundService } from '../messaging/services/messaging-outbound.service';
 import { ChannelType } from '../messaging/models/messaging.models';
 import { requireMcpContext, resolveOrgArgument } from './mcp-scope.util';
+import { MCP_SCOPES } from './mcp-scopes';
 
 @Injectable()
 export class McpMessagingTools {
   constructor(private readonly outboundService: MessagingOutboundService) {}
 
+  @ToolScopes([MCP_SCOPES.messaging])
   @Tool({
     name: 'messaging_notifyUser',
     description:
