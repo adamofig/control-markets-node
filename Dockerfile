@@ -37,6 +37,13 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
 COPY --from=build /app/scripts ./scripts
 
+# `bin/cm` is the universal reader: the only way an engine that has `run_command` but none of our
+# tools can pull a document. It goes on the PATH so `cm read cm://…` works from any cwd, which is
+# the whole point in a container where the wiki does not exist on disk.
+COPY --from=build /app/bin ./bin
+RUN chmod +x /app/bin/cm
+ENV PATH="/app/bin:${PATH}"
+
 EXPOSE 8121
 
 CMD ["node", "dist/main.js"]

@@ -13,6 +13,7 @@ import { McpUserTools } from './mcp-user.tools';
 import { AgenticProfileModule } from '../agentic-profile/agentic-profile.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { McpMessagingTools } from './mcp-messaging.tools';
+import { McpResourcesTools } from './mcp-resources.tools';
 
 @Module({
   imports: [
@@ -23,8 +24,8 @@ import { McpMessagingTools } from './mcp-messaging.tools';
     UserModule,
     AgenticProfileModule,
     MessagingModule,
-    McpModule.forFeature([McpFlowboardTools, McpSocialTools, McpTasksTools, McpOrganizationTools, McpUserTools, McpMessagingTools], 'control-markets'),
+    McpModule.forFeature([McpFlowboardTools, McpSocialTools, McpTasksTools, McpOrganizationTools, McpUserTools, McpMessagingTools, McpResourcesTools], 'control-markets'),
   ],
-  providers: [McpFlowboardTools, McpSocialTools, McpTasksTools, McpOrganizationTools, McpUserTools, McpMessagingTools],
+  providers: [McpFlowboardTools, McpSocialTools, McpTasksTools, McpOrganizationTools, McpUserTools, McpMessagingTools, McpResourcesTools],
 })
 export class AppMcpModule {}

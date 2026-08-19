@@ -1,0 +1,99 @@
+#!/usr/bin/env node
+/**
+ * `cm` — the universal reader.
+ *
+ * One address space, over plain HTTP, with no dependencies. Exists for every runtime that has a
+ * shell but not our tools: an ACP engine with only `run_command`, a terminal, a Python script, n8n.
+ *
+ *   cm read cm://skill/agent-profile-specs:sync
+ *   cm read cm://source/6a52a32f1aac54b41b78f2bb > /tmp/doc.md
+ *   cm read cm://task/<id> --json
+ *
+ * Environment:
+ *   CONTROL_MARKETS_BACKEND_URL   default https://local-back.control.markets
+ *   CONTROL_MARKETS_PAT           the `cm_pat_*` token (CONTROL_MARKETS_TOKEN / CM_PAT also read)
+ *
+ * **It speaks HTTP, not Mongo, on purpose.** Handing an agent database credentials would couple it
+ * to the schema — every migration would break every agent at once — and would put the organization
+ * filter out of reach of the one place that enforces it. The scoping lives in the service layer;
+ * this is a client of that layer, never a way around it.
+ */
+'use strict';
+
+const [, , command, ...rest] = process.argv;
+
+const BASE_URL = (process.env.CONTROL_MARKETS_BACKEND_URL || 'https://local-back.control.markets').replace(/\/$/, '');
+const TOKEN = process.env.CONTROL_MARKETS_PAT || process.env.CONTROL_MARKETS_TOKEN || process.env.CM_PAT;
+
+const USAGE = `cm — lector universal de Control Markets
+
+  cm read <cm://...> [--json] [--profile <id>]
+
+Direcciones:
+  cm://skill/<bundle>                        la skill y el índice de sus capacidades
+  cm://skill/<bundle>:<capacidad>            una capacidad atómica (preferila)
+  cm://skill/<bundle>:<capacidad>/<archivo>  un documento embebido
+  cm://source/<id>                           documento, memoria o exploración
+  cm://task/<id>                             tarea con sus subtareas
+  cm://profile/<id>/context                  contexto compilado de otro agente
+
+Entorno: CONTROL_MARKETS_BACKEND_URL, CONTROL_MARKETS_PAT`;
+
+const die = (message, code = 1) => {
+  process.stderr.write(`${message}\n`);
+  process.exit(code);
+};
+
+async function read(args) {
+  const uri = args.find(arg => !arg.startsWith('--'));
+  if (!uri) die(USAGE, 2);
+  if (!TOKEN) die('Falta el token: exportá CONTROL_MARKETS_PAT con tu `cm_pat_*`.', 2);
+
+  const profileIndex = args.indexOf('--profile');
+  const params = new URLSearchParams({ uri });
+  if (profileIndex >= 0 && args[profileIndex + 1]) params.set('profileId', args[profileIndex + 1]);
+
+  const response = await fetch(`${BASE_URL}/api/cm/resource?${params}`, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  });
+  const body = await response.text();
+
+  if (!response.ok) {
+    let detail = body;
+    try {
+      detail = JSON.parse(body).message || body;
+    } catch {}
+    die(`[${response.status}] ${detail}`);
+  }
+
+  const resource = JSON.parse(body);
+  if (args.includes('--json')) {
+    process.stdout.write(`${JSON.stringify(resource, null, 2)}\n`);
+    return;
+  }
+
+  // Plain mode writes the document to stdout and everything ABOUT it to stderr, so `cm read … > x.md`
+  // produces the document byte for byte while the operator still sees the index and the warnings.
+  process.stdout.write(resource.content ?? '');
+  if (resource.children?.length) {
+    process.stderr.write(`\nCapacidades de ${resource.uri}:\n${resource.children.map(c => `  ${c.uri}${c.description ? ` — ${c.description}` : ''}`).join('\n')}\n`);
+  }
+  if (resource.scripts?.length) {
+    process.stderr.write(`\nEjecutables (rutas del workspace, no contenido):\n${resource.scripts.map(s => `  ${s}`).join('\n')}\n`);
+  }
+  if (resource.truncated) process.stderr.write('\n⚠️  Contenido truncado — pedí algo más acotado.\n');
+}
+
+(async () => {
+  switch (command) {
+    case 'read':
+      return read(rest);
+    case 'help':
+    case '--help':
+    case '-h':
+    case undefined:
+      return process.stdout.write(`${USAGE}\n`);
+    default:
+      die(`Comando desconocido \`${command}\`.\n\n${USAGE}`, 2);
+  }
+})().catch(err => die(`cm: ${err?.message || err}`));

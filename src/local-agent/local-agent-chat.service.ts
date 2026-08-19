@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { streamText, isStepCount, tool } from 'ai';
-import { z } from 'zod';
+import { streamText, isStepCount } from 'ai';
 import { createGoogle } from '@ai-sdk/google';
 import { AppToken } from '@dataclouder/nest-auth';
 import { AgenticProfileService } from '../agentic-profile/services/agentic-profile.service';
-import { SkillsService } from '../agent-skills/services/skills.service';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { normalizeTokenUsage } from './ai-usage.util';
 import { AgenticContextLevel, AgenticRuntimeProfile, IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
@@ -13,6 +11,7 @@ import { createInjectedContextSnapshot, InjectedContextSnapshot } from './contex
 import { AttachedSourceReport, formatAttachedSourcesBlock } from './attached-sources.util';
 import { KeyBalancerService } from '../key-balancer/key-balancer.service';
 import { MentionsService } from '../mentions/mentions.service';
+import { CmResourceTools } from '../cm-resources/cm-resources.tools';
 
 export interface LocalAgentMessage {
   role: 'user' | 'assistant';
@@ -51,8 +50,8 @@ export class LocalAgentChatService {
     private readonly agenticProfileService: AgenticProfileService,
     private readonly fsTools: FilesystemToolsService,
     private readonly keyBalancerService: KeyBalancerService,
-    private readonly skillsService: SkillsService,
     private readonly mentionsService: MentionsService,
+    private readonly cmResourceTools: CmResourceTools,
   ) {}
 
   getStatus() {
@@ -87,24 +86,11 @@ export class LocalAgentChatService {
     // tool and the injected context follows without anyone remembering to update a list.
     const tools = {
       ...this.fsTools.buildTools(),
-      ...(agenticProfileId
-        ? {
-            getProfileSource: tool({
-              description: 'Load the complete content of a knowledge source, skill, memory, or exploration linked to the active agent profile. Use the source ID shown in the profile index.',
-              inputSchema: z.object({ sourceId: z.string().describe('Linked source ID from the agent profile context index.') }),
-              execute: ({ sourceId }) => this.agenticProfileService.getLinkedContextResource(agenticProfileId, sourceId, resolvedOrgId),
-            }),
-            getSkill: tool({
-              description:
-                'Load a skill, or ONE atomic capability of it. Prefer the capability slug (`bundle:capability`, e.g. `agent-profile-specs:send-inbox`) over the bundle: it returns only the documents that operation needs instead of the whole skill. `file` narrows further to a single document. Executable scripts come back as paths under `scripts`, to run from the workspace — never as content.',
-              inputSchema: z.object({
-                slugOrId: z.string().describe('Skill slug, capability slug (`bundle:capability`), or id, as listed in the profile index.'),
-                file: z.string().optional().describe('Optional: a single relative path of the skill, e.g. `reference/inbox-messaging.md`.'),
-              }),
-              execute: ({ slugOrId, file }) => this.skillsService.resolve(slugOrId, resolvedOrgId, file),
-            }),
-          }
-        : {}),
+      // One verb over the `cm://` address space, plus the deprecated `getSkill`/`getProfileSource`
+      // aliases that delegate to it. The aliases stay because synced profiles name them in their
+      // indexes and live conversations carry them in their history — a tool that disappears
+      // mid-conversation becomes a hallucinated call.
+      ...(agenticProfileId ? this.cmResourceTools.buildTools({ orgId: resolvedOrgId, profileId: agenticProfileId }) : {}),
     };
     const runtime = this.describeRuntime(tools);
     const { system, profileContext } = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId, runtime);
@@ -199,7 +185,7 @@ ${roots.map(r => `- ${r}`).join('\n')}
 
 Rules:
 - Your agent profile references files with file:// links — use readFile to load them when relevant.
-- For indexed profile knowledge stored in Control Markets, use getProfileSource with its source ID when the full content is needed.
+- For knowledge stored in Control Markets, use cmRead with the cm:// address printed in your context index — it is the single way to pull a document.
 - Read before you write: inspect existing files and follow their conventions.
 - Prefer editFile for small changes; writeFile for new files.
 - After file operations, summarize exactly which files you created or changed with their paths.`

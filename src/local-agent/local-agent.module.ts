@@ -9,9 +9,10 @@ import { FilesystemToolsService } from './filesystem-tools.service';
 import { AcpBridgeService } from './acp-bridge.service';
 import { KeyBalancerModule } from '../key-balancer/key-balancer.module';
 import { MentionsModule } from '../mentions/mentions.module';
+import { CmResourcesModule } from '../cm-resources/cm-resources.module';
 
 @Module({
-  imports: [NestAuthModule, AgenticProfileModule, WorkspacesModule, KeyBalancerModule, AgentSkillsModule, MentionsModule],
+  imports: [NestAuthModule, AgenticProfileModule, WorkspacesModule, KeyBalancerModule, AgentSkillsModule, MentionsModule, CmResourcesModule],
   controllers: [LocalAgentController],
   providers: [LocalAgentChatService, FilesystemToolsService, AcpBridgeService],
   exports: [LocalAgentChatService, AcpBridgeService],

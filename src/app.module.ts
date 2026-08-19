@@ -44,6 +44,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 import { WikiSyncModule } from './wiki-sync/wiki-sync.module';
 import { LocalAgentModule } from './local-agent/local-agent.module';
 import { MentionsModule } from './mentions/mentions.module';
+import { CmResourcesModule } from './cm-resources/cm-resources.module';
 import { AgenticHeartbeatModule } from './agentic-heartbeat/agentic-heartbeat.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -111,6 +112,7 @@ import { InboxModule } from './inbox/inbox.module';
     WikiSyncModule,
     LocalAgentModule,
     MentionsModule,
+    CmResourcesModule,
     AgenticHeartbeatModule,
     MessagingModule,
     AgenticConversationModule,
