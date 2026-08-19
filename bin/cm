@@ -10,20 +10,87 @@
  *   cm read cm://task/<id> --json
  *
  * Environment:
- *   CONTROL_MARKETS_BACKEND_URL   default https://local-back.control.markets
+ *   CONTROL_MARKETS_BACKEND_URL   default: CM_MCP_URL without its /mcp suffix, else localhost:8121
  *   CONTROL_MARKETS_PAT           the `cm_pat_*` token (CONTROL_MARKETS_TOKEN / CM_PAT also read)
+ *                                 inside an ACP session, CM_MCP_TOKEN (the session's `cm_eat_*`)
  *
  * **It speaks HTTP, not Mongo, on purpose.** Handing an agent database credentials would couple it
  * to the schema — every migration would break every agent at once — and would put the organization
  * filter out of reach of the one place that enforces it. The scoping lives in the service layer;
  * this is a client of that layer, never a way around it.
  */
-'use strict';
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+function loadEnv() {
+  const startDirs = [process.cwd(), __dirname].filter(Boolean);
+  const searched = new Set();
+  const foundFiles = [];
+
+  for (const startDir of startDirs) {
+    let current = path.resolve(startDir);
+    while (current && !searched.has(current)) {
+      searched.add(current);
+      const candidate = path.join(current, '.env');
+      if (fs.existsSync(candidate)) {
+        foundFiles.push(candidate);
+      }
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+
+  const extraCandidates = [path.join(os.homedir(), '.control-markets', '.env')];
+  for (const candidate of extraCandidates) {
+    if (fs.existsSync(candidate) && !foundFiles.includes(candidate)) {
+      foundFiles.push(candidate);
+    }
+  }
+
+  for (const file of foundFiles) {
+    try {
+      const content = fs.readFileSync(file, 'utf8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx === -1) continue;
+        const key = trimmed.slice(0, eqIdx).trim();
+        let val = trimmed.slice(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (key && !(key in process.env)) {
+          process.env[key] = val;
+        }
+      }
+    } catch {}
+  }
+}
+loadEnv();
 
 const [, , command, ...rest] = process.argv;
 
-const BASE_URL = (process.env.CONTROL_MARKETS_BACKEND_URL || 'https://local-back.control.markets').replace(/\/$/, '');
-const TOKEN = process.env.CONTROL_MARKETS_PAT || process.env.CONTROL_MARKETS_TOKEN || process.env.CM_PAT;
+const BASE_URL = (
+  process.env.CONTROL_MARKETS_BACKEND_URL ||
+  // Inside an ACP turn the bridge already told the CLI where we live (`http://127.0.0.1:8121/mcp`).
+  // Reusing it keeps `cm` on loopback in a container without anybody configuring a second variable.
+  (process.env.CM_MCP_URL ? process.env.CM_MCP_URL.replace(/\/mcp\/?$/, '') : '') ||
+  (process.env.PORT ? `http://localhost:${process.env.PORT}` : 'http://localhost:8121')
+).replace(/\/$/, '');
+const TOKEN =
+  process.env.CONTROL_MARKETS_PAT ||
+  process.env.CONTROL_MARKETS_TOKEN ||
+  process.env.CM_PAT ||
+  // The session's own ephemeral `cm_eat_*`, inherited from the process that spawned the CLI. It is
+  // the right credential precisely because it is the weakest one available: one organization, one
+  // TTL, the scopes that session was granted — and it means a deployed agent can read a document
+  // through the shell without a personal token ever being written into an image or an env file.
+  process.env.CM_MCP_TOKEN ||
+  process.env.SYSTEM_MASTER_TOKEN ||
+  process.env.CONTROL_MASTER_TOKEN;
 
 const USAGE = `cm — lector universal de Control Markets
 

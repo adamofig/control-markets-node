@@ -11,7 +11,7 @@ import { normalizeTokenUsage } from './ai-usage.util';
 import { AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from '../common/acp-engines';
 import { AgenticRuntimeProfile } from '../agentic-profile/models/agentic-profile.models';
 import { EphemeralAgentTokenService } from '../user/ephemeral-agent-token.service';
-import { agyMcpEnv, buildAcpMcpServers, ensureAgyMcpConfig, McpTransportKind, McpWiringPlan, planMcpWiring } from './acp-mcp-wiring';
+import { agyMcpEnv, buildAcpMcpServers, describeMcpWiring, ensureAgyMcpConfig, McpTransportKind, McpWiringDiagnostics, McpWiringPlan, planMcpWiring } from './acp-mcp-wiring';
 
 // @agentclientprotocol/sdk is ESM-only; the project compiles to CommonJS, so a static
 // import would become require() and fail. new Function keeps the dynamic import as-is.
@@ -287,13 +287,17 @@ export class AcpBridgeService implements OnModuleDestroy {
    * The old flat `acpAvailable`/`geminiVersion` fields are gone with the `gemini` engine: they both
    * described that one CLI, and there is no single "the ACP CLI" anymore. Read `engines[<id>]`.
    */
-  async getAcpStatus(): Promise<{ engines: Record<AcpEngine, { available: boolean; version: string | null }> }> {
+  async getAcpStatus(): Promise<{ engines: Record<AcpEngine, { available: boolean; version: string | null }>; mcp: McpWiringDiagnostics }> {
     const engines = {} as Record<AcpEngine, { available: boolean; version: string | null }>;
     for (const engine of Object.keys(ENGINE_CONFIGS) as AcpEngine[]) {
       const version = await this.probeVersion(engine);
       engines[engine] = { available: this.enabled && version !== null, version };
     }
-    return { engines };
+    // The MCP block answers, from inside the container, the questions a deployment actually raises:
+    // is the wiring on, which URL will the CLI call back, how many tools does a session get, is the
+    // shim in the image, and is `bin/cm` on the PATH. All of it read-only — see `describeMcpWiring`.
+    const mcp = describeMcpWiring(Object.fromEntries(Object.entries(ENGINE_CONFIGS).map(([engine, config]) => [engine, config.mcpTransport])));
+    return { engines, mcp };
   }
 
   /**

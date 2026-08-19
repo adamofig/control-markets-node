@@ -1,7 +1,7 @@
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { buildAcpMcpServers, CM_MCP_SERVER_NAME, ensureAgyMcpConfig, planMcpWiring, resolveAgyShimPath, resolveMcpUrl } from './acp-mcp-wiring';
+import { buildAcpMcpServers, CM_MCP_SERVER_NAME, describeMcpWiring, ensureAgyMcpConfig, planMcpWiring, resolveAgyShimPath, resolveMcpUrl } from './acp-mcp-wiring';
 import { MCP_SCOPES } from '../mcp/mcp-scopes';
 
 describe('ACP ↔ MCP wiring', () => {
@@ -129,12 +129,57 @@ describe('ACP ↔ MCP wiring', () => {
       expect(readFileSync(configPath, 'utf8')).toBe('{ this is not json');
     });
 
+    it('leaves the file belonging to whoever owned it', () => {
+      // The homelab mounts the host user's ~/.gemini into a container that runs as root. A plain
+      // atomic replace would hand that person their own config back as a root-owned 0600 file.
+      writeFileSync(configPath, JSON.stringify({ mcpServers: {} }), { mode: 0o644 });
+
+      ensureAgyMcpConfig('/shim.mjs', configPath);
+
+      expect(statSync(configPath).mode & 0o777).toBe(0o644);
+    });
+
     it('is idempotent — a correct entry is left exactly as it is', () => {
       ensureAgyMcpConfig('/shim.mjs', configPath);
       const first = readFileSync(configPath, 'utf8');
 
       expect(ensureAgyMcpConfig('/shim.mjs', configPath)).toBe(true);
       expect(readFileSync(configPath, 'utf8')).toBe(first);
+    });
+  });
+  describe('describeMcpWiring', () => {
+    // The endpoint an operator hits before deciding whether a deployment is wired. A diagnostic that
+    // repaired what it measures could not answer that question, so this is the load-bearing test.
+    it('does not register the shim as a side effect of being asked', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'cm-agy-diag-'));
+      const configPath = join(dir, 'mcp_config.json');
+      process.env.AGY_MCP_CONFIG_PATH = configPath;
+
+      const diagnostics = describeMcpWiring({ agy: 'agy-config-stdio' });
+
+      expect(existsSync(configPath)).toBe(false);
+      expect(diagnostics.agy.registered).toBe(false);
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('reads back a registration that ensureAgyMcpConfig actually made', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'cm-agy-diag-'));
+      const configPath = join(dir, 'mcp_config.json');
+      process.env.AGY_MCP_CONFIG_PATH = configPath;
+      ensureAgyMcpConfig(resolveAgyShimPath(), configPath);
+
+      expect(describeMcpWiring({ agy: 'agy-config-stdio' }).agy.registered).toBe(true);
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('reports an engine with no MCP path as `none` instead of omitting it', () => {
+      const diagnostics = describeMcpWiring({ claude: 'acp-http', mystery: undefined });
+      expect(diagnostics.transports).toEqual({ claude: 'acp-http', mystery: 'none' });
+    });
+
+    it('names the same tools a session will get, from the same predicate', () => {
+      const diagnostics = describeMcpWiring({ agy: 'agy-config-stdio' });
+      expect(diagnostics.toolNames).toEqual(planMcpWiring('agy-config-stdio', 'org-a')!.toolNames);
     });
   });
 });

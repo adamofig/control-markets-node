@@ -162,6 +162,15 @@ export function ensureAgyMcpConfig(shimPath = resolveAgyShimPath(), configPath =
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     const tmp = `${configPath}.cm-${process.pid}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n', { mode: 0o600 });
+    // Keep whoever owned the file owning it. In the homelab the container mounts the host user's
+    // `~/.gemini`, and the backend runs as root: a plain atomic replace would hand that person's
+    // own config to root with mode 600 and lock them out of the file their CLI needs to write.
+    // Best effort — a filesystem that refuses the chown is not a reason to skip the registration.
+    try {
+      const previous = fs.statSync(configPath);
+      fs.chmodSync(tmp, previous.mode & 0o777);
+      if (process.getuid?.() === 0) fs.chownSync(tmp, previous.uid, previous.gid);
+    } catch {}
     fs.renameSync(tmp, configPath);
     logger.log(`Registered '${CM_MCP_SERVER_NAME}' in ${configPath} -> ${shimPath}`);
     return true;
@@ -174,4 +183,73 @@ export function ensureAgyMcpConfig(shimPath = resolveAgyShimPath(), configPath =
 /** Environment the `agy` adapter — and through it `agy`, and through it the shim — inherits. */
 export function agyMcpEnv(plan: McpWiringPlan, token: string): Record<string, string> {
   return { CM_MCP_URL: plan.url, CM_MCP_TOKEN: token };
+}
+
+/**
+ * A read-only picture of the wiring, so a deployed backend can be interrogated with one `curl`
+ * instead of by inference from logs.
+ *
+ * Every field is either a pure function of the environment or a `stat`/read of a file: calling this
+ * never registers the shim, never mints a token and never touches `agy`'s config. That matters
+ * because it is the endpoint an operator hits *before* deciding whether the deployment is wired,
+ * and a diagnostic that fixes what it measures cannot answer that question.
+ *
+ * Consequence worth stating: `agy.registered` is `false` until the first `agy` session opens, since
+ * `ensureAgyMcpConfig` runs at session open. False before the first session is the correct reading,
+ * not a fault.
+ */
+export interface McpWiringDiagnostics {
+  enabled: boolean;
+  url: string;
+  scopes: McpScope[];
+  toolNames: string[];
+  /** Per engine, how it can be told about MCP — or `none` when the CLI offers no path. */
+  transports: Record<string, McpTransportKind | 'none'>;
+  agy: {
+    configPath: string;
+    configExists: boolean;
+    /** `false` means a malformed file, which is the one case where sessions run without our tools. */
+    configReadable: boolean;
+    /** Our entry is present *and* points at this process' Node and this build's shim. */
+    registered: boolean;
+    shimPath: string;
+    shimExists: boolean;
+  };
+  /** `bin/cm`, the fallback for an engine that has a shell but none of our tools. */
+  cmCli: { path: string; exists: boolean; onPath: boolean };
+}
+
+export function describeMcpWiring(transports: Record<string, McpTransportKind | undefined>): McpWiringDiagnostics {
+  const scopes = resolveAgentSessionScopes();
+  const configPath = resolveAgyMcpConfigPath();
+  const shimPath = resolveAgyShimPath();
+  const cmPath = resolveRepoFile(path.join('bin', 'cm'));
+
+  let configExists = false;
+  let configReadable = true;
+  let registered = false;
+  try {
+    configExists = fs.existsSync(configPath);
+    if (configExists) {
+      const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8')) ?? {};
+      const entry = parsed?.mcpServers?.[CM_MCP_SERVER_NAME];
+      registered = entry?.command === process.execPath && JSON.stringify(entry?.args) === JSON.stringify([shimPath]);
+    }
+  } catch {
+    configReadable = false;
+  }
+
+  return {
+    enabled: isMcpWiringEnabled(),
+    url: resolveMcpUrl(),
+    scopes,
+    toolNames: toolNamesForScopes(scopes),
+    transports: Object.fromEntries(Object.entries(transports).map(([engine, kind]) => [engine, kind ?? 'none'])),
+    agy: { configPath, configExists, configReadable, registered, shimPath, shimExists: fs.existsSync(shimPath) },
+    cmCli: {
+      path: cmPath,
+      exists: fs.existsSync(cmPath),
+      onPath: (process.env.PATH ?? '').split(path.delimiter).includes(path.dirname(cmPath)),
+    },
+  };
 }
