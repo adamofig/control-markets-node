@@ -80,6 +80,28 @@ export interface IAgenticProfileExploration {
 export type AgenticHeartbeatEngine = AcpEngine;
 export type AgenticContextLevel = 'basic' | 'medium' | 'full';
 
+/** Who is reading the compiled context. `builtin` is the in-process Vercel harness. */
+export type AgenticRuntimeEngine = AcpEngine | 'builtin';
+
+/**
+ * What the reader of a compiled context can actually do in THIS run.
+ *
+ * The context index used to be written for a single imaginary reader that had `getSkill` and a
+ * checkout of the wiki. ACP engines have neither, so they were handed two impossible instructions
+ * on every turn. Whoever composes a context now declares the reader, and the index adapts.
+ */
+export interface AgenticRuntimeProfile {
+  engine: AgenticRuntimeEngine;
+  /** REAL names of the tools registered for this run — derived from the tool set, never a constant. */
+  tools: string[];
+  /**
+   * Directories the reader can open, most relevant first (an ACP engine's `cwd` leads).
+   * Being listed is not proof the wiki is there: every path is checked against disk before it is
+   * printed, which is what keeps `LOCAL_AGENT_WORKSPACE_ROOTS=/app` from becoming a false positive.
+   */
+  workspaceRoots?: string[];
+}
+
 /**
  * Category of a resource linked to a profile. Always derived from WHICH of the profile's own
  * arrays holds the id — never from the caller, so nobody can relabel a task as a source to

@@ -326,10 +326,20 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     this.logger.log(`${tag} Wake-up via ${engine} [${run.trigger}] — run ${runId}`);
     this.publishLive(runId, { type: 'status', message: `Despertando via ${engine} (${run.trigger})...` });
 
+    // A profile bound to a workspace wakes up in that workspace's root on this host.
+    // Resolved before the context: the cwd is half of what decides which paths the index may print.
+    const workspaceCwd = this.workspaceService.resolveRootForHost((profile as any).workspaceId) ?? undefined;
+    if (workspaceCwd) {
+      this.publishLive(runId, { type: 'status', message: `Workspace: ${(profile as any).workspaceId} (${workspaceCwd})` });
+    }
+
     // Heartbeats need operational state. Keep an explicit FULL profile; otherwise
     // promote chat-oriented BASIC profiles to MEDIUM for autonomous execution.
     const heartbeatContextLevel = profile.contextLevel === 'full' ? 'full' : 'medium';
-    const context = await this.localAgentChatService.getProfileContext(profileId, profile.orgId, heartbeatContextLevel).catch(err => {
+    // Same runtime the chat uses for this engine and cwd. Nobody watches an autonomous wake-up
+    // live, so a context different from the one tested in the chat is the worst place to diverge.
+    const contextRuntime = this.acpBridge.describeRuntime(engine, workspaceCwd);
+    const context = await this.localAgentChatService.getProfileContext(profileId, profile.orgId, heartbeatContextLevel, contextRuntime).catch(err => {
       this.logger.warn(`Could not compose full-context for ${profileId}: ${err.message}`);
       return undefined;
     });
@@ -345,12 +355,6 @@ export class AgenticHeartbeatService implements OnApplicationBootstrap, OnModule
     let sessionId: string | undefined;
     let runUsage: any = undefined;
     const deadline = Date.now() + RUN_HARD_TIMEOUT_MS;
-
-    // A profile bound to a workspace wakes up in that workspace's root on this host
-    const workspaceCwd = this.workspaceService.resolveRootForHost((profile as any).workspaceId) ?? undefined;
-    if (workspaceCwd) {
-      this.publishLive(runId, { type: 'status', message: `Workspace: ${(profile as any).workspaceId} (${workspaceCwd})` });
-    }
 
     // Headless runs had no model selector and relied purely on LOCAL_AGENT_*_MODEL. They now inherit
     // the profile's default — but only when the run is on the engine that default was written for,

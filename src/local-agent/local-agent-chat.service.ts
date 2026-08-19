@@ -7,7 +7,8 @@ import { AgenticProfileService } from '../agentic-profile/services/agentic-profi
 import { SkillsService } from '../agent-skills/services/skills.service';
 import { FilesystemToolsService } from './filesystem-tools.service';
 import { normalizeTokenUsage } from './ai-usage.util';
-import { AgenticContextLevel, IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
+import { AgenticContextLevel, AgenticRuntimeProfile, IAttachedSourceRef } from '../agentic-profile/models/agentic-profile.models';
+import { runtimeCacheKey } from '../agentic-profile/services/context-access-hints.util';
 import { createInjectedContextSnapshot, InjectedContextSnapshot } from './context-snapshot.util';
 import { AttachedSourceReport, formatAttachedSourcesBlock } from './attached-sources.util';
 import { KeyBalancerService } from '../key-balancer/key-balancer.service';
@@ -80,8 +81,34 @@ export class LocalAgentChatService {
           return null;
         })
       : null;
-    const { system, profileContext } = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId);
-    if (profileContext) yield { type: 'context-snapshot', context: this.createContextSnapshot(profileContext) };
+
+    // Tools are built BEFORE the prompt on purpose: the context index has to name the tools this
+    // run actually registers, so it reads them from the same object the model gets. Add or remove a
+    // tool and the injected context follows without anyone remembering to update a list.
+    const tools = {
+      ...this.fsTools.buildTools(),
+      ...(agenticProfileId
+        ? {
+            getProfileSource: tool({
+              description: 'Load the complete content of a knowledge source, skill, memory, or exploration linked to the active agent profile. Use the source ID shown in the profile index.',
+              inputSchema: z.object({ sourceId: z.string().describe('Linked source ID from the agent profile context index.') }),
+              execute: ({ sourceId }) => this.agenticProfileService.getLinkedContextResource(agenticProfileId, sourceId, resolvedOrgId),
+            }),
+            getSkill: tool({
+              description:
+                'Load a skill, or ONE atomic capability of it. Prefer the capability slug (`bundle:capability`, e.g. `agent-profile-specs:send-inbox`) over the bundle: it returns only the documents that operation needs instead of the whole skill. `file` narrows further to a single document. Executable scripts come back as paths under `scripts`, to run from the workspace — never as content.',
+              inputSchema: z.object({
+                slugOrId: z.string().describe('Skill slug, capability slug (`bundle:capability`), or id, as listed in the profile index.'),
+                file: z.string().optional().describe('Optional: a single relative path of the skill, e.g. `reference/inbox-messaging.md`.'),
+              }),
+              execute: ({ slugOrId, file }) => this.skillsService.resolve(slugOrId, resolvedOrgId, file),
+            }),
+          }
+        : {}),
+    };
+    const runtime = this.describeRuntime(tools);
+    const { system, profileContext } = await this.buildSystemPrompt(token, resolvedOrgId, agenticProfileId, runtime);
+    if (profileContext) yield { type: 'context-snapshot', context: this.createContextSnapshot(profileContext, runtime) };
     if (attachedBlock?.attached.length) yield { type: 'attached-sources', attached: attachedBlock.attached };
 
     const model = process.env.LOCAL_AGENT_MODEL ?? 'gemini-3.5-flash-lite';
@@ -110,29 +137,7 @@ export class LocalAgentChatService {
       instructions: system,
       messages: conversationMessages,
       stopWhen: isStepCount(MAX_STEPS),
-      tools: {
-        ...this.fsTools.buildTools(),
-        ...(agenticProfileId ? {
-          getProfileSource: tool({
-            description: 'Load the complete content of a knowledge source, skill, memory, or exploration linked to the active agent profile. Use the source ID shown in the profile index.',
-            inputSchema: z.object({ sourceId: z.string().describe('Linked source ID from the agent profile context index.') }),
-            execute: ({ sourceId }) => this.agenticProfileService.getLinkedContextResource(
-              agenticProfileId,
-              sourceId,
-              resolvedOrgId,
-            ),
-          }),
-          getSkill: tool({
-            description:
-              'Load a skill, or ONE atomic capability of it. Prefer the capability slug (`bundle:capability`, e.g. `agent-profile-specs:send-inbox`) over the bundle: it returns only the documents that operation needs instead of the whole skill. `file` narrows further to a single document. Executable scripts come back as paths under `scripts`, to run from the workspace — never as content.',
-            inputSchema: z.object({
-              slugOrId: z.string().describe('Skill slug, capability slug (`bundle:capability`), or id, as listed in the profile index.'),
-              file: z.string().optional().describe('Optional: a single relative path of the skill, e.g. `reference/inbox-messaging.md`.'),
-            }),
-            execute: ({ slugOrId, file }) => this.skillsService.resolve(slugOrId, resolvedOrgId, file),
-          }),
-        } : {}),
-      },
+      tools,
     });
 
     for await (const part of result.stream as AsyncIterable<any>) {
@@ -176,10 +181,15 @@ export class LocalAgentChatService {
    * `@mention` attachments, which travel as a user message so third-party text cannot borrow the
    * authority of our own instructions.
    */
-  private async buildSystemPrompt(token: AppToken, orgId?: string, agenticProfileId?: string): Promise<{ system: string; profileContext: string }> {
+  private async buildSystemPrompt(
+    token: AppToken,
+    orgId?: string,
+    agenticProfileId?: string,
+    runtime?: AgenticRuntimeProfile,
+  ): Promise<{ system: string; profileContext: string }> {
     let profileContext = '';
     if (agenticProfileId) {
-      profileContext = await this.getProfileContext(agenticProfileId, orgId);
+      profileContext = await this.getProfileContext(agenticProfileId, orgId, undefined, runtime);
     }
 
     const roots = this.fsTools.workspaceRoots;
@@ -204,8 +214,8 @@ Answer in the user's language.`;
     return { system, profileContext };
   }
 
-  createContextSnapshot(content: string): InjectedContextSnapshot {
-    return createInjectedContextSnapshot(content);
+  createContextSnapshot(content: string, runtime?: AgenticRuntimeProfile): InjectedContextSnapshot {
+    return createInjectedContextSnapshot(content, runtime);
   }
 
   /**
@@ -229,12 +239,32 @@ Answer in the user's language.`;
     return formatAttachedSourcesBlock(resources);
   }
 
-  async getProfileContext(profileId: string, orgId?: string, levelOverride?: AgenticContextLevel): Promise<string> {
-    const key = `${profileId}:${orgId ?? ''}:${levelOverride ?? 'profile-default'}`;
+  /**
+   * The runtime this harness offers a context reader, derived from the tool set that was just
+   * built for the model — never from a hardcoded list, which would drift the first time a tool
+   * is added or removed.
+   */
+  describeRuntime(tools: Record<string, unknown>): AgenticRuntimeProfile {
+    return {
+      engine: 'builtin',
+      tools: Object.keys(tools),
+      // Only claimed when the filesystem tools are actually on; the renderer still verifies each
+      // file before printing its path, so a root without the wiki prints nothing.
+      workspaceRoots: this.fsTools.enabled ? this.fsTools.workspaceRoots : undefined,
+    };
+  }
+
+  /**
+   * The runtime takes part in the cache key because it takes part in the composition: without it,
+   * a built-in chat and an ACP session five minutes apart would share one entry, and one of the two
+   * would be served an index written for the other's tools.
+   */
+  async getProfileContext(profileId: string, orgId?: string, levelOverride?: AgenticContextLevel, runtime?: AgenticRuntimeProfile): Promise<string> {
+    const key = `${profileId}:${orgId ?? ''}:${levelOverride ?? 'profile-default'}:${runtimeCacheKey(runtime)}`;
     const cached = this.contextCache.get(key);
     if (cached && Date.now() - cached.at < CONTEXT_CACHE_TTL_MS) return cached.markdown;
 
-    const markdown = await this.agenticProfileService.composeFullContext(profileId, orgId, levelOverride);
+    const markdown = await this.agenticProfileService.composeFullContext(profileId, orgId, levelOverride, runtime);
     this.contextCache.set(key, { markdown, at: Date.now() });
     return markdown;
   }

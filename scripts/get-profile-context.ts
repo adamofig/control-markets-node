@@ -35,6 +35,9 @@ async function main() {
       if (fmMatch) {
         const fmText = fmMatch[1];
         fmText.split(/\r?\n/).forEach(line => {
+          // Top-level keys only. The `tasks:`/`skills:` arrays carry their own `name:` entries, and
+          // reading those made the output file be named after the last task in the profile.
+          if (/^\s/.test(line) || line.startsWith('-')) return;
           const colonIndex = line.indexOf(':');
           if (colonIndex !== -1) {
             const key = line.slice(0, colonIndex).trim();
@@ -90,8 +93,31 @@ async function main() {
     }
     
     console.log(`Generating full context for profile ID: ${profileId}...`);
+
+    // `--compare` compiles the same profile once per runtime and reports the size of each, which is
+    // the measurement task 23 asks for: how much the honest degraded branch costs versus the index
+    // that promised tools the reader never had. It is also the quantitative argument for how urgent
+    // wiring MCP into the ACP sessions (task 25) really is.
+    if (process.argv.includes('--compare')) {
+      const runtimes: { label: string; runtime?: any }[] = [
+        { label: 'legacy (no runtime declared)', runtime: undefined },
+        { label: 'builtin (getSkill + getProfileSource)', runtime: { engine: 'builtin', tools: ['getSkill', 'getProfileSource', 'readFile'] } },
+        { label: 'agy in a container (no tools, no wiki on disk)', runtime: { engine: 'agy', tools: [] } },
+        { label: 'agy with the wiki mounted', runtime: { engine: 'agy', tools: [], workspaceRoots: [path.resolve(__dirname, '../..')] } },
+        { label: 'after task 25 (cm_read over MCP)', runtime: { engine: 'agy', tools: ['cm_read'] } },
+      ];
+      for (const level of ['basic', 'medium'] as const) {
+        console.log(`\n— level ${level.toUpperCase()} —`);
+        for (const { label, runtime } of runtimes) {
+          const output = await service.composeFullContext(profileId, orgId || undefined, level, runtime);
+          console.log(`  ${String(output.length).padStart(7)} chars  ~${String(Math.ceil(output.length / 4)).padStart(6)} tokens   ${label}`);
+        }
+      }
+      console.log('');
+    }
+
     const md = await service.composeFullContext(profileId, orgId || undefined);
-    
+
     // Save to a local file
     const resolvedName = agentName || 'agent';
     const outputDir = fs.existsSync(resolvedPath) ? path.dirname(resolvedPath) : path.resolve(process.cwd());

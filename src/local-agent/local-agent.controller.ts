@@ -93,24 +93,10 @@ export class LocalAgentController {
     this.warnOnBodyOrgId(body.orgId, orgId, token);
     const resolvedOrgId = orgId;
 
-    // The standing profile context is a first-turn concern: the CLI keeps it in session history.
-    let profileContext: string | undefined;
-    if (body.agenticProfileId && !body.sessionId) {
-      profileContext = await this.localAgentChatService.getProfileContext(body.agenticProfileId, resolvedOrgId).catch(() => undefined);
-    }
-
-    // `@mention` attachments are a per-turn concern, so they are resolved on EVERY request —
-    // deliberately outside the `!sessionId` guard above. The profile is optional: a mention may
-    // point at an organization resource, which a chat without a profile can attach too.
-    let attached: { markdown: string; attached: AttachedSourceReport[] } | null = null;
-    if (body.attachedSources?.length) {
-      attached = await this.localAgentChatService
-        .buildAttachedSourcesBlock(body.agenticProfileId, body.attachedSources, resolvedOrgId)
-        .catch(() => null);
-    }
-
     // A profile bound to a workspace chats from that workspace's root on this host, and its
     // acpConfig is the default engine/model when the request does not name one.
+    // Resolved BEFORE the context is compiled: which engine and which cwd this turn runs on is
+    // what decides whether the index may name a tool or print a path.
     let cwd: string | undefined;
     let acpConfig: IAgenticProfileAcpConfig | undefined;
     if (body.agenticProfileId) {
@@ -133,6 +119,24 @@ export class LocalAgentController {
     const model = body.model?.trim() || (profileDefaultsApply ? acpConfig?.defaultModel : undefined);
     const reasoningEffort = body.reasoningEffort ?? (profileDefaultsApply ? acpConfig?.reasoningEffort : undefined);
 
+    const runtime = this.acpBridge.describeRuntime(engine, cwd);
+
+    // The standing profile context is a first-turn concern: the CLI keeps it in session history.
+    let profileContext: string | undefined;
+    if (body.agenticProfileId && !body.sessionId) {
+      profileContext = await this.localAgentChatService.getProfileContext(body.agenticProfileId, resolvedOrgId, undefined, runtime).catch(() => undefined);
+    }
+
+    // `@mention` attachments are a per-turn concern, so they are resolved on EVERY request —
+    // deliberately outside the `!sessionId` guard above. The profile is optional: a mention may
+    // point at an organization resource, which a chat without a profile can attach too.
+    let attached: { markdown: string; attached: AttachedSourceReport[] } | null = null;
+    if (body.attachedSources?.length) {
+      attached = await this.localAgentChatService
+        .buildAttachedSourcesBlock(body.agenticProfileId, body.attachedSources, resolvedOrgId)
+        .catch(() => null);
+    }
+
     const acpEvents = this.acpBridge.stream(
       body.message,
       body.sessionId,
@@ -143,7 +147,7 @@ export class LocalAgentController {
     );
 
     const preamble: LocalAgentStreamEvent[] = [];
-    if (profileContext) preamble.push({ type: 'context-snapshot', context: this.localAgentChatService.createContextSnapshot(profileContext) });
+    if (profileContext) preamble.push({ type: 'context-snapshot', context: this.localAgentChatService.createContextSnapshot(profileContext, runtime) });
     if (attached?.attached.length) preamble.push({ type: 'attached-sources', attached: attached.attached });
     await this.pipeSse(preamble.length ? this.withPreamble(preamble, acpEvents) : acpEvents, res);
   }

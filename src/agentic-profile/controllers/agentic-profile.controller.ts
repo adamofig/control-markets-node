@@ -9,7 +9,8 @@ import { ProjectAuthGuard } from '../../user/project-auth.guard';
 import { AppGuard } from '@dataclouder/nest-core';
 import { isPlatformAdmin } from '../../auth/platform-roles';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { AgenticContextLevel, IAgenticProfileAcpConfig, IAgenticProfileSkill, ISkillCatalogItem, ISkillLinkInput } from '../models/agentic-profile.models';
+import { AgenticContextLevel, AgenticRuntimeProfile, IAgenticProfileAcpConfig, IAgenticProfileSkill, ISkillCatalogItem, ISkillLinkInput } from '../models/agentic-profile.models';
+import { asAcpEngine } from '../../common/acp-engines';
 
 /** F10: class-level guard — six routes were guarded one by one, the inherited CRUD ones were not. */
 @ApiTags('agentic-profile')
@@ -194,6 +195,8 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
   async getFullContext(
     @Param('id') id: string,
     @Query('level') level: AgenticContextLevel | undefined,
+    @Query('engine') engine?: string,
+    @Query('tools') tools?: string,
     @OrgId() orgId?: string,
     @DecodedToken() token?: AppToken,
   ): Promise<{ fullContextMarkdown: string }> {
@@ -201,7 +204,15 @@ export class AgenticProfileController extends EntityMongoController<AgenticProfi
       throw new BadRequestException('level must be one of: basic, medium, full');
     }
     const resolvedOrgId = orgId || token?.userId || (token as any).id || (token as any).uid;
-    const fullContextMarkdown = await this.agenticProfileService.composeFullContext(id, resolvedOrgId, level);
+    // Runtime PREVIEW: lets an operator see exactly what an `agy` session would be told, without
+    // opening one. `engine` and `tools` only steer the wording of the index — no tool is executed —
+    // and no workspace root is accepted from the query, so the preview can never be talked into
+    // probing the server's filesystem. Omitting both keeps the historical output.
+    const previewEngine = engine === 'builtin' ? 'builtin' : asAcpEngine(engine);
+    const runtime: AgenticRuntimeProfile | undefined = previewEngine
+      ? { engine: previewEngine, tools: (tools ?? '').split(',').map(name => name.trim()).filter(Boolean) }
+      : undefined;
+    const fullContextMarkdown = await this.agenticProfileService.composeFullContext(id, resolvedOrgId, level, runtime);
     return { fullContextMarkdown };
   }
 }

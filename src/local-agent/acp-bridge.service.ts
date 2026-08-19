@@ -9,6 +9,7 @@ import { FilesystemToolsService } from './filesystem-tools.service';
 import { LocalAgentStreamEvent } from './local-agent-chat.service';
 import { normalizeTokenUsage } from './ai-usage.util';
 import { AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from '../common/acp-engines';
+import { AgenticRuntimeProfile } from '../agentic-profile/models/agentic-profile.models';
 
 // @agentclientprotocol/sdk is ESM-only; the project compiles to CommonJS, so a static
 // import would become require() and fail. new Function keeps the dynamic import as-is.
@@ -238,6 +239,27 @@ export class AcpBridgeService implements OnModuleDestroy {
       engines[engine] = { available: this.enabled && version !== null, version };
     }
     return { engines };
+  }
+
+  /**
+   * The runtime an ACP session offers a context reader — the single place both the chat and the
+   * heartbeat ask, so an autonomous wake-up never gets a context different from the one tested in
+   * the chat.
+   *
+   * `tools: []` is the honest answer today: sessions are opened with `mcpServers: []` in all three
+   * paths (`newSession`, `loadSession`, `resumeSession`), so the engine has its own native tools
+   * and NOT ours. Task 25 wires MCP in; when it does, this is the one line that changes and the
+   * whole index starts naming the tools that appeared.
+   *
+   * The workspace roots are only a claim of what the CLI may open — `ContextAccessRenderer` checks
+   * every file against disk before printing its path, which is what stops `/app` in a container
+   * from looking like a checkout of the wiki.
+   */
+  describeRuntime(engine: AcpEngine, cwd?: string): AgenticRuntimeProfile {
+    const roots = this.fsTools.workspaceRoots;
+    const primary = cwd || roots[0];
+    const workspaceRoots = [primary, ...roots.filter(root => root !== primary)].filter(root => !!root && fs.existsSync(root));
+    return { engine, tools: [], workspaceRoots: workspaceRoots.length ? workspaceRoots : undefined };
   }
 
   private async probeVersion(engine: AcpEngine): Promise<string | null> {

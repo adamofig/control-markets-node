@@ -12,12 +12,14 @@ import { normalizeTaskPriority, normalizeTaskNumber, DEFAULT_TASK_PRIORITY, TASK
 import {
   AgenticContextLevel,
   AgenticLinkedResourceKind,
+  AgenticRuntimeProfile,
   IAgenticProfileAcpConfig,
   IAgenticProfileSkill,
   ILinkedContextResource,
   ISkillCatalogItem,
   ISkillLinkInput,
 } from '../models/agentic-profile.models';
+import { ContextAccessRenderer } from './context-access-hints.util';
 import { asAcpEngine, asReasoningEffort } from '../../common/acp-engines';
 import { buildFingerprint, hashContent } from './sync-hash.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -788,7 +790,15 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
     };
   }
 
-  async composeFullContext(profileId: string, orgId?: string, levelOverride?: AgenticContextLevel): Promise<string> {
+  /**
+   * Compiles the profile into the markdown that gets injected as the agent's standing context.
+   *
+   * `runtime` describes WHO will read it. Omitting it keeps the pre-2026-08-18 output byte for byte,
+   * which is what the callers that do not know their reader (MCP tool, scripts) still rely on;
+   * passing it makes the index stop naming tools that are not registered and stop printing paths
+   * that do not resolve. See `context-access-hints.util.ts`.
+   */
+  async composeFullContext(profileId: string, orgId?: string, levelOverride?: AgenticContextLevel, runtime?: AgenticRuntimeProfile): Promise<string> {
     const query: any = {
       $or: [{ id: profileId }, { _id: mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : null }].filter(q => q._id !== null),
     };
@@ -848,6 +858,11 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
 
     md += `# ${agentName} — ${profile.title || ''}\n\n`;
 
+    // How this reader gets at content is not a property of the profile but of the run, so it is
+    // decided once here and applied by the renderer at every entry below.
+    const access = new ContextAccessRenderer(runtime);
+    md += access.preamble();
+
     md += `## 1. Identidad y Persona y Responsabilidades\n\n`;
     md += instructions ? `${instructions}\n\n` : `*(No instructions provided)*\n\n`;
 
@@ -865,11 +880,12 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         if (src.description) {
           md += `> Descripción: ${src.description}\n\n`;
         }
-        md += `- ID: \`${src.id || src._id?.toString() || ''}\`\n`;
-        if (src.sourceUrl) md += `- Ruta/URL: ${src.sourceUrl}\n`;
+        const sourceId = src.id || src._id?.toString() || '';
+        md += `- ID: \`${sourceId}\`\n`;
+        md += access.locationLine({ kind: 'knowledge', id: sourceId, relPath: src.relPath, sourceUrl: src.sourceUrl });
         md += `\n`;
         if (level === 'full') md += src.content ? `${src.content}\n\n` : `*(Contenido vacío)*\n\n`;
-        else md += `> Contenido disponible bajo demanda con \`getProfileSource\` usando el ID anterior.\n\n`;
+        else md += access.accessBlock({ kind: 'knowledge', id: sourceId, relPath: src.relPath, sourceUrl: src.sourceUrl, content: src.content });
         md += `---\n\n`;
       }
     } else {
@@ -894,9 +910,18 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         }
         md += `- ID: \`${skillId}\`\n`;
         if (sk.slug) md += `- Slug: \`${sk.slug}\`\n`;
-        if (sk.relPath || sk.sourceUrl) md += `- Ruta/URL: ${sk.relPath || sk.sourceUrl}\n`;
-
         const capabilities = capabilityIndex.get(skillId) || [];
+        const skillEntry = {
+          kind: 'skill' as const,
+          id: skillId,
+          slug: sk.slug,
+          hasCapabilities: capabilities.length > 0,
+          relPath: sk.relPath,
+          sourceUrl: sk.sourceUrl,
+          content: sk.content,
+        };
+        md += access.locationLine(skillEntry);
+
         if (capabilities.length > 0) {
           md += `- Capacidades:\n`;
           for (const capability of capabilities) {
@@ -907,9 +932,7 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         md += `\n`;
 
         if (level === 'full') md += sk.content ? `${sk.content}\n\n` : `*(Contenido vacío)*\n\n`;
-        else if (capabilities.length > 0) {
-          md += `> Pedí solo lo que necesites con \`getSkill('<slug de la capacidad>')\`, o la skill completa con \`getSkill('${sk.slug || skillId}')\`.\n\n`;
-        } else md += `> Contenido disponible bajo demanda con \`getSkill('${sk.slug || skillId}')\`.\n\n`;
+        else md += access.accessBlock(skillEntry);
         md += `---\n\n`;
       }
     } else {
@@ -923,11 +946,13 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         if (exp.description) {
           md += `> Descripción: ${exp.description}\n\n`;
         }
-        md += `- ID: \`${exp.id || exp._id?.toString() || ''}\`\n`;
-        if (exp.sourceUrl) md += `- Ruta/URL: ${exp.sourceUrl}\n`;
+        const explorationId = exp.id || exp._id?.toString() || '';
+        const explorationEntry = { kind: 'exploration' as const, id: explorationId, relPath: exp.relPath, sourceUrl: exp.sourceUrl, content: exp.content };
+        md += `- ID: \`${explorationId}\`\n`;
+        md += access.locationLine(explorationEntry);
         md += `\n`;
         if (level === 'full') md += exp.content ? `${exp.content}\n\n` : `*(Contenido vacío)*\n\n`;
-        else md += `> Contenido disponible bajo demanda con \`getProfileSource\`.\n\n`;
+        else md += access.accessBlock(explorationEntry);
         md += `---\n\n`;
       }
     } else {
@@ -965,9 +990,13 @@ export class AgenticProfileService extends EntityCommunicationService<AgenticPro
         if (mem.description) {
           md += `> Descripción: ${mem.description}\n\n`;
         }
-        md += `- ID: \`${mem.id || mem._id?.toString() || ''}\`\n\n`;
+        const memoryId = mem.id || mem._id?.toString() || '';
+        const memoryEntry = { kind: 'memory' as const, id: memoryId, relPath: mem.relPath, sourceUrl: mem.sourceUrl, content: mem.content };
+        md += `- ID: \`${memoryId}\`\n`;
+        md += access.locationLine(memoryEntry);
+        md += `\n`;
         if (level === 'full') md += mem.content ? `${mem.content}\n\n` : `*(Contenido vacío)*\n\n`;
-        else md += `> Contenido disponible bajo demanda con \`getProfileSource\`.\n\n`;
+        else md += access.accessBlock(memoryEntry);
         md += `---\n\n`;
       }
     } else {
