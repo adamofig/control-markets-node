@@ -100,6 +100,16 @@ export interface AgenticRuntimeProfile {
    * printed, which is what keeps `LOCAL_AGENT_WORKSPACE_ROOTS=/app` from becoming a false positive.
    */
   workspaceRoots?: string[];
+  /**
+   * The command that invokes `bin/cm`, when this runtime has it — `cm` if it is on the `PATH`, an
+   * absolute path otherwise. Absent means it is genuinely not reachable from here.
+   *
+   * It is here because a shell is a capability like any other. An ACP engine whose MCP wiring
+   * failed still has `run_command`, and the universal reader sitting in its own image was invisible
+   * to the context index: the reader was told it had nothing, which was false and cost a real run
+   * twenty exploratory steps before it found the binary on its own.
+   */
+  cmCli?: string;
 }
 
 /**

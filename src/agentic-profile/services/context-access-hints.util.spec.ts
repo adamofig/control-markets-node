@@ -82,7 +82,7 @@ describe('ContextAccessRenderer', () => {
     });
   });
 
-  describe('branch: the reader has nothing', () => {
+  describe('branch: the reader has nothing — no tool, no file, no CLI', () => {
     const runtime = { engine: 'agy' as const, tools: [] };
 
     it('inlines the content instead of promising a fetch', () => {
@@ -105,6 +105,53 @@ describe('ContextAccessRenderer', () => {
     });
   });
 
+  // Task 28: an engine whose MCP wiring failed still has a shell, and `bin/cm` in its own image.
+  describe('branch: the reader has no tools but has the cm CLI', () => {
+    const runtime = { engine: 'agy' as const, tools: [], cmCli: 'cm' };
+
+    it('hands out the same cm:// addresses, spoken through the shell', () => {
+      const renderer = new ContextAccessRenderer(runtime, { fileExists: nothingExists });
+      expect(renderer.accessBlock(source)).toBe('> Contenido disponible bajo demanda con `cm read cm://source/source-1`.\n\n');
+      expect(renderer.accessBlock(skill)).toContain('cm read cm://skill/agent-profile-specs');
+      expect(renderer.accessBlock(skill)).toContain('cm://skill/<slug de la capacidad>');
+    });
+
+    it('prints the absolute path when the binary is not on the PATH', () => {
+      const renderer = new ContextAccessRenderer({ ...runtime, cmCli: '/app/bin/cm' }, { fileExists: nothingExists });
+      expect(renderer.accessBlock(source)).toContain('`/app/bin/cm read cm://source/source-1`');
+    });
+
+    it('announces the CLI in the preamble instead of declaring the run unreachable', () => {
+      const renderer = new ContextAccessRenderer(runtime, { fileExists: nothingExists });
+      expect(renderer.mode).toBe('cm-cli');
+      expect(renderer.preamble()).toContain('`cm read cm://...`');
+      expect(renderer.preamble()).not.toContain('no tenés ninguna herramienta');
+    });
+
+    it('does not inline what the CLI can fetch, which is the whole point of not paying for it', () => {
+      const renderer = new ContextAccessRenderer(runtime, { fileExists: nothingExists });
+      expect(renderer.accessBlock(skill)).not.toContain('SKILL BODY');
+    });
+
+    it('still prefers a real tool and a real file over the shell', () => {
+      const withTool = new ContextAccessRenderer({ ...runtime, tools: ['cm_read'] }, { fileExists: nothingExists });
+      expect(withTool.accessBlock(source)).toContain("cm_read('cm://source/source-1')");
+      expect(withTool.accessBlock(source)).not.toContain('cm read');
+
+      const withFile = new ContextAccessRenderer({ ...runtime, workspaceRoots: ['/workspace/cm'] }, { fileExists: everythingExists });
+      expect(withFile.accessBlock(source)).toContain('leelo con tus herramientas de archivo');
+    });
+
+    // The /app case, and the reason `cm-cli` is not simply ranked above `workspace-files`.
+    it('falls through to the CLI per entry when the root exists but the file does not', () => {
+      const renderer = new ContextAccessRenderer({ ...runtime, workspaceRoots: ['/app'] }, { fileExists: nothingExists });
+      expect(renderer.mode).toBe('workspace-files');
+      expect(renderer.preamble()).toContain('`cm read cm://...`');
+      expect(renderer.accessBlock(source)).toContain('`cm read cm://source/source-1`');
+      expect(renderer.accessBlock(source)).not.toContain('SOURCE BODY');
+    });
+  });
+
   // The two assertions this task exists for.
   describe('the two rules', () => {
     it('never names a tool that is not registered in this run', () => {
@@ -113,6 +160,8 @@ describe('ContextAccessRenderer', () => {
       expect(output).not.toContain('getSkill');
       expect(output).not.toContain('getProfileSource');
       expect(output).not.toContain('cm_read');
+      // Task 28: the CLI is a claim like any other. Not measured on this runtime, not printed.
+      expect(output).not.toContain('cm read');
     });
 
     it('never prints a path the reader cannot open', () => {

@@ -105,6 +105,29 @@ export function resolveAgyShimPath(): string {
   return resolveRepoFile(path.join('scripts', 'agy-acp', 'cm-mcp-stdio.mjs'));
 }
 
+/**
+ * How this runtime should type the universal reader — or `null` when it is not installed here.
+ *
+ * Returned as the *command a reader would type*, not as a boolean: `cm` when `bin/` is on the
+ * `PATH`, the absolute path when it is not. Printing a bare `cm` where the shell cannot resolve it
+ * would be the same class of lie the whole context-hint machinery exists to prevent — a plausible
+ * instruction that fails on execution.
+ *
+ * This matters because the CLI is the *only* door left for an engine that has a shell and no MCP
+ * tools, which is exactly the state an `agy` session lands in when its config-file wiring fails.
+ * Measured, never assumed: `existsSync` decides, so an image built without `bin/` says so.
+ */
+export function resolveCmCliCommand(): string | null {
+  const cmPath = resolveRepoFile(path.join('bin', 'cm'));
+  if (!fs.existsSync(cmPath)) return null;
+  return isOnPath(cmPath) ? path.basename(cmPath) : cmPath;
+}
+
+/** Whether the directory holding `file` is one of the `PATH` entries of this process. */
+function isOnPath(file: string): boolean {
+  return (process.env.PATH ?? '').split(path.delimiter).includes(path.dirname(file));
+}
+
 /** Where the Antigravity CLI reads its MCP servers from. Verified on agy (macOS, 2026-08-18). */
 export function resolveAgyMcpConfigPath(): string {
   const override = process.env.AGY_MCP_CONFIG_PATH?.trim();
@@ -246,10 +269,6 @@ export function describeMcpWiring(transports: Record<string, McpTransportKind | 
     toolNames: toolNamesForScopes(scopes),
     transports: Object.fromEntries(Object.entries(transports).map(([engine, kind]) => [engine, kind ?? 'none'])),
     agy: { configPath, configExists, configReadable, registered, shimPath, shimExists: fs.existsSync(shimPath) },
-    cmCli: {
-      path: cmPath,
-      exists: fs.existsSync(cmPath),
-      onPath: (process.env.PATH ?? '').split(path.delimiter).includes(path.dirname(cmPath)),
-    },
+    cmCli: { path: cmPath, exists: fs.existsSync(cmPath), onPath: isOnPath(cmPath) },
   };
 }

@@ -11,7 +11,7 @@ import { normalizeTokenUsage } from './ai-usage.util';
 import { AcpEngine, CodexReasoningEffort, DEFAULT_ACP_ENGINE } from '../common/acp-engines';
 import { AgenticRuntimeProfile } from '../agentic-profile/models/agentic-profile.models';
 import { EphemeralAgentTokenService } from '../user/ephemeral-agent-token.service';
-import { agyMcpEnv, buildAcpMcpServers, describeMcpWiring, ensureAgyMcpConfig, McpTransportKind, McpWiringDiagnostics, McpWiringPlan, planMcpWiring } from './acp-mcp-wiring';
+import { agyMcpEnv, buildAcpMcpServers, describeMcpWiring, ensureAgyMcpConfig, McpTransportKind, McpWiringDiagnostics, McpWiringPlan, planMcpWiring, resolveCmCliCommand } from './acp-mcp-wiring';
 
 // @agentclientprotocol/sdk is ESM-only; the project compiles to CommonJS, so a static
 // import would become require() and fail. new Function keeps the dynamic import as-is.
@@ -324,7 +324,15 @@ export class AcpBridgeService implements OnModuleDestroy {
     const primary = cwd || roots[0];
     const workspaceRoots = [primary, ...roots.filter(root => root !== primary)].filter(root => !!root && fs.existsSync(root));
     const plan = planMcpWiring(ENGINE_CONFIGS[engine]?.mcpTransport, options.orgId);
-    return { engine, tools: plan?.toolNames ?? [], workspaceRoots: workspaceRoots.length ? workspaceRoots : undefined };
+    // The CLI is reported for every ACP engine, wired or not: it is the fallback that makes a
+    // failed `agy` wiring survivable instead of silent. The built-in harness deliberately does not
+    // set it — it resolves `cm://` in-process through `cmRead`, and has no shell to spend.
+    return {
+      engine,
+      tools: plan?.toolNames ?? [],
+      workspaceRoots: workspaceRoots.length ? workspaceRoots : undefined,
+      cmCli: resolveCmCliCommand() ?? undefined,
+    };
   }
 
   private async probeVersion(engine: AcpEngine): Promise<string | null> {

@@ -30,7 +30,7 @@ export const SOURCE_TOOL_NAME = 'getProfileSource';
  */
 export const DEGRADED_INLINE_BUDGET_CHARS = 16_000;
 
-export type ContextAccessMode = 'legacy' | 'cm-uri' | 'profile-tools' | 'workspace-files' | 'degraded';
+export type ContextAccessMode = 'legacy' | 'cm-uri' | 'profile-tools' | 'workspace-files' | 'cm-cli' | 'degraded';
 
 export type ContextEntryKind = 'knowledge' | 'skill' | 'exploration' | 'memory';
 
@@ -68,7 +68,7 @@ export function runtimeCacheKey(runtime?: AgenticRuntimeProfile): string {
   if (!runtime) return 'legacy';
   const tools = [...(runtime.tools ?? [])].sort().join('+');
   const roots = [...(runtime.workspaceRoots ?? [])].sort().join('+');
-  return `${runtime.engine}|${tools}|${roots}`;
+  return `${runtime.engine}|${tools}|${roots}|${runtime.cmCli ?? ''}`;
 }
 
 export class ContextAccessRenderer {
@@ -80,6 +80,7 @@ export class ContextAccessRenderer {
   private readonly budgetChars: number;
   private budgetUsed = 0;
   private readonly cmReadTool?: string;
+  private readonly cmCli?: string;
   private readonly pathCache = new Map<string, string | null>();
 
   constructor(
@@ -90,6 +91,7 @@ export class ContextAccessRenderer {
     this.budgetChars = options.budgetChars ?? DEGRADED_INLINE_BUDGET_CHARS;
     this.roots = (runtime?.workspaceRoots ?? []).filter(Boolean);
     this.cmReadTool = (runtime?.tools ?? []).find(name => (CM_READ_TOOL_NAMES as readonly string[]).includes(name));
+    this.cmCli = runtime?.cmCli || undefined;
     this.mode = this.resolveMode();
   }
 
@@ -112,6 +114,13 @@ export class ContextAccessRenderer {
         break;
       case 'workspace-files':
         access = `leé con tus herramientas de archivo las rutas indicadas abajo (workspace \`${this.roots[0]}\`)`;
+        // A root can exist and hold none of the wiki. Naming the CLI here is what keeps that case
+        // honest without a second preamble: the paths below are whatever was verified against disk,
+        // and everything else is still reachable.
+        if (this.cmCli) access += `; lo que no esté ahí, pedilo con \`${this.cmCli} read cm://...\` desde tu shell`;
+        break;
+      case 'cm-cli':
+        access = `pedí cualquier documento con \`${this.cmCli} read cm://...\` desde tu shell`;
         break;
       default:
         access = 'no tenés ninguna herramienta para traer documentos: lo que no esté incluido abajo es inalcanzable en esta corrida';
@@ -152,6 +161,11 @@ export class ContextAccessRenderer {
     const location = this.resolvePath(entry);
     if (location) return `> Está en \`${location}\` — leelo con tus herramientas de archivo.\n\n`;
 
+    // Reached when there is no tool and the file is not on this disk — the deployed-container case.
+    // Before task 28 this fell straight to inlining, and the model was told it had nothing while the
+    // reader sat on its `PATH`.
+    if (this.cmCli) return this.cmCliBlock(entry);
+
     return this.inlineBlock(entry);
   }
 
@@ -159,7 +173,13 @@ export class ContextAccessRenderer {
     if (!this.runtime) return 'legacy';
     if (this.cmReadTool) return 'cm-uri';
     if (this.hasTool(SKILL_TOOL_NAME) || this.hasTool(SOURCE_TOOL_NAME)) return 'profile-tools';
+    // Below `workspace-files` deliberately. A file that is really on disk is free and instant; the
+    // CLI costs a subprocess and a round trip. But a root that EXISTS is not proof the wiki is in
+    // it — `/app` in a container is the standing counter-example — so this coarse label is not the
+    // whole answer: `accessBlock` falls through to the CLI per entry whenever a path fails to
+    // resolve, and the `workspace-files` preamble names the CLI as the fallback for exactly that.
     if (this.roots.length > 0) return 'workspace-files';
+    if (this.cmCli) return 'cm-cli';
     return 'degraded';
   }
 
@@ -224,7 +244,23 @@ export class ContextAccessRenderer {
   }
 
   /**
-   * Last resort: the reader has no tool and no file. Degrade to `full` for this entry while the
+   * The same addresses as `cmUriBlock`, spoken through the shell instead of a tool call.
+   *
+   * The URI is deliberately identical: `cm://` is one address space, and an agent that learns the
+   * address here can reuse it verbatim the day its MCP wiring starts working. Only the verb changes.
+   */
+  private cmCliBlock(entry: ContextAccessEntry): string {
+    if (entry.kind === 'skill') {
+      const uri = `cm://skill/${entry.slug || entry.id}`;
+      return entry.hasCapabilities
+        ? `> Pedí solo lo que necesites con \`${this.cmCli} read cm://skill/<slug de la capacidad>\`, o la skill completa con \`${this.cmCli} read ${uri}\`.\n\n`
+        : `> Contenido disponible bajo demanda con \`${this.cmCli} read ${uri}\`.\n\n`;
+    }
+    return `> Contenido disponible bajo demanda con \`${this.cmCli} read cm://source/${entry.id}\`.\n\n`;
+  }
+
+  /**
+   * Last resort: the reader has no tool, no file and no CLI. Degrade to `full` for this entry while the
    * shared budget lasts; past it, say so instead of pointing at something unreachable.
    */
   private inlineBlock(entry: ContextAccessEntry): string {
