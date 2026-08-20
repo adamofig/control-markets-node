@@ -29,8 +29,15 @@ FROM node:22-slim AS production
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Instalar ca-certificates para peticiones HTTPS/SSL seguras de CLIs y SDKs
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+# `ca-certificates` para peticiones HTTPS/SSL seguras de CLIs y SDKs.
+#
+# `curl` y `jq` están acá por el agente, no por el servidor. Una skill le dice a un agente "hacé
+# `POST /api/ai-services/adapter/llm/describe-video`", y en la laptop eso funciona porque macOS trae
+# curl; dentro de este contenedor el mismo manual describía algo imposible. La alternativa era
+# improvisar un `node -e` con fetch en cada llamada — que funciona, pero convierte una instrucción
+# de una línea en un programa, y hace que el runtime desplegado se comporte distinto del local sin
+# ninguna razón de diseño detrás.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl jq && rm -rf /var/lib/apt/lists/*
 
 COPY --from=prod_deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
