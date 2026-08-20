@@ -25,6 +25,15 @@ export interface McpWiringPlan {
   scopes: McpScope[];
   /** Names the tools this session will see, so the context index can print them before connecting. */
   toolNames: string[];
+  /** The single organization this session's credential may reach. Also what `bin/cm` sends as `x-org-id`. */
+  orgId: string;
+  /**
+   * Whether the tools can actually be delivered to this engine *in this environment* — not whether
+   * we would like to deliver them. `false` empties `toolNames`, which is the whole point: task 28
+   * exists because the index named `cm_read` for an `agy` session whose config file could not be
+   * written, and nothing ever contrasted the promise with the fact.
+   */
+  toolsReachable: boolean;
 }
 
 /** The server name the agent sees its Control Markets tools grouped under. */
@@ -63,7 +72,50 @@ export function planMcpWiring(transport: McpTransportKind | undefined, orgId?: s
   // cannot say which organization it belongs to has nothing safe to be given.
   if (!orgId) return null;
   const scopes = resolveAgentSessionScopes();
-  return { transport, url: resolveMcpUrl(), scopes, toolNames: toolNamesForScopes(scopes) };
+  // The prediction is contrasted here, once, for both callers. `agy` is the only engine whose
+  // delivery can fail before the session exists (it needs a writable, parseable config file), so it
+  // is the only one that gets probed — read-only, never registering anything as a side effect.
+  const toolsReachable = transport === 'agy-config-stdio' ? canWireAgyMcpConfig() : true;
+  return {
+    transport,
+    url: resolveMcpUrl(),
+    scopes,
+    toolNames: toolsReachable ? toolNamesForScopes(scopes) : [],
+    orgId,
+    toolsReachable,
+  };
+}
+
+/**
+ * Can `ensureAgyMcpConfig` succeed here? Answered without writing anything.
+ *
+ * `describeRuntime` renders the context index before the session exists, so this is the only way the
+ * index can avoid naming tools an `agy` session will not get. The three ways delivery fails: the
+ * shim is not in the image, the config file holds something we refuse to overwrite, or its directory
+ * cannot be written. An absent or empty file is *not* a failure — that is the normal first run, and
+ * treating an empty file as malformed was the root cause of the 2026-08-20 homelab incident.
+ */
+export function canWireAgyMcpConfig(shimPath = resolveAgyShimPath(), configPath = resolveAgyMcpConfigPath()): boolean {
+  if (!fs.existsSync(shimPath)) return false;
+  return readAgyMcpConfig(configPath) !== null;
+}
+
+/**
+ * The config file as an object, or `null` when it holds something we must not clobber.
+ *
+ * Absent → `{}`. Empty or whitespace → `{}`: a zero-byte file is what a bind mount, a `touch` or an
+ * interrupted write leaves behind, and it contains no work of anybody's to protect. Only actual
+ * malformed JSON returns `null`, because that *is* somebody's hand-edit in progress.
+ */
+function readAgyMcpConfig(configPath: string): Record<string, any> | null {
+  try {
+    if (!fs.existsSync(configPath)) return {};
+    const raw = fs.readFileSync(configPath, 'utf8').trim();
+    if (!raw) return {};
+    return JSON.parse(raw) ?? {};
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -164,13 +216,12 @@ export function ensureAgyMcpConfig(shimPath = resolveAgyShimPath(), configPath =
     args: [shimPath],
   };
 
-  let current: any = {};
-  try {
-    if (fs.existsSync(configPath)) current = JSON.parse(fs.readFileSync(configPath, 'utf8')) ?? {};
-  } catch (error: any) {
+  const current = readAgyMcpConfig(configPath);
+  if (current === null) {
     // A malformed file is somebody's hand-edit in progress. Overwriting it would delete their work
     // and their other servers; the honest outcome is to leave agy without our tools and say why.
-    logger.error(`agy MCP config at ${configPath} is not valid JSON (${error.message}) — leaving it alone; agy sessions will run without Control Markets tools.`);
+    // An *empty* file is not that case and never reaches here — see `readAgyMcpConfig`.
+    logger.error(`agy MCP config at ${configPath} is not valid JSON — leaving it alone; agy sessions will run without Control Markets tools.`);
     return false;
   }
 
@@ -205,7 +256,11 @@ export function ensureAgyMcpConfig(shimPath = resolveAgyShimPath(), configPath =
 
 /** Environment the `agy` adapter — and through it `agy`, and through it the shim — inherits. */
 export function agyMcpEnv(plan: McpWiringPlan, token: string): Record<string, string> {
-  return { CM_MCP_URL: plan.url, CM_MCP_TOKEN: token };
+  // `CM_ORG_ID` is for `bin/cm`, not for MCP: every MCP tool resolves its tenant from the token and
+  // ignores this. It matters when the CLI ends up on a credential that carries no organization of
+  // its own (the master token of a container), which used to turn a read into a 404 against the
+  // synthetic `system_root` tenant instead of an answer.
+  return { CM_MCP_URL: plan.url, CM_MCP_TOKEN: token, CM_ORG_ID: plan.orgId };
 }
 
 /**
@@ -248,19 +303,11 @@ export function describeMcpWiring(transports: Record<string, McpTransportKind | 
   const shimPath = resolveAgyShimPath();
   const cmPath = resolveRepoFile(path.join('bin', 'cm'));
 
-  let configExists = false;
-  let configReadable = true;
-  let registered = false;
-  try {
-    configExists = fs.existsSync(configPath);
-    if (configExists) {
-      const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8')) ?? {};
-      const entry = parsed?.mcpServers?.[CM_MCP_SERVER_NAME];
-      registered = entry?.command === process.execPath && JSON.stringify(entry?.args) === JSON.stringify([shimPath]);
-    }
-  } catch {
-    configReadable = false;
-  }
+  const configExists = fs.existsSync(configPath);
+  const parsed = readAgyMcpConfig(configPath);
+  const configReadable = parsed !== null;
+  const entry = parsed?.mcpServers?.[CM_MCP_SERVER_NAME];
+  const registered = entry?.command === process.execPath && JSON.stringify(entry?.args) === JSON.stringify([shimPath]);
 
   return {
     enabled: isMcpWiringEnabled(),

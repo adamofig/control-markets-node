@@ -8,11 +8,16 @@
  *   cm read cm://skill/agent-profile-specs:sync
  *   cm read cm://source/6a52a32f1aac54b41b78f2bb > /tmp/doc.md
  *   cm read cm://task/<id> --json
+ *   cm read cm://skill/<slug> --org 6a27c95e18f26467e443f298
  *
  * Environment:
  *   CONTROL_MARKETS_BACKEND_URL   default: CM_MCP_URL without its /mcp suffix, else localhost:8121
  *   CONTROL_MARKETS_PAT           the `cm_pat_*` token (CONTROL_MARKETS_TOKEN / CM_PAT also read)
  *                                 inside an ACP session, CM_MCP_TOKEN (the session's `cm_eat_*`)
+ *   CM_ORG_ID                     the organization to read as (CONTROL_MARKETS_ORG_ID also read).
+ *                                 Only consulted by tokens that carry no organization of their own;
+ *                                 a `cm_pat_*` or `cm_eat_*` already knows its tenant and the
+ *                                 server ignores the header for them.
  *
  * **It speaks HTTP, not Mongo, on purpose.** Handing an agent database credentials would couple it
  * to the schema — every migration would break every agent at once — and would put the organization
@@ -92,9 +97,14 @@ const TOKEN =
   process.env.SYSTEM_MASTER_TOKEN ||
   process.env.CONTROL_MASTER_TOKEN;
 
+// The master token authenticates as a platform principal with no tenant of its own, so without this
+// the server has nothing to scope the read by. It used to substitute the caller's user id, which
+// turned "you did not say which organization" into a 404 on a document that exists.
+const ENV_ORG_ID = process.env.CM_ORG_ID || process.env.CONTROL_MARKETS_ORG_ID || process.env.ORG_ID;
+
 const USAGE = `cm — lector universal de Control Markets
 
-  cm read <cm://...> [--json] [--profile <id>]
+  cm read <cm://...> [--json] [--profile <id>] [--org <orgId>]
 
 Direcciones:
   cm://skill/<bundle>                        la skill y el índice de sus capacidades
@@ -104,7 +114,7 @@ Direcciones:
   cm://task/<id>                             tarea con sus subtareas
   cm://profile/<id>/context                  contexto compilado de otro agente
 
-Entorno: CONTROL_MARKETS_BACKEND_URL, CONTROL_MARKETS_PAT`;
+Entorno: CONTROL_MARKETS_BACKEND_URL, CONTROL_MARKETS_PAT, CM_ORG_ID`;
 
 const die = (message, code = 1) => {
   process.stderr.write(`${message}\n`);
@@ -112,7 +122,10 @@ const die = (message, code = 1) => {
 };
 
 async function read(args) {
-  const uri = args.find(arg => !arg.startsWith('--'));
+  // Skip the values of flags that take one, so `cm read --org <id> cm://...` finds the address.
+  const flagsWithValue = ['--profile', '--org'];
+  const positional = args.filter((arg, i) => !arg.startsWith('--') && !flagsWithValue.includes(args[i - 1]));
+  const uri = positional[0];
   if (!uri) die(USAGE, 2);
   if (!TOKEN) die('Falta el token: exportá CONTROL_MARKETS_PAT con tu `cm_pat_*`.', 2);
 
@@ -120,9 +133,16 @@ async function read(args) {
   const params = new URLSearchParams({ uri });
   if (profileIndex >= 0 && args[profileIndex + 1]) params.set('profileId', args[profileIndex + 1]);
 
-  const response = await fetch(`${BASE_URL}/api/cm/resource?${params}`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
-  });
+  // The organization travels in a header, never in the query string, for the same reason the
+  // controller refuses `?orgId=`: the address is public, the identity is not. The server validates
+  // membership before honouring it, so this is a request, not an assertion.
+  const orgIndex = args.indexOf('--org');
+  const orgId = (orgIndex >= 0 && args[orgIndex + 1]) || ENV_ORG_ID;
+
+  const headers = { Authorization: `Bearer ${TOKEN}` };
+  if (orgId) headers['x-org-id'] = orgId;
+
+  const response = await fetch(`${BASE_URL}/api/cm/resource?${params}`, { headers });
   const body = await response.text();
 
   if (!response.ok) {

@@ -274,7 +274,7 @@ describe('cross-organization isolation, at every door', () => {
   describe('door 3 — the REST controller (which is also what bin/cm calls)', () => {
     it.each(CASES)('%s of org A is not found for org B', async (_label, uri) => {
       const controller = new CmResourcesController(makeResolver());
-      await expect(controller.readResource(uri, 'p1', ORG_B, {} as any)).rejects.toThrow();
+      await expect(controller.readResource(uri, 'p1', ORG_B)).rejects.toThrow();
     });
 
     it('the organization comes from the request context, never from a query parameter', async () => {
@@ -282,8 +282,17 @@ describe('cross-organization isolation, at every door', () => {
       const spy = jest.spyOn(resolver, 'read');
       const controller = new CmResourcesController(resolver);
       // `orgId` is not even in the handler signature as a query param — the only way in is `@OrgId()`.
-      await controller.readResource('cm://source/src1', undefined, ORG_A, {} as any);
+      await controller.readResource('cm://source/src1', undefined, ORG_A);
       expect(spy).toHaveBeenCalledWith('cm://source/src1', { orgId: ORG_A, profileId: undefined });
+    });
+
+    // Task 28: this used to read `orgId || token.userId`. Under the platform master token that is
+    // the synthetic `system_root` principal, so a request with no organization became a lookup in a
+    // tenant that owns nothing and came back 404 — a lie about the document instead of the truth
+    // about the request. `bin/cm` in the homelab container spent three attempts on that 404.
+    it('a request with no organization is a 400 about the request, not a 404 about the document', async () => {
+      const controller = new CmResourcesController(makeResolver());
+      await expect(controller.readResource('cm://source/src1', undefined, undefined)).rejects.toThrow(BadRequestException);
     });
 
     it('the deprecated aliases keep working for org A — nothing regressed for current consumers', async () => {

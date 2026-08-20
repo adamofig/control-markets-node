@@ -1,7 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AppGuard } from '@dataclouder/nest-core';
-import { AppToken, DecodedToken } from '@dataclouder/nest-auth';
 import { ProjectAuthGuard } from '../user/project-auth.guard';
 import { OrgId } from '../common/org-id.decorator';
 import { CmResourceResolver } from './cm-resource.resolver';
@@ -30,15 +29,15 @@ export class CmResourcesController {
       'Single read verb over the `cm://` address space. Same URI, same document as the `cmRead` tool and `bin/cm read`.',
   })
   @ApiResponse({ status: 200, description: 'The resolved resource.' })
-  @ApiResponse({ status: 400, description: 'Malformed cm:// address.' })
+  @ApiResponse({ status: 400, description: 'Malformed cm:// address, or no organization in the request.' })
   @ApiResponse({ status: 404, description: 'No such resource in the caller organization.' })
-  async readResource(
-    @Query('uri') uri: string,
-    @Query('profileId') profileId?: string,
-    @OrgId() orgId?: string,
-    @DecodedToken() token?: AppToken,
-  ): Promise<CmResource> {
-    const resolvedOrgId = orgId || token?.userId || (token as any)?.id || (token as any)?.uid;
-    return this.resolver.read(uri, { orgId: resolvedOrgId, profileId });
+  async readResource(@Query('uri') uri: string, @Query('profileId') profileId?: string, @OrgId() orgId?: string): Promise<CmResource> {
+    // **No fallback to the caller's user id.** It used to read `orgId || token.userId`, which looks
+    // defensive and is the opposite: the platform master token authenticates as the synthetic
+    // `system_root` principal, so a request that simply forgot its organization silently became a
+    // lookup in a tenant that owns nothing, and every read came back `404 not found` — a lie about
+    // the document instead of the truth about the request. The resolver already rejects a missing
+    // `orgId` with `400`; letting it do so is the whole fix (task 28).
+    return this.resolver.read(uri, { orgId, profileId });
   }
 }

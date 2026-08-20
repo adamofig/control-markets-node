@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { buildAcpMcpServers, CM_MCP_SERVER_NAME, describeMcpWiring, ensureAgyMcpConfig, planMcpWiring, resolveAgyShimPath, resolveMcpUrl } from './acp-mcp-wiring';
+import { buildAcpMcpServers, canWireAgyMcpConfig, CM_MCP_SERVER_NAME, describeMcpWiring, ensureAgyMcpConfig, planMcpWiring, resolveAgyShimPath, resolveMcpUrl } from './acp-mcp-wiring';
 import { MCP_SCOPES } from '../mcp/mcp-scopes';
 
 describe('ACP ↔ MCP wiring', () => {
@@ -129,6 +129,24 @@ describe('ACP ↔ MCP wiring', () => {
       expect(readFileSync(configPath, 'utf8')).toBe('{ this is not json');
     });
 
+    // The 2026-08-20 homelab incident, in one test. `/root/.gemini/config/mcp_config.json` existed
+    // and measured zero bytes — a bind mount, a `touch`, an interrupted write. `JSON.parse('')`
+    // threw, the registration aborted, the session's token was revoked, and the agent spent 23 steps
+    // looking for a wiki that is not in the container.
+    it('treats an empty file as a first run, not as somebody\'s hand-edit', () => {
+      writeFileSync(configPath, '');
+
+      expect(ensureAgyMcpConfig('/shim.mjs', configPath)).toBe(true);
+      expect(JSON.parse(readFileSync(configPath, 'utf8')).mcpServers[CM_MCP_SERVER_NAME]).toBeDefined();
+    });
+
+    it('treats a whitespace-only file the same way', () => {
+      writeFileSync(configPath, '\n  \n');
+
+      expect(ensureAgyMcpConfig('/shim.mjs', configPath)).toBe(true);
+      expect(JSON.parse(readFileSync(configPath, 'utf8')).mcpServers[CM_MCP_SERVER_NAME]).toBeDefined();
+    });
+
     it('leaves the file belonging to whoever owned it', () => {
       // The homelab mounts the host user's ~/.gemini into a container that runs as root. A plain
       // atomic replace would hand that person their own config back as a root-owned 0600 file.
@@ -147,6 +165,58 @@ describe('ACP ↔ MCP wiring', () => {
       expect(readFileSync(configPath, 'utf8')).toBe(first);
     });
   });
+  describe('canWireAgyMcpConfig — the promise contrasted before it is made', () => {
+    let dir: string;
+    let configPath: string;
+
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), 'agy-mcp-probe-'));
+      configPath = join(dir, 'mcp_config.json');
+      writeFileSync(join(dir, 'shim.mjs'), '');
+    });
+
+    afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+    it('says yes when the file does not exist yet — that is the normal first run', () => {
+      expect(canWireAgyMcpConfig(join(dir, 'shim.mjs'), configPath)).toBe(true);
+    });
+
+    it('says yes for an empty file', () => {
+      writeFileSync(configPath, '');
+      expect(canWireAgyMcpConfig(join(dir, 'shim.mjs'), configPath)).toBe(true);
+    });
+
+    it('says no for a malformed file, the one case we refuse to overwrite', () => {
+      writeFileSync(configPath, '{ nope');
+      expect(canWireAgyMcpConfig(join(dir, 'shim.mjs'), configPath)).toBe(false);
+    });
+
+    it('says no when the shim is not in this image', () => {
+      expect(canWireAgyMcpConfig(join(dir, 'missing-shim.mjs'), configPath)).toBe(false);
+    });
+
+    it('does not create or touch the config as a side effect of being asked', () => {
+      canWireAgyMcpConfig(join(dir, 'shim.mjs'), configPath);
+      expect(existsSync(configPath)).toBe(false);
+    });
+
+    it('empties the tool names of a plan whose delivery cannot happen — the whole point of task 28', () => {
+      writeFileSync(configPath, '{ nope');
+      process.env.AGY_MCP_CONFIG_PATH = configPath;
+      // The context index is rendered from `toolNames` before the session exists. Naming `cm_read`
+      // here is what made the agent look for a tool it would never be given.
+      const plan = planMcpWiring('agy-config-stdio', 'org-1');
+      expect(plan?.toolsReachable).toBe(false);
+      expect(plan?.toolNames).toEqual([]);
+    });
+
+    it('still carries the organization, so `bin/cm` has a tenant even with no tools', () => {
+      writeFileSync(configPath, '{ nope');
+      process.env.AGY_MCP_CONFIG_PATH = configPath;
+      expect(planMcpWiring('agy-config-stdio', 'org-1')?.orgId).toBe('org-1');
+    });
+  });
+
   describe('describeMcpWiring', () => {
     // The endpoint an operator hits before deciding whether a deployment is wired. A diagnostic that
     // repaired what it measures could not answer that question, so this is the load-bearing test.

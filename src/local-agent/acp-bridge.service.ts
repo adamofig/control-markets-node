@@ -532,6 +532,10 @@ export class AcpBridgeService implements OnModuleDestroy {
     const bridgeSessionId = existing?.id ?? sessionId ?? randomUUID();
     const mcpPlan = planMcpWiring(config.mcpTransport, runtimeOptions.orgId);
     let mcpToken: string | undefined;
+    // Whether the tools reached the engine, as opposed to whether a token was minted. The two came
+    // apart in task 28 and conflating them is what let the context promise `cm_read` to a session
+    // that never got it.
+    let mcpToolsWired = !!mcpPlan;
     if (mcpPlan) {
       // A respawn of the same bridge session invalidates the previous grant first: the old
       // subprocess is gone, so its token is a credential with nothing behind it.
@@ -550,14 +554,20 @@ export class AcpBridgeService implements OnModuleDestroy {
         // `agy` reads its servers from a file and has nowhere to put a header, so the entry names
         // the shim and the environment supplies the identity. If the file cannot be written the
         // session simply runs without our tools — never with an unauthenticated server.
-        if (ensureAgyMcpConfig()) {
-          Object.assign(env, agyMcpEnv(mcpPlan, mcpToken));
-        } else {
-          this.agentTokens.revoke(mcpToken);
-          mcpToken = undefined;
-        }
+        mcpToolsWired = ensureAgyMcpConfig();
+        // The environment is exported either way, and that is deliberate. Revoking the grant on a
+        // failed registration (task 28) did not make the session safer — it made it *worse*: the
+        // one door left, `bin/cm`, fell back to the container's master token, which carries no
+        // organization, and every read 404'd against the synthetic `system_root` tenant. The
+        // ephemeral token is the weakest credential available and it is the one that knows which
+        // organization this agent is; the CLI should keep it whether or not MCP came up.
+        Object.assign(env, agyMcpEnv(mcpPlan, mcpToken));
       }
-      onProgress?.(mcpToken ? `Conectando herramientas de Control Markets (${mcpPlan.toolNames.length})...` : 'Sin herramientas de Control Markets en esta sesión.');
+      onProgress?.(
+        mcpToolsWired && mcpPlan.toolsReachable
+          ? `Conectando herramientas de Control Markets (${mcpPlan.toolNames.length})...`
+          : 'Sin herramientas de Control Markets en esta sesión; el lector `cm` sigue disponible.',
+      );
     }
 
     if (resolvedEngine === 'claude') {
@@ -626,7 +636,10 @@ export class AcpBridgeService implements OnModuleDestroy {
       contextSent: existing?.contextSent ?? false,
       runtimeOptions: existing?.runtimeOptions ?? runtimeOptions,
       mcpToken,
-      mcpTools: mcpToken && mcpPlan ? mcpPlan.toolNames : [],
+      // `mcpToolsWired`, not `mcpToken`: the grant can outlive a failed registration on purpose
+      // (it still feeds `bin/cm`), and reporting tools that the engine never received is the exact
+      // divergence task 28 is about.
+      mcpTools: mcpToolsWired && mcpPlan ? mcpPlan.toolNames : [],
       turnCostUsd: undefined,
       lastUsedAt: Date.now(),
     };
